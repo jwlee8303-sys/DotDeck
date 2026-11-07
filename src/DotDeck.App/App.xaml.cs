@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Security.Principal;
 using System.Windows;
 using System.Windows.Threading;
@@ -7,6 +7,7 @@ using DotDeck.App.Infrastructure.Windows;
 using DotDeck.App.ViewModels;
 using DotDeck.App.Views;
 using DotDeck.Core.Explorer;
+using DotDeck.Core.FileOperations;
 using DotDeck.Core.Files;
 using DotDeck.Core.Logging;
 using DotDeck.Core.Paths;
@@ -65,7 +66,8 @@ public partial class App : Application
                 new SessionStateStore(store, paths.SessionFile, _log),
                 new ClipboardService(),
                 new ShellLauncher(),
-                new DialogService());
+                new DialogService(),
+                new FileOperationService(store, new WindowsRecycleBin(_log), new FileOperationHistory()));
             var shell = new ShellViewModel(services, version, IsAdministrator());
 
             var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log));

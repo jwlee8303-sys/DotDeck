@@ -6,6 +6,7 @@ using DotDeck.App.ViewModels.Documents;
 using DotDeck.App.ViewModels.Explorer;
 using DotDeck.App.ViewModels.Tools;
 using DotDeck.Core.Explorer;
+using DotDeck.Core.FileOperations;
 using DotDeck.Core.Files;
 using DotDeck.Core.Logging;
 using DotDeck.Core.Paths;
@@ -22,7 +23,8 @@ public sealed record ShellServices(
     SessionStateStore Session,
     IClipboardService Clipboard,
     IShellLauncher Shell,
-    IDialogService Dialogs);
+    IDialogService Dialogs,
+    FileOperationService FileOperations);
 
 /// <summary>Root view model: owns the documents and tool panes bound to the docking manager.</summary>
 public sealed partial class ShellViewModel : ObservableObject
@@ -40,7 +42,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
         var explorerContext = new ExplorerContext(
             new ProjectRegistryGateway(services.Registry), services.Paths, services.Store, services.Clipboard,
-            services.Shell, services.Dialogs, services.Log, message => StatusMessage = message);
+            services.Shell, services.Dialogs,
+            new ExplorerFileOperations(services.FileOperations, services.Dialogs, services.Log, message => StatusMessage = message),
+            services.Log, message => StatusMessage = message);
         Properties = new PropertiesPaneViewModel();
         Output = new OutputPaneViewModel(services.Log);
         Validation = new ValidationPaneViewModel();

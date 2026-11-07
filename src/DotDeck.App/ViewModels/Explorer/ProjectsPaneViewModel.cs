@@ -51,6 +51,40 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
     private ProjectRegistry Registry => _context.Registry.Registry;
 
     /// <summary>
+    /// Refreshes every explorer (attached or detached) that shows an involved path, and selects the operation's
+    /// first result where it appears. Raised on the UI thread by <see cref="ExplorerFileOperations"/>.
+    /// </summary>
+    private async void OnFileOperationCompleted(object? sender, FileOperationCompleted e)
+    {
+        try
+        {
+            var tasks = new List<Task>();
+            foreach (var explorer in _explorers.ToList())
+            {
+                if (!e.RefreshAll && !e.InvolvedPaths.Any(p => explorer.ContainsPath(p) || IsInside(explorer.Source.RootPath, p)))
+                {
+                    continue;
+                }
+
+                var select = e.ResultPaths.FirstOrDefault(explorer.ContainsPath);
+                tasks.Add(explorer.RefreshAfterOperationAsync(select));
+            }
+
+            await Task.WhenAll(tasks);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // async void: never let a refresh failure escape to the dispatcher.
+            _context.Log.Error("파일 작업 후 트리를 새로 고치지 못했습니다.", ex);
+        }
+    }
+
+    /// <summary>True when the project root lies inside a moved/deleted folder.</summary>
+    private static bool IsInside(string? root, string path) =>
+        root is not null
+        && Path.TrimEndingDirectorySeparator(root).StartsWith(Path.TrimEndingDirectorySeparator(path) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Creates the panes of explorers that were detached last time, before the docking layout is restored,
     /// so the layout can find them by ContentId. Their explorers are filled in by <see cref="InitializeAsync"/>.
     /// </summary>
@@ -70,6 +104,7 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
     {
         _initialized = true;
         Registry.Changed += OnRegistryChanged;
+        _context.FileOps.Completed += OnFileOperationCompleted;
         await SyncProjectsAsync();
 
         // Panes prepared for projects that did not come back (removed/hidden meanwhile) are dropped.

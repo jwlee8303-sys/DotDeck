@@ -24,6 +24,16 @@
             <Setter Property="Foreground" Value="{DynamicResource DD.Brush.Text.Secondary}" />
         </Style>
 
+        <!-- In-place name editor (rename, new item). Enter commits, Esc cancels, leaving the box commits. -->
+        <Style x:Key="InlineEditor" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Margin" Value="3,0,0,0" />
+            <Setter Property="Padding" Value="1,0" />
+            <Setter Property="MinWidth" Value="140" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <EventSetter Event="KeyDown" Handler="OnEditorKeyDown" />
+            <EventSetter Event="LostKeyboardFocus" Handler="OnEditorLostFocus" />
+        </Style>
+
         <!-- Small flat button in the project header toolbar -->
         <Style x:Key="HeaderButton" TargetType="ButtonBase">
             <Setter Property="Width" Value="20" />
@@ -58,9 +68,14 @@
 
         <!-- ===== Project header ===== -->
         <DataTemplate DataType="{x:Type ex:ProjectHeaderRowViewModel}">
+            <Border x:Name="DropBd" BorderThickness="1" BorderBrush="Transparent">
             <Grid x:Name="Root" Background="Transparent" ToolTip="{Binding RootPath}">
                 <Grid.ContextMenu>
-                    <ContextMenu>
+                    <ContextMenu Opened="OnContextMenuOpened">
+                        <MenuItem Header="새 파일(_W)" Command="{Binding Explorer.List.NewFileCommand}" />
+                        <MenuItem Header="새 폴더(_F)" Command="{Binding Explorer.List.NewFolderCommand}" />
+                        <MenuItem Header="붙여넣기(_P)" Command="{Binding Explorer.List.PasteCommand}" InputGestureText="Ctrl+V" />
+                        <Separator />
                         <MenuItem Header="프로젝트 편집(_E)..." Command="{Binding Explorer.EditProjectCommand}" />
                         <MenuItem Header="숨기기(_H)" Command="{Binding Explorer.HideProjectCommand}" />
                         <Separator />
@@ -73,6 +88,8 @@
                         <Separator />
                         <MenuItem Header="루트 경로 복사(_C)" Command="{Binding Explorer.CopyRootPathCommand}" />
                         <MenuItem Header="탐색기에서 열기(_X)" Command="{Binding Explorer.RevealRootCommand}" />
+                        <MenuItem Header="VS Code로 열기(_V)" Command="{Binding Explorer.List.OpenInVsCodeCommand}" />
+                        <MenuItem Header="여기서 터미널 열기(_L)" Command="{Binding Explorer.List.OpenTerminalCommand}" />
                         <MenuItem Header="새로고침(_R)" Command="{Binding Explorer.LoadCommand}" />
                         <Separator Visibility="{Binding Explorer.IsBuiltin, Converter={StaticResource FalseToVisible}}" />
                         <MenuItem Header="목록에서 제거(_M)..." Command="{Binding Explorer.RemoveProjectCommand}"
@@ -110,7 +127,11 @@
                     </Button>
                 </StackPanel>
             </Grid>
+            </Border>
             <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
+                    <Setter TargetName="DropBd" Property="BorderBrush" Value="{DynamicResource DD.Brush.Accent}" />
+                </DataTrigger>
                 <DataTrigger Binding="{Binding IsCollapsed}" Value="True">
                     <Setter TargetName="HeaderChevron" Property="Text" Value="&#xE76C;" />
                 </DataTrigger>
@@ -129,6 +150,7 @@
 
         <!-- ===== Node ===== -->
         <DataTemplate DataType="{x:Type ex:NodeRowViewModel}">
+            <Border x:Name="DropBd" BorderThickness="1" BorderBrush="Transparent">
             <StackPanel x:Name="Root" Orientation="Horizontal" Margin="{Binding Depth, Converter={StaticResource Indent}}"
                         Background="Transparent" ToolTip="{Binding ToolTipText}" IsEnabled="{Binding IsEnabled}">
                 <TextBlock x:Name="NodeChevron" Style="{StaticResource Chevron}" Text="" />
@@ -136,12 +158,22 @@
                            Text="{Binding Node.FileKind, Converter={StaticResource FileGlyph}}"
                            Foreground="{DynamicResource DD.Brush.FileKind.Text}" />
                 <TextBlock x:Name="Label" Text="{Binding Name}" Margin="4,0,0,0" VerticalAlignment="Center" />
+                <TextBox x:Name="Editor" Style="{StaticResource InlineEditor}" Visibility="Collapsed"
+                         Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock x:Name="Lock" Style="{StaticResource RowGlyph}" FontSize="11" Text="&#xE72E;" Margin="4,0,0,0"
                            Foreground="{DynamicResource DD.Brush.FileKind.Secret}" Visibility="Collapsed" />
                 <TextBlock x:Name="Warn" Style="{StaticResource RowGlyph}" FontSize="11" Text="&#xE7BA;" Margin="4,0,0,0"
                            Foreground="{DynamicResource DD.Brush.Warning}" />
             </StackPanel>
+            </Border>
             <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                    <Setter TargetName="Label" Property="Visibility" Value="Collapsed" />
+                    <Setter TargetName="Editor" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
+                    <Setter TargetName="DropBd" Property="BorderBrush" Value="{DynamicResource DD.Brush.Accent}" />
+                </DataTrigger>
                 <!-- Folders -->
                 <DataTrigger Binding="{Binding IsFolder}" Value="True">
                     <Setter TargetName="NodeChevron" Property="Text" Value="&#xE76C;" />
@@ -216,6 +248,27 @@
             </DataTemplate.Triggers>
         </DataTemplate>
 
+        <!-- ===== New item placeholder ===== -->
+        <DataTemplate DataType="{x:Type ex:NewItemRowViewModel}">
+            <StackPanel Orientation="Horizontal" Margin="{Binding Depth, Converter={StaticResource Indent}}">
+                <TextBlock Style="{StaticResource Chevron}" Text="" />
+                <TextBlock x:Name="Icon" Style="{StaticResource RowGlyph}" Text="&#xE8A5;"
+                           Foreground="{DynamicResource DD.Brush.FileKind.Text}" />
+                <TextBox x:Name="Editor" Style="{StaticResource InlineEditor}" Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="이름 입력 후 Enter (Esc: 취소)" />
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <!-- Hidden while the create runs; shown (and refocused) again if it failed. -->
+                <DataTrigger Binding="{Binding IsEditing}" Value="False">
+                    <Setter TargetName="Editor" Property="Visibility" Value="Hidden" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsFolder}" Value="True">
+                    <Setter TargetName="Icon" Property="Text" Value="&#xE8B7;" />
+                    <Setter TargetName="Icon" Property="Foreground" Value="{DynamicResource DD.Brush.FileKind.Folder}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
         <!-- ===== Message ===== -->
         <DataTemplate DataType="{x:Type ex:MessageRowViewModel}">
             <StackPanel Orientation="Horizontal" Margin="22,0,0,0">
@@ -284,7 +337,38 @@
                  VirtualizingPanel.IsVirtualizing="True"
                  VirtualizingPanel.VirtualizationMode="Recycling"
                  VirtualizingPanel.ScrollUnit="Item"
-                 PreviewKeyDown="OnTreePreviewKeyDown">
+                 AllowDrop="True"
+                 PreviewKeyDown="OnTreePreviewKeyDown"
+                 SelectionChanged="OnTreeSelectionChanged"
+                 PreviewMouseMove="OnTreePreviewMouseMove"
+                 PreviewMouseLeftButtonUp="OnTreePreviewMouseUp"
+                 DragOver="OnTreeDragOver"
+                 DragLeave="OnTreeDragLeave"
+                 Drop="OnTreeDrop">
+            <ListBox.ContextMenu>
+                <ContextMenu Opened="OnContextMenuOpened">
+                    <MenuItem Header="열기(_O)" Command="{Binding OpenSelectedCommand}" InputGestureText="Enter" />
+                    <Separator />
+                    <MenuItem Header="새 파일(_W)" Command="{Binding NewFileCommand}" />
+                    <MenuItem Header="새 폴더(_F)" Command="{Binding NewFolderCommand}" />
+                    <Separator />
+                    <MenuItem Header="잘라내기(_T)" Command="{Binding CutCommand}" InputGestureText="Ctrl+X" />
+                    <MenuItem Header="복사(_C)" Command="{Binding CopyCommand}" InputGestureText="Ctrl+C" />
+                    <MenuItem Header="붙여넣기(_P)" Command="{Binding PasteCommand}" InputGestureText="Ctrl+V" />
+                    <MenuItem Header="복제(_D)" Command="{Binding DuplicateCommand}" InputGestureText="Ctrl+D" />
+                    <MenuItem Header="이름 바꾸기(_M)" Command="{Binding RenameCommand}" InputGestureText="F2" />
+                    <MenuItem Header="삭제(_E)" Command="{Binding DeleteCommand}" InputGestureText="Del" />
+                    <Separator />
+                    <MenuItem Header="{Binding UndoText}" Command="{Binding UndoCommand}" InputGestureText="Ctrl+Z" />
+                    <MenuItem Header="{Binding RedoText}" Command="{Binding RedoCommand}" InputGestureText="Ctrl+Y" />
+                    <Separator />
+                    <MenuItem Header="전체 경로 복사(_A)" Command="{Binding CopyFullPathsCommand}" InputGestureText="Ctrl+Shift+C" />
+                    <MenuItem Header="상대 경로 복사(_R)" Command="{Binding CopyRelativePathsCommand}" />
+                    <MenuItem Header="탐색기에서 열기(_X)" Command="{Binding RevealSelectedCommand}" />
+                    <MenuItem Header="VS Code로 열기(_V)" Command="{Binding OpenInVsCodeCommand}" />
+                    <MenuItem Header="여기서 터미널 열기(_L)" Command="{Binding OpenTerminalCommand}" />
+                </ContextMenu>
+            </ListBox.ContextMenu>
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
                     <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />

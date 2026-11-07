@@ -11,6 +11,9 @@ public interface IDialogService
     /// <summary>Asks a yes/no question; the default (Enter) answer is "no" for destructive questions.</summary>
     bool Confirm(string title, string message);
 
+    /// <summary>Shows an error message.</summary>
+    void ShowError(string title, string message);
+
     /// <summary>Folder picker. Returns null when cancelled.</summary>
     string? PickFolder(string title, string? initialDirectory);
 }

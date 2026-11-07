@@ -20,6 +20,18 @@ public abstract partial class ExplorerRowViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isSelected;
+
+    /// <summary>Highlighted while a drag hovers over the folder it would drop into.</summary>
+    [ObservableProperty]
+    private bool _isDropTarget;
+}
+
+/// <summary>A row whose name is being typed in place (rename, or a new item).</summary>
+public interface IEditableRow
+{
+    bool IsEditing { get; set; }
+
+    string EditText { get; set; }
 }
 
 /// <summary>Project section header: name, color, collapse toggle and the explorer toolbar.</summary>
@@ -51,8 +63,18 @@ public sealed partial class ProjectHeaderRowViewModel : ExplorerRowViewModel
 }
 
 /// <summary>A file, folder or virtual node.</summary>
-public sealed partial class NodeRowViewModel : ExplorerRowViewModel
+public sealed partial class NodeRowViewModel : ExplorerRowViewModel, IEditableRow
 {
+    /// <summary>True while the name is edited in place (F2).</summary>
+    [ObservableProperty]
+    private bool _isEditing;
+
+    [ObservableProperty]
+    private string _editText = string.Empty;
+
+    /// <summary>A file system item (not a virtual node) that file operations can act on.</summary>
+    public bool IsFileSystemItem => Node.Kind != NodeKind.Virtual && Node.FullPath is not null;
+
     public NodeRowViewModel(ExplorerViewModel explorer, NodeInfo node, int depth, bool isExpanded, string? error)
         : base(explorer, depth)
     {
@@ -88,6 +110,27 @@ public sealed partial class NodeRowViewModel : ExplorerRowViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToolTipText))]
     private string? _error;
+}
+
+/// <summary>Placeholder row where the name of a new file or folder is typed (removed on commit or cancel).</summary>
+public sealed partial class NewItemRowViewModel : ExplorerRowViewModel, IEditableRow
+{
+    public NewItemRowViewModel(ExplorerViewModel explorer, int depth, string parentDirectory, bool isFolder)
+        : base(explorer, depth)
+    {
+        ParentDirectory = parentDirectory;
+        IsFolder = isFolder;
+    }
+
+    public string ParentDirectory { get; }
+
+    public bool IsFolder { get; }
+
+    [ObservableProperty]
+    private bool _isEditing = true;
+
+    [ObservableProperty]
+    private string _editText = string.Empty;
 }
 
 /// <summary>Informational row inside a project ("폴더 없음 — 만들기", "(비어 있음)", errors).</summary>

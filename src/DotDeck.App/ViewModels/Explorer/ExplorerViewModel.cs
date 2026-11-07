@@ -19,6 +19,7 @@ public sealed record ExplorerContext(
     IClipboardService Clipboard,
     IShellLauncher Shell,
     IDialogService Dialogs,
+    ExplorerFileOperations FileOps,
     IAppLog Log,
     Action<string> SetStatus);
 
@@ -34,6 +35,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
     private readonly HashSet<string> _expanded = new(ExplorerTreeBuilder.KeyComparer);
     private int _loadVersion;
     private string? _pendingSelectionKey;
+    private string? _selectionOverride;
 
     public ExplorerViewModel(
         ExplorerContext context,
@@ -141,8 +143,14 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 }
             }
 
-            // A refresh replaces the row objects: carry the selection as it is right now over by key.
-            if (BodyRows.OfType<NodeRowViewModel>().FirstOrDefault(r => r.IsSelected) is { } selected)
+            // A refresh replaces the row objects: carry the selection as it is right now over by key,
+            // unless a file operation asked to select its result.
+            if (_selectionOverride is { } requested)
+            {
+                _pendingSelectionKey = requested;
+                _selectionOverride = null;
+            }
+            else if (BodyRows.OfType<NodeRowViewModel>().FirstOrDefault(r => r.IsSelected) is { } selected)
             {
                 _pendingSelectionKey = selected.Key;
             }
@@ -167,6 +175,110 @@ public sealed partial class ExplorerViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>True when <paramref name="path"/> is this project's root or inside it.</summary>
+    public bool ContainsPath(string path)
+    {
+        if (Source.RootPath is not { } root)
+        {
+            return false;
+        }
+
+        var full = Path.TrimEndingDirectorySeparator(path);
+        var rootFull = Path.TrimEndingDirectorySeparator(root);
+
+        // A drive root ("D:\") keeps its separator, so only add one when it is missing.
+        var prefix = Path.EndsInDirectorySeparator(rootFull) ? rootFull : rootFull + Path.DirectorySeparatorChar;
+        return string.Equals(full, rootFull, StringComparison.OrdinalIgnoreCase)
+            || full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Tree key (path relative to the root) of a path inside this project, or null.</summary>
+    public string? KeyOfPath(string path)
+    {
+        if (Source.RootPath is not { } root || !ContainsPath(path))
+        {
+            return null;
+        }
+
+        var relative = Path.GetRelativePath(root, path);
+        return relative == "." ? null : relative;
+    }
+
+    /// <summary>
+    /// Reloads after a file operation. When <paramref name="selectPath"/> is inside this project, its folders are
+    /// expanded so it is visible and it becomes the selection.
+    /// </summary>
+    public Task RefreshAfterOperationAsync(string? selectPath)
+    {
+        if (selectPath is not null && KeyOfPath(selectPath) is { } key)
+        {
+            for (var parent = Path.GetDirectoryName(key); !string.IsNullOrEmpty(parent); parent = Path.GetDirectoryName(parent))
+            {
+                _expanded.Add(parent);
+            }
+
+            _selectionOverride = key;
+        }
+
+        return LoadAsync();
+    }
+
+    /// <summary>
+    /// Inserts a row for typing a new item's name inside <paramref name="parent"/> (a folder row, or null for the
+    /// project root). The folder is expanded first so the new row appears among its children.
+    /// </summary>
+    public async Task<NewItemRowViewModel?> BeginNewItemAsync(NodeRowViewModel? parent, bool isFolder)
+    {
+        var directory = parent?.Node.FullPath ?? Source.RootPath;
+        // Off the UI thread: a disconnected network folder can block for a long time.
+        var store = _context.Store;
+        if (directory is null || !await Task.Run(() => store.DirectoryExists(directory)))
+        {
+            _context.SetStatus("이 위치에는 새 항목을 만들 수 없습니다.");
+            return null;
+        }
+
+        if (Header.IsCollapsed)
+        {
+            await SetCollapsedAsync(false);
+        }
+
+        if (parent is not null)
+        {
+            await ExpandAsync(parent);
+            if (!parent.IsExpanded || Rows.IndexOf(parent) < 0)
+            {
+                return null;
+            }
+        }
+
+        // Only one pending new item at a time.
+        foreach (var pending in Rows.OfType<NewItemRowViewModel>().ToList())
+        {
+            Rows.Remove(pending);
+        }
+
+        var anchor = parent is null ? Rows.IndexOf(Header) : Rows.IndexOf(parent);
+        if (anchor < 0)
+        {
+            return null;
+        }
+
+        // An "(비어 있음)" message would sit next to the new row: drop it.
+        if (anchor + 1 < Rows.Count && Rows[anchor + 1] is MessageRowViewModel { Action: null } message && message.Explorer == this)
+        {
+            Rows.Remove(message);
+        }
+
+        var row = new NewItemRowViewModel(this, parent is null ? 0 : parent.Depth + 1, directory, isFolder);
+        Rows.Insert(anchor + 1, row);
+        List.Select(row);
+        List.RequestEditorFocus(row);
+        return row;
+    }
+
+    public void RemoveRow(ExplorerRowViewModel row) => Rows.Remove(row);
 
     [RelayCommand]
     private async Task ToggleCollapsedAsync()
@@ -257,7 +369,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
         _expanded.Remove(row.Key);
         row.IsExpanded = false;
         var hidSelection = false;
-        while (index + 1 < Rows.Count && Rows[index + 1] is NodeRowViewModel child && child.Explorer == this && child.Depth > row.Depth)
+        while (index + 1 < Rows.Count && Rows[index + 1] is (NodeRowViewModel or NewItemRowViewModel) and var child
+               && child.Explorer == this && child.Depth > row.Depth)
         {
             hidSelection |= child.IsSelected;
             Rows.RemoveAt(index + 1);

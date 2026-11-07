@@ -25,6 +25,18 @@ public sealed class DialogService : IDialogService
         return result == MessageBoxResult.Yes;
     }
 
+    public void ShowError(string title, string message)
+    {
+        if (Owner is { } owner)
+        {
+            MessageBox.Show(owner, message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        else
+        {
+            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     public string? PickFolder(string title, string? initialDirectory)
     {
         var dialog = new OpenFolderDialog { Title = title, Multiselect = false };

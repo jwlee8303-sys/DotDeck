@@ -23,7 +23,7 @@ public partial class SettingsDialog : Window
     private void OnOkClick(object sender, RoutedEventArgs e)
     {
         if (!double.TryParse(FontSizeBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var size)
-            || size < AppSettings.MinFontSize || size > AppSettings.MaxFontSize)
+            || !double.IsFinite(size) || size < AppSettings.MinFontSize || size > AppSettings.MaxFontSize)
         {
             ShowError($"글꼴 크기는 {AppSettings.MinFontSize}~{AppSettings.MaxFontSize} 사이 숫자여야 합니다.");
             return;

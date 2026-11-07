@@ -200,6 +200,11 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - 이름에 KEY/TOKEN/SECRET/PASSWORD/PWD/CREDENTIAL이 있으면 화면·diff·기록 모두 마스킹. 따라서 비밀 변수는 되돌리기 대상에서 빠진다.
 - 중요 파일 목록: `%APPDATA%\DotDeck\important-files.json`(추가/제거 목록). ACL은 보기만 하고 수정 기능은 없다.
 
+## Phase 4 규칙
+- 테마: `Themes/Dark.xaml`·`Light.xaml`은 같은 키를 정의하고 `ThemeManager.Apply`가 팔레트 사전([0])만 바꾼다. AvalonDock은 VS2022 Dark/Light 테마, 제목 표시줄은 DWM 다크 모드 플래그를 테마에 맞춘다. 편집기 글꼴 크기는 앱 리소스 `DD.FontSize.Editor`를 덮어쓴다.
+- 전체 검색: `GlobalSearch`가 프로젝트 루트를 순회(링크·제외 폴더·비밀·NUL 포함·2MB 초과 파일 제외), 최대 2000건.
+- 배포: `PublishSingleFile=true`일 때 자체 포함 + 네이티브 라이브러리 포함 + 임베디드 PDB로 `DotDeck.exe` 하나만 만든다.
+
 **projects.json 초안**
 ```json
 {

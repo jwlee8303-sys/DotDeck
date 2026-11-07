@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ae="http://icsharpcode.net/sharpdevelop/avalonedit"
              xmlns:docs="clr-namespace:DotDeck.App.ViewModels.Documents"
+             xmlns:editor="clr-namespace:DotDeck.App.Views.Editor"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=docs:TextDocumentViewModel}"
              Background="{DynamicResource DD.Brush.Editor.Background}">
@@ -28,6 +29,7 @@
         <KeyBinding Gesture="Ctrl+H" Command="{Binding OpenReplaceCommand}" />
         <KeyBinding Gesture="F3" Command="{Binding Find.FindNextCommand}" />
         <KeyBinding Gesture="Shift+F3" Command="{Binding Find.FindPreviousCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+V" Command="{Binding ToggleMarkdownPreviewCommand}" />
     </UserControl.InputBindings>
 
     <DockPanel>
@@ -90,7 +92,13 @@
             </Grid>
         </Border>
 
-        <ae:TextEditor x:Name="Editor"
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition x:Name="PreviewColumn" Width="0" />
+            </Grid.ColumnDefinitions>
+        <ae:TextEditor x:Name="Editor" Grid.Column="0"
                        Document="{Binding Buffer.Document}"
                        FontFamily="{DynamicResource DD.Font.Editor}"
                        FontSize="{DynamicResource DD.FontSize.Editor}"
@@ -101,5 +109,12 @@
                        HorizontalScrollBarVisibility="Auto"
                        VerticalScrollBarVisibility="Auto"
                        Padding="4,0,0,0" />
+            <GridSplitter x:Name="PreviewSplitter" Grid.Column="1" Width="4" HorizontalAlignment="Stretch" ResizeBehavior="PreviousAndNext"
+                          Background="{DynamicResource DD.Brush.Border}"
+                          Visibility="{Binding IsMarkdownPreviewOpen, Converter={StaticResource BoolToVisible}}" />
+            <editor:MarkdownPreviewView x:Name="Preview" Grid.Column="2"
+                                        Document="{Binding Buffer.Document}" FilePath="{Binding FilePath}"
+                                        Visibility="{Binding IsMarkdownPreviewOpen, Converter={StaticResource BoolToVisible}}" />
+        </Grid>
     </DockPanel>
 </UserControl>

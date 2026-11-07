@@ -55,6 +55,8 @@ public partial class App : Application
                 _log.Warning($"구문 강조 정의를 불러오지 못했습니다: {error}");
             }
 
+            WebViewEnvironment.Initialize(paths.WebView2DataDir, System.IO.Path.Combine(paths.LocalDataDir, "preview"));
+
             var store = PhysicalFileStore.Instance;
             var registry = new ProjectRegistry(store, paths.ProjectsFile, TimeProvider.System, _log);
             var load = registry.Load();

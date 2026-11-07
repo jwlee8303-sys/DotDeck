@@ -52,6 +52,7 @@ public partial class TextEditorView : UserControl, IEditorSelection
         if (_viewModel is not null)
         {
             _viewModel.Find.FocusRequested -= OnFindFocusRequested;
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             if (ReferenceEquals(_viewModel.Find.Editor, this))
             {
                 _viewModel.Find.Editor = null;
@@ -66,6 +67,8 @@ public partial class TextEditorView : UserControl, IEditorSelection
 
         viewModel.Find.Editor = this;
         viewModel.Find.FocusRequested += OnFindFocusRequested;
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        UpdatePreviewColumn();
         Editor.SyntaxHighlighting = HighlightingCatalog.ForPath(viewModel.FilePath);
         UpdateCaret();
 
@@ -78,6 +81,20 @@ public partial class TextEditorView : UserControl, IEditorSelection
             }
         });
     }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TextDocumentViewModel.IsMarkdownPreviewOpen))
+        {
+            UpdatePreviewColumn();
+        }
+    }
+
+    // Grid column widths are not bindable to a bool; split evenly when the preview opens, collapse when it closes.
+    private void UpdatePreviewColumn() =>
+        PreviewColumn.Width = _viewModel is { IsMarkdownPreviewOpen: true }
+            ? new GridLength(1, GridUnitType.Star)
+            : new GridLength(0);
 
     private void OnFindFocusRequested(object? sender, EventArgs e) =>
         Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>

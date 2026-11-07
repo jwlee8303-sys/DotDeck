@@ -61,6 +61,10 @@
             </MenuItem>
             <MenuItem Header="보기(_V)">
                 <MenuItem Header="시작 페이지" Command="{Binding ShowWelcomeCommand}" />
+                <MenuItem Header="Markdown 미리보기(_M)" InputGestureText="Ctrl+Shift+V" IsCheckable="True"
+                          IsChecked="{Binding ActiveTextDocument.IsMarkdownPreviewOpen, Mode=OneWay}"
+                          Command="{Binding ActiveTextDocument.ToggleMarkdownPreviewCommand}"
+                          IsEnabled="{Binding ActiveTextDocument.IsMarkdown, FallbackValue=False}" />
                 <Separator />
                 <MenuItem Header="프로젝트" IsCheckable="True" IsChecked="{Binding Projects.IsVisible, Mode=OneWay}"
                           Command="{Binding ToggleToolCommand}" CommandParameter="{Binding Projects}" />

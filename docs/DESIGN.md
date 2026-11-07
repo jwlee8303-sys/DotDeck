@@ -175,6 +175,13 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - 모두 저장은 검토한 계획(텍스트)을 그대로 커밋한다.
 - 보류: 백업 복원 대화상자의 백업 읽기·diff 계산은 UI 스레드에서 한다.
 - 보류: 찾기·바꾸기는 UI 스레드에서 실행한다(정규식 매치별 2초 제한, 큰 파일은 열기 전 경고). 편집기 색은 뷰 생성 시 리소스에서 읽으므로 런타임 테마 전환은 Phase 4에서 다룬다.
+**Markdown 미리보기 규칙 (1c-5 구현 중 확정)**
+- 페이지는 Core가 만들어 `%LOCALAPPDATA%\DotDeck\preview\<guid>.html`에 쓰고 `https://app.dotdeck.local/`(폴더 매핑, Deny)로 띄운다. 시작 시 남은 페이지를 지운다.
+- 문서 폴더는 가상 호스트로 매핑하지 않는다. `md.dotdeck.local` 요청은 `WebResourceRequested`에서 DotDeck이 직접 응답한다: 래스터 이미지 확장자, 폴더 안, 비밀 파일 이름 아님, 파일·상위 폴더가 링크 아님, 읽은 바이트의 이미지 서명 일치(교체 경합·하드 링크 방지). 그 외 요청은 모두 403.
+- 스크립트 설정은 켜 두되 페이지 CSP가 페이지 스크립트를 막는다. DotDeck의 `ExecuteScriptAsync`(스크롤 위치 저장·복원)만 실행된다. base href가 md 호스트를 가리키므로 페이지 안 앵커 링크는 탐색 차단으로 동작하지 않는다.
+- 렌더는 버전 번호로 비교해 늦게 끝난 이전 렌더가 새 페이지를 덮어쓰지 않게 하고, 파일 쓰기는 직렬화한다.
+- 기각: 문서 폴더 자체가 정션인 경우의 차단(사용자가 직접 연 문서의 폴더이므로 허용).
+- 보류: 단일 exe 배포 시 WebView2Loader 동작 확인은 Phase 4. 미리보기를 숨겨도 WebView는 탭이 언로드될 때까지 유지한다.
 
 **projects.json 초안**
 ```json

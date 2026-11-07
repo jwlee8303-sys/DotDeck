@@ -61,6 +61,13 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 
     public bool CanClose => !IsPinned;
 
+    public bool IsMarkdown => System.IO.Path.GetExtension(FilePath) is var ext
+        && (string.Equals(ext, ".md", StringComparison.OrdinalIgnoreCase) || string.Equals(ext, ".markdown", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Side-by-side Markdown preview inside this tab (Ctrl+Shift+V).</summary>
+    [ObservableProperty]
+    private bool _isMarkdownPreviewOpen;
+
     public string CaretText => $"줄 {CaretLine}, 열 {CaretColumn}";
 
     public string ToolTip => FilePath;
@@ -91,6 +98,9 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
             Promote();
         }
     }
+
+    [RelayCommand(CanExecute = nameof(IsMarkdown))]
+    private void ToggleMarkdownPreview() => IsMarkdownPreviewOpen = !IsMarkdownPreviewOpen;
 
     [RelayCommand]
     private void OpenFind() => Find.Open(replace: false);

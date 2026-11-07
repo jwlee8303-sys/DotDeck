@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="DiffPlex" />
+    <PackageReference Include="Markdig" />
   </ItemGroup>
 
   <ItemGroup>

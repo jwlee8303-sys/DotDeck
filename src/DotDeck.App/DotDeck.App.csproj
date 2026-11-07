@@ -17,6 +17,7 @@
     <PackageReference Include="Dirkster.AvalonDock.Themes.VS" />
     <PackageReference Include="Dirkster.AvalonDock.Serializer.Xml" />
     <PackageReference Include="AvalonEdit" />
+    <PackageReference Include="Microsoft.Web.WebView2" />
   </ItemGroup>
 
   <ItemGroup>

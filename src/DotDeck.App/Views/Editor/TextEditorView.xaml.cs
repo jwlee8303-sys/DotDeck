@@ -70,7 +70,18 @@ public partial class TextEditorView : UserControl, IEditorSelection
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
         UpdatePreviewColumn();
         Editor.SyntaxHighlighting = HighlightingCatalog.ForPath(viewModel.FilePath);
-        UpdateCaret();
+
+        // The view model keeps the caret (restored session, view recreated by docking): read it before the
+        // document binding moves the editor caret, then apply it once the editor shows that document.
+        var line = viewModel.CaretLine;
+        var column = viewModel.CaretColumn;
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            if (ReferenceEquals(_viewModel, viewModel))
+            {
+                RestoreCaret(line, column);
+            }
+        });
 
         // Give the editor focus when its tab becomes active (opening a file, switching tabs).
         Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
@@ -102,6 +113,20 @@ public partial class TextEditorView : UserControl, IEditorSelection
             FindBox.Focus();
             FindBox.SelectAll();
         });
+
+    private void RestoreCaret(int line, int column)
+    {
+        if (Editor.Document is not { } document || _viewModel is null || !ReferenceEquals(document, _viewModel.Buffer.Document))
+        {
+            return;
+        }
+
+        line = Math.Clamp(line, 1, document.LineCount);
+        column = Math.Clamp(column, 1, document.GetLineByNumber(line).Length + 1);
+        Editor.TextArea.Caret.Location = new ICSharpCode.AvalonEdit.Document.TextLocation(line, column);
+        Editor.ScrollTo(line, column);
+        UpdateCaret();
+    }
 
     private void UpdateCaret()
     {

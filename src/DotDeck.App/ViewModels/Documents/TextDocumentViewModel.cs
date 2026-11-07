@@ -61,6 +61,9 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 
     public bool CanClose => !IsPinned;
 
+    /// <summary>Recreated from session.json before the layout is restored.</summary>
+    public override bool IsRestorable => true;
+
     public bool IsMarkdown => System.IO.Path.GetExtension(FilePath) is var ext
         && (string.Equals(ext, ".md", StringComparison.OrdinalIgnoreCase) || string.Equals(ext, ".markdown", StringComparison.OrdinalIgnoreCase));
 

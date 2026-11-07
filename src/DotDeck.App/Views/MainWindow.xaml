@@ -100,6 +100,13 @@
                 <MenuItem Header="탭 고정(_P)" IsCheckable="True" IsChecked="{Binding ActiveTextDocument.IsPinned, Mode=OneWay}"
                           Command="{Binding ActiveTextDocument.TogglePinCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
                 <Separator />
+                <MenuItem Header="레이아웃 저장(_S)..." Click="OnSaveNamedLayoutClick" />
+                <MenuItem x:Name="LoadLayoutMenu" Header="레이아웃 불러오기(_L)" SubmenuOpened="OnLayoutSubmenuOpened">
+                    <MenuItem Header="(없음)" IsEnabled="False" />
+                </MenuItem>
+                <MenuItem x:Name="DeleteLayoutMenu" Header="레이아웃 삭제(_D)" SubmenuOpened="OnLayoutSubmenuOpened">
+                    <MenuItem Header="(없음)" IsEnabled="False" />
+                </MenuItem>
                 <MenuItem Header="레이아웃 초기화(_R)" Click="OnResetLayoutClick" />
             </MenuItem>
             <MenuItem Header="도움말(_H)">

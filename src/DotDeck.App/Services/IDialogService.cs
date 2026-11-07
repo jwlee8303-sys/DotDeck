@@ -36,6 +36,12 @@ public interface IDialogService
     /// <summary>Shows an error message.</summary>
     void ShowError(string title, string message);
 
+    /// <summary>
+    /// Asks for a line of text. <paramref name="validate"/> returns an error message or null. Returns the trimmed
+    /// text, or null when cancelled.
+    /// </summary>
+    string? AskText(string title, string prompt, string initial, Func<string, string?> validate);
+
     /// <summary>Folder picker. Returns null when cancelled.</summary>
     string? PickFolder(string title, string? initialDirectory);
 }

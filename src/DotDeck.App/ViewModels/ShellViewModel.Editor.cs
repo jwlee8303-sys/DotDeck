@@ -299,10 +299,11 @@ public sealed partial class ShellViewModel : ITextDocumentHost
         }
     }
 
-    private TextDocumentViewModel CreateTextDocument(DocumentBuffer buffer, bool preview)
+    private TextDocumentViewModel CreateTextDocument(DocumentBuffer buffer, bool preview, int? viewNumber = null)
     {
-        var number = _viewCounters.GetValueOrDefault(buffer.Path) + 1;
-        _viewCounters[buffer.Path] = number;
+        // Restored tabs keep their saved number (layout ContentId); new views continue after the highest one.
+        var number = viewNumber ?? _viewCounters.GetValueOrDefault(buffer.Path) + 1;
+        _viewCounters[buffer.Path] = Math.Max(number, _viewCounters.GetValueOrDefault(buffer.Path));
         var document = new TextDocumentViewModel(buffer, number, preview, this, CloseDocument);
         Documents.Add(document);
         UpdateContentWatchers();

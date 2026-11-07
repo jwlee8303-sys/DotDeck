@@ -92,6 +92,12 @@ public sealed class DialogService : IDialogService
         }
     }
 
+    public string? AskText(string title, string prompt, string initial, Func<string, string?> validate)
+    {
+        var dialog = new TextInputDialog(title, prompt, initial, validate) { Owner = Owner };
+        return Modal(() => dialog.ShowDialog() == true) ? dialog.Value : null;
+    }
+
     public string? PickFolder(string title, string? initialDirectory)
     {
         var dialog = new OpenFolderDialog { Title = title, Multiselect = false };

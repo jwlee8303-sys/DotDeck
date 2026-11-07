@@ -40,6 +40,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly SafeWriter _writer;
     private readonly BackupStore _backups;
     private readonly IFileStore _store;
+    private readonly SessionStateStore _session;
     private readonly SynchronizationContext? _ui;
     private int _scratchCounter;
 
@@ -53,6 +54,7 @@ public sealed partial class ShellViewModel : ObservableObject
         _writer = services.Writer;
         _backups = services.Backups;
         _store = services.Store;
+        _session = services.Session;
         _ui = SynchronizationContext.Current;
         Version = version;
         IsAdministrator = isAdministrator;
@@ -80,9 +82,6 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Runs once the main window is shown: opens the projects and restores their state.</summary>
     public Task InitializeAsync() => Projects.InitializeAsync();
 
-    /// <summary>Saves view state that is not part of the docking layout (called on close).</summary>
-    public void SaveSession() => Projects.SaveState();
-
     public void ReportError(string message, Exception ex)
     {
         _log.Error(message, ex);
@@ -90,6 +89,9 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     public AppPaths Paths { get; }
+
+    /// <summary>Dialogs for view-level commands (layout menu) that need no view model of their own.</summary>
+    public IDialogService Dialogs => _dialogs;
 
     public string Version { get; }
 

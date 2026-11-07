@@ -49,13 +49,14 @@ public static class BuiltinProjects
     };
 
     /// <summary>
-    /// Large or noisy folders hidden by default in built-in projects (decision Q5). Users can override
-    /// by setting <see cref="ProjectDefinition.ExcludedFolders"/>.
+    /// Large or noisy top-level folders hidden by default in built-in projects (decision Q5), in addition to the
+    /// common defaults. Rooted ("/name") so that same-named folders deeper in the tree stay visible.
+    /// Users can override by setting <see cref="ProjectDefinition.ExcludedFolders"/>.
     /// </summary>
     public static IReadOnlyList<string> DefaultExcludedFoldersOf(BuiltinProject builtin) => builtin switch
     {
-        BuiltinProject.Claude => ["projects", "todos", "shell-snapshots", "statsig", "file-history", "debug"],
-        BuiltinProject.Codex => ["sessions", "log"],
+        BuiltinProject.Claude => ["/projects", "/todos", "/shell-snapshots", "/statsig", "/file-history", "/debug"],
+        BuiltinProject.Codex => ["/sessions", "/log"],
         _ => [],
     };
 

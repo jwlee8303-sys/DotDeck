@@ -131,7 +131,7 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 | 경로 | `AppPaths` / `AppPathsResolver` | 우선순위 `--home` > `DOTDECK_HOME` > `%USERPROFILE%`. Home, Roaming·Local 데이터 폴더 계산 |
 | 프로젝트 | `ProjectDefinition`, `ProjectRegistry` | projects.json 로드·저장(SafeWriter 사용), 스키마 버전 관리, 손상 시 `.corrupt-<ts>`로 보존. 기본 제공 프로젝트 삭제 거부 |
 | 소스 | `IProjectSource` → `FolderProjectSource`, `SystemProjectSource` | 노드 자식 열거. 시스템은 가상 노드 |
-| 트리 | `NodeInfo`, `ExplorerFilter`, `FileKindClassifier`, `ExcludedFolderPolicy`, `SecretFilePolicy` | 노드 모델, 표시 필터, 제외 폴더, 비밀 파일 판별 |
+| 트리 | `NodeInfo`, `ExplorerFilter`, `FileKindClassifier`, `ExcludedFolderPolicy`, `SecretFilePolicy` | 노드 모델, 표시 필터, 제외 폴더, 비밀 파일 판별 (1b-2 구현 세부: 아래) |
 | 파일 작업 | `FileOperationService`, `FileOperationHistory` | 생성·이름 변경·이동·복사·복제·휴지통 삭제. 이름 유효성 검사. Undo 스택(세션, 상한 100). Undo 전 사전조건 검사 |
 | 읽기 | `TextFileReader` → `TextFileSnapshot` | BOM → 엄격 UTF-8 → cp949 순 감지. 줄바꿈, 바이너리(앞 8KB NUL), 1MB 플래그, 해시, mtime |
 | 안전 쓰기 | `SafeWriter` | `Prepare → WritePlan(diff)` → `Commit`: 외부 변경 검사 → 백업 → 같은 폴더 임시 파일 → `File.Replace`. 원래 인코딩으로 표현 못 하는 문자 경고. 변경 없이 저장하면 바이트가 동일해야 함 |
@@ -140,6 +140,13 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 | 외부 변경 | `ExternalChangeMonitor` | FSW와 창 활성화 시 재확인. 자기 쓰기는 해시로 무시 |
 | 마스킹 | `SecretMasker` | `KEY|TOKEN|SECRET|PASSWORD|PWD|CREDENTIAL`. 로그에 파일 본문과 환경변수 값을 남기지 않음 |
 | 설정 | `AppSettings`, `SettingsStore` | `%APPDATA%\DotDeck\settings.json` |
+
+**트리 규칙 (1b-2 구현 중 확정)**
+- 제외 폴더 항목: 이름만 쓰면 모든 깊이에 적용(`node_modules`), `/`로 시작하거나 중간에 구분자를 포함하면 루트 기준 경로(`/projects`, `src/gen`). 끝에만 붙은 구분자(`debug/`)는 .gitignore처럼 이름으로 본다. 대소문자 무시.
+  - 기본값: SPEC 공통 목록. 기본 제공 프로젝트는 공통 목록에 Q5 목록을 루트 기준으로 추가해, `skills\x\debug` 같은 하위 폴더는 숨기지 않는다. `excludedFolders`를 지정하면 기본값 전체를 대체한다.
+- 비밀 판별: 파일 이름만 보고 대소문자를 무시한다. `.env*` 중 `.env.<…>.example|sample|template`은 제외(Q15). `id_rsa*` 패턴에 따라 `id_rsa.pub`도 비밀로 본다.
+- "설정·문서만" 필터: SPEC 목록, Q6 추가분, 다른 `.`이 없는 dotfile, `.env*`를 표시한다. `.env*`는 자물쇠 표시가 보이도록 남긴다. 폴더는 항상 표시한다.
+- 정렬: 폴더 먼저, 이름은 대소문자 무시.
 
 **projects.json 초안**
 ```json

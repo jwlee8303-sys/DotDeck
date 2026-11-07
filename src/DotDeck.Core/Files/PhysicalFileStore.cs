@@ -5,15 +5,9 @@ public sealed class PhysicalFileStore : IFileStore
 {
     public static PhysicalFileStore Instance { get; } = new();
 
+    // Access errors are never swallowed: callers must be able to tell "empty" from "not allowed" (listing)
+    // and must not silently skip content (copying). Non-recursive, so children are never opened here.
     private static readonly EnumerationOptions s_childrenOptions = new()
-    {
-        RecurseSubdirectories = false,
-        IgnoreInaccessible = true,
-        AttributesToSkip = 0,
-        ReturnSpecialDirectories = false,
-    };
-
-    private static readonly EnumerationOptions s_copyOptions = new()
     {
         RecurseSubdirectories = false,
         IgnoreInaccessible = false,
@@ -143,8 +137,7 @@ public sealed class PhysicalFileStore : IFileStore
 
     private static void CollectTree(DirectoryInfo source, string destination, List<(FileSystemInfo, string)> plan)
     {
-        // Unlike listing, copying must not silently skip folders it cannot read: let access errors surface.
-        foreach (var info in source.EnumerateFileSystemInfos("*", s_copyOptions))
+        foreach (var info in source.EnumerateFileSystemInfos("*", s_childrenOptions))
         {
             var target = Path.Combine(destination, info.Name);
             if (info is DirectoryInfo childDir)

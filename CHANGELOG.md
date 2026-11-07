@@ -4,3 +4,8 @@
 ## [Unreleased]
 ### Added
 - 프로젝트 초기 설정: CLAUDE.md, Directory.Build.props(버전 0.1.0), CHANGELOG.md, .gitignore
+- Phase 0 설계안(`docs/DESIGN.md`)
+
+### Changed
+- 솔루션을 `src/DotDeck.App`(WPF, net10.0-windows), `src/DotDeck.Core`(net10.0), `tests/DotDeck.Core.Tests`(xunit.v3) 구조로 재구성
+- 중앙 패키지 관리, 경고를 오류로 처리, `.editorconfig`, 앱 매니페스트(asInvoker, PerMonitorV2, longPath) 추가

@@ -70,7 +70,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Properties = new PropertiesPaneViewModel();
         Output = new OutputPaneViewModel(services.Log);
         Validation = new ValidationPaneViewModel();
-        SearchResults = new SearchResultsPaneViewModel();
+        SearchResults = new SearchResultsPaneViewModel(services.Store, SearchRoots, OpenSearchHitAsync);
         HookTest = new HookTestPaneViewModel { Dialogs = services.Dialogs, WorkingDirectory = services.Paths.Home };
         Tools = [Properties, Output, Validation, SearchResults, HookTest];
         Projects = new ProjectsPaneViewModel(explorerContext, services.Session, Tools.Add, tool => Tools.Remove(tool));

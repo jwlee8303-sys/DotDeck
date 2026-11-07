@@ -34,6 +34,7 @@
         <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenFilesCommand}" />
         <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveActiveCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+F" Command="{Binding ShowGlobalSearchCommand}" />
     </Window.InputBindings>
 
     <DockPanel>
@@ -53,6 +54,8 @@
                 <MenuItem Header="끝내기(_X)" Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="편집(_E)">
+                <MenuItem Header="전체 검색(_G)..." InputGestureText="Ctrl+Shift+F" Command="{Binding ShowGlobalSearchCommand}" />
+                <Separator />
                 <MenuItem Header="실행 취소(_U)" InputGestureText="Ctrl+Z" Command="Undo" />
                 <MenuItem Header="다시 실행(_R)" InputGestureText="Ctrl+Y" Command="Redo" />
                 <Separator />

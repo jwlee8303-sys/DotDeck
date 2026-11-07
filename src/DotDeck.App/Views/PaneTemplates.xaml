@@ -5,7 +5,8 @@
                     xmlns:explorer="clr-namespace:DotDeck.App.ViewModels.Explorer"
                     xmlns:explorerViews="clr-namespace:DotDeck.App.Views.Explorer"
                     xmlns:editorViews="clr-namespace:DotDeck.App.Views.Editor"
-                    xmlns:conv="clr-namespace:DotDeck.App.Converters">
+                    xmlns:conv="clr-namespace:DotDeck.App.Converters"
+                    xmlns:toolViews="clr-namespace:DotDeck.App.Views.Tools">
 
     <BooleanToVisibilityConverter x:Key="SysBoolToVisible" />
     <conv:FalseToVisibleConverter x:Key="SysFalseToVisible" />
@@ -173,9 +174,7 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:SearchResultsPaneViewModel}">
-        <Border Background="{DynamicResource DD.Brush.Panel.Background}">
-            <TextBlock Style="{StaticResource PlaceholderText}" Text="검색 결과가 없습니다. (Phase 4)" />
-        </Border>
+        <toolViews:SearchPaneView />
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:HookTestPaneViewModel}">

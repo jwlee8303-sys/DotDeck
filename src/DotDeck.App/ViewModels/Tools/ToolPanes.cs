@@ -4,5 +4,3 @@ namespace DotDeck.App.ViewModels.Tools;
 
 
 
-public sealed class SearchResultsPaneViewModel() : ToolPaneViewModel("tool.search", "검색 결과", ToolLocation.Bottom);
-

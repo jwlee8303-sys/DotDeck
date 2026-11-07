@@ -107,6 +107,29 @@ public sealed partial class ShellViewModel
         StatusMessage = $"중요 파일 목록에서 뺐습니다: {Path.GetFileName(path)}";
     }
 
+    [RelayCommand]
+    private void ShowGlobalSearch()
+    {
+        SearchResults.IsVisible = true;
+        SearchResults.IsActive = true;
+        SearchResults.RequestFocus();
+    }
+
+    private IReadOnlyList<DotDeck.Core.Documents.SearchRoot> SearchRoots() =>
+        Projects.Explorers
+            .Where(e => e.Source.RootPath is not null)
+            .Select(e => new DotDeck.Core.Documents.SearchRoot(e.Source.Project.Name, e.Source.RootPath!, ExcludedFolderPolicy.For(e.Source.Project)))
+            .ToList();
+
+    private async Task OpenSearchHitAsync(DotDeck.Core.Documents.SearchHit hit)
+    {
+        await OpenFileAsync(hit.Path, preview: false);
+        if (ActiveContent is TextDocumentViewModel text && string.Equals(text.FilePath, hit.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            text.GoToLine(hit.Line);
+        }
+    }
+
     private async Task RefreshSystemExplorerAsync()
     {
         foreach (var explorer in Projects.Explorers.Where(e => e.Source.Project.Builtin == BuiltinProject.System))

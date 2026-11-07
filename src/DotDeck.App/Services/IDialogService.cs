@@ -42,6 +42,12 @@ public interface IDialogService
     /// </summary>
     string? AskText(string title, string prompt, string initial, Func<string, string?> validate);
 
+    /// <summary>File picker allowing several files. Returns an empty list when cancelled.</summary>
+    IReadOnlyList<string> PickOpenFiles(string title, string? initialDirectory);
+
+    /// <summary>Save-as picker (asks before replacing an existing file). Returns null when cancelled.</summary>
+    string? PickSaveFile(string title, string defaultFileName, string? initialDirectory);
+
     /// <summary>Folder picker. Returns null when cancelled.</summary>
     string? PickFolder(string title, string? initialDirectory);
 }

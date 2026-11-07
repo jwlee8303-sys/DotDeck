@@ -70,12 +70,7 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type docs:ScratchDocumentViewModel}">
-        <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
-                 AcceptsReturn="True" AcceptsTab="True"
-                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                 FontFamily="{DynamicResource DD.Font.Editor}" FontSize="{DynamicResource DD.FontSize.Editor}"
-                 Background="{DynamicResource DD.Brush.Editor.Background}"
-                 BorderThickness="0" Padding="6,4" />
+        <editorViews:UntitledEditorView />
     </DataTemplate>
 
     <!-- Flat button used in tool pane header bars -->

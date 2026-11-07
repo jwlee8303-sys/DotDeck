@@ -31,6 +31,7 @@
 
     <Window.InputBindings>
         <KeyBinding Gesture="Ctrl+N" Command="{Binding NewScratchDocumentCommand}" />
+        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenFilesCommand}" />
         <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveActiveCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
     </Window.InputBindings>
@@ -40,7 +41,7 @@
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="파일(_F)">
                 <MenuItem Header="새 파일(_N)" InputGestureText="Ctrl+N" Command="{Binding NewScratchDocumentCommand}" />
-                <MenuItem Header="열기(_O)..." InputGestureText="Ctrl+O" IsEnabled="False" />
+                <MenuItem Header="열기(_O)..." InputGestureText="Ctrl+O" Command="{Binding OpenFilesCommand}" />
                 <Separator />
                 <MenuItem Header="저장(_S)" InputGestureText="Ctrl+S" Command="{Binding SaveActiveCommand}" />
                 <MenuItem Header="모두 저장(_L)" InputGestureText="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
@@ -120,7 +121,7 @@
                 <Button ToolTip="새 파일 (Ctrl+N)" Command="{Binding NewScratchDocumentCommand}">
                     <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE8A5;" />
                 </Button>
-                <Button ToolTip="열기 (Ctrl+O)" IsEnabled="False">
+                <Button ToolTip="열기 (Ctrl+O)" Command="{Binding OpenFilesCommand}">
                     <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE8E5;" />
                 </Button>
                 <Button ToolTip="저장 (Ctrl+S)" Command="{Binding SaveActiveCommand}">

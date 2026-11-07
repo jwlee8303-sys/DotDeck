@@ -98,6 +98,41 @@ public sealed class DialogService : IDialogService
         return Modal(() => dialog.ShowDialog() == true) ? dialog.Value : null;
     }
 
+    public IReadOnlyList<string> PickOpenFiles(string title, string? initialDirectory)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = title,
+            Multiselect = true,
+            Filter = "모든 파일 (*.*)|*.*",
+            CheckFileExists = true,
+        };
+        if (!string.IsNullOrWhiteSpace(initialDirectory) && System.IO.Directory.Exists(initialDirectory))
+        {
+            dialog.InitialDirectory = initialDirectory;
+        }
+
+        return Modal(() => dialog.ShowDialog(Owner) == true) ? dialog.FileNames : [];
+    }
+
+    public string? PickSaveFile(string title, string defaultFileName, string? initialDirectory)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = title,
+            FileName = defaultFileName,
+            Filter = "모든 파일 (*.*)|*.*",
+            OverwritePrompt = true,
+            AddExtension = false,
+        };
+        if (!string.IsNullOrWhiteSpace(initialDirectory) && System.IO.Directory.Exists(initialDirectory))
+        {
+            dialog.InitialDirectory = initialDirectory;
+        }
+
+        return Modal(() => dialog.ShowDialog(Owner) == true) ? dialog.FileName : null;
+    }
+
     public string? PickFolder(string title, string? initialDirectory)
     {
         var dialog = new OpenFolderDialog { Title = title, Multiselect = false };

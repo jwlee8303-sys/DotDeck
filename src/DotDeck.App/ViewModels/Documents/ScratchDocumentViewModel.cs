@@ -1,18 +1,33 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+using ICSharpCode.AvalonEdit.Document;
 
 namespace DotDeck.App.ViewModels.Documents;
 
 /// <summary>
-/// Unsaved in-memory text document. Placeholder until the AvalonEdit-based editor lands in Phase 1c;
-/// lets the docking behaviour (tab groups, floating) be exercised now.
+/// Untitled in-memory text document ("새 파일"). Saving asks for a path and moves the text into a normal editor
+/// tab for that file (<see cref="ShellViewModel.SaveUntitledAsync"/>).
 /// </summary>
-public sealed partial class ScratchDocumentViewModel : DocumentViewModel
+public sealed class ScratchDocumentViewModel : DocumentViewModel
 {
+    private readonly string _name;
+
     public ScratchDocumentViewModel(int number, Action<DocumentViewModel> close)
         : base($"doc:scratch:{number}", $"제목 없음 {number}", close)
     {
+        _name = $"제목 없음 {number}";
+        Document.TextChanged += (_, _) =>
+        {
+            Title = IsDirty ? _name + " *" : _name;
+            OnPropertyChanged(nameof(IsDirty));
+        };
     }
 
-    [ObservableProperty]
-    private string _text = string.Empty;
+    /// <summary>Editor content (same document type as file tabs, so the same editor control shows it).</summary>
+    public TextDocument Document { get; } = new();
+
+    public string Text => Document.Text;
+
+    /// <summary>Unsaved content worth asking about (an empty untitled tab closes silently).</summary>
+    public bool IsDirty => Document.TextLength > 0;
+
+    public string SuggestedFileName => _name + ".md";
 }

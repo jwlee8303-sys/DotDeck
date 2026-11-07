@@ -123,6 +123,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public HookTestPaneViewModel HookTest { get; }
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveActiveCommand))]
     private PaneViewModel? _activeContent;
 
     [ObservableProperty]
@@ -183,6 +184,12 @@ public sealed partial class ShellViewModel : ObservableObject
                 _log.Debug($"Closed document {document.ContentId}");
             }
 
+            return;
+        }
+
+        if (document is ScratchDocumentViewModel untitled)
+        {
+            _ = CloseUntitledAsync(untitled);
             return;
         }
 

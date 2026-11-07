@@ -27,7 +27,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost
 
     public bool HasActiveTextDocument => ActiveTextDocument is not null;
 
-    public bool HasUnsavedDocuments => _buffers.Buffers.Any(b => b.IsDirty);
+    public bool HasUnsavedDocuments => HasUnsavedUntitled || _buffers.Buffers.Any(b => b.IsDirty);
 
     private TextDocumentViewModel? PreviewDocument => Documents.OfType<TextDocumentViewModel>().FirstOrDefault(d => d.IsPreview);
 
@@ -167,6 +167,13 @@ public sealed partial class ShellViewModel : ITextDocumentHost
         while (true)
         {
             await WaitForPendingSavesAsync().ConfigureAwait(true);
+
+            // Untitled tabs are re-checked every round: one may have been typed into while a save ran.
+            if (!await ConfirmCloseUntitledAsync().ConfigureAwait(true))
+            {
+                return false;
+            }
+
             var buffer = _buffers.Buffers.FirstOrDefault(b =>
                 b.IsDirty && !(discarded.TryGetValue(b, out var count) && count == b.ChangeCount));
             if (buffer is null)
@@ -368,8 +375,15 @@ public sealed partial class ShellViewModel : ITextDocumentHost
 
     private bool CanUseActiveTextDocument() => ActiveTextDocument is not null;
 
-    [RelayCommand(CanExecute = nameof(CanUseActiveTextDocument))]
-    private Task SaveActiveAsync() => ActiveTextDocument is { } doc ? SaveAsync(doc) : Task.CompletedTask;
+    private bool CanSaveActive() => ActiveContent is ScratchDocumentViewModel || ActiveTextDocument is not null;
+
+    [RelayCommand(CanExecute = nameof(CanSaveActive))]
+    private Task SaveActiveAsync() => ActiveContent switch
+    {
+        ScratchDocumentViewModel untitled => SaveUntitledAsync(untitled),
+        _ when ActiveTextDocument is { } doc => SaveAsync(doc),
+        _ => Task.CompletedTask,
+    };
 
     [RelayCommand(CanExecute = nameof(CanUseActiveTextDocument))]
     private void Find() => ActiveTextDocument?.Find.Open(replace: false);

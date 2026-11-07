@@ -227,10 +227,20 @@ public sealed partial class ShellViewModel
     [RelayCommand]
     private async Task SaveAllAsync()
     {
+        var hadUntitled = HasUnsavedUntitled;
+        if (!await SaveAllUntitledAsync().ConfigureAwait(true))
+        {
+            return;
+        }
+
         var dirty = _buffers.Buffers.Where(b => b.IsDirty).ToList();
         if (dirty.Count == 0)
         {
-            StatusMessage = "저장할 변경 내용이 없습니다.";
+            if (!hadUntitled)
+            {
+                StatusMessage = "저장할 변경 내용이 없습니다.";
+            }
+
             return;
         }
 

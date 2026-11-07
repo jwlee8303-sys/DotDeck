@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -8,6 +8,13 @@
     <RootNamespace>DotDeck.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Dirkster.AvalonDock" />
+    <PackageReference Include="Dirkster.AvalonDock.Themes.VS" />
+    <PackageReference Include="Dirkster.AvalonDock.Serializer.Xml" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DotDeck.Core\DotDeck.Core.csproj" />

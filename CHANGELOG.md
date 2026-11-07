@@ -7,6 +7,8 @@
 - Phase 0 설계안(`docs/DESIGN.md`)
 - Core: 홈·데이터 경로 해석(`--home` > `DOTDECK_HOME` > 사용자 프로필, 홈 변경 시 데이터 폴더 격리, `--data`)
 - Core: 파일 로그(일별 파일, 14일 보관, 비밀값 마스킹), 비밀 이름·값 마스킹(`SecretMasker`)
+- App: AvalonDock 5 도킹 셸(메뉴·툴바·상태줄, 프로젝트·속성·출력·검증·검색·훅 테스트 패널, 시작 페이지), VS2022 다크 도킹 테마
+- App: 레이아웃 저장(종료 시)·복원(시작 시)·초기화, 출력 패널에 앱 로그 표시, 샌드박스 모드 표시
 
 ### Changed
 - 솔루션을 `src/DotDeck.App`(WPF, net10.0-windows), `src/DotDeck.Core`(net10.0), `tests/DotDeck.Core.Tests`(xunit.v3) 구조로 재구성

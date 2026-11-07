@@ -232,7 +232,7 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 | 패키지 | 버전 | 프로젝트 |
 |---|---|---|
 | CommunityToolkit.Mvvm | 최신 안정판(1a에서 확인) | App |
-| Dirkster.AvalonDock, .Themes.VS2013 | 5.0.1 | App |
+| Dirkster.AvalonDock, .Themes.VS, .Serializer.Xml | 5.0.1 | App (2026-11-07 승인: 5.0에서 직렬화가 별도 패키지로 분리되고, VS2022 다크 테마가 Themes.VS에 포함되어 VS2013 패키지 대신 사용) |
 | AvalonEdit | 6.3.1.120 | App |
 | Markdig | 최신 안정판(1a에서 확인) | Core/App |
 | Microsoft.Web.WebView2 | 1.0.4314.35 | App |

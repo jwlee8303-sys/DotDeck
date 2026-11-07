@@ -23,13 +23,19 @@ public partial class SearchPaneView : UserControl
                 vm.FocusRequested += OnFocusRequested;
             }
         };
+        Loaded += (_, _) => OnFocusRequested(this, EventArgs.Empty);
     }
 
+    // Deferred until the docking manager has finished activating the pane, which would otherwise take focus back.
     private void OnFocusRequested(object? sender, EventArgs e) =>
-        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () =>
         {
-            QueryBox.Focus();
-            QueryBox.SelectAll();
+            if (DataContext is SearchResultsPaneViewModel { FocusPending: true } vm && IsVisible)
+            {
+                vm.FocusPending = false;
+                Keyboard.Focus(QueryBox);
+                QueryBox.SelectAll();
+            }
         });
 
     private void OnResultActivated(object sender, MouseButtonEventArgs e) => Open();

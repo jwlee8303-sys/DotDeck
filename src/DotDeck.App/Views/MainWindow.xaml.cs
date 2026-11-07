@@ -33,6 +33,12 @@ public partial class MainWindow : Window
         DockManager.Layout = DefaultLayout.Create();
         Loaded += OnLoaded;
         _shell.RestartElevatedRequested += (_, _) => RestartElevated();
+        _shell.SettingsChanged += (_, settings) =>
+        {
+            ThemeManager.ApplyEditorFontSize(settings.EditorFontSize);
+            ThemeManager.Apply(settings.Theme == "Light" ? ThemeKind.Light : ThemeKind.Dark);
+        };
+        ThemeManager.Changed += (_, _) => ThemeManager.ApplyDocking(DockManager);
 
         // Coming back to DotDeck is when external edits (another editor, git) are most likely: re-check open files.
         Activated += (_, _) => _ = _shell.CheckExternalChangesAsync();

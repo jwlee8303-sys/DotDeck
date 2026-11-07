@@ -107,6 +107,32 @@ public sealed partial class ShellViewModel
         StatusMessage = $"중요 파일 목록에서 뺐습니다: {Path.GetFileName(path)}";
     }
 
+    /// <summary>Raised after the settings changed; the view applies theme and font size.</summary>
+    public event EventHandler<DotDeck.Core.Settings.AppSettings>? SettingsChanged;
+
+    [RelayCommand]
+    private void OpenSettings()
+    {
+        var store = new DotDeck.Core.Settings.AppSettingsStore(_store, Paths.SettingsFile);
+        if (_dialogs.ShowSettings(store.Load()) is not { } settings)
+        {
+            return;
+        }
+
+        try
+        {
+            store.Save(settings);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _dialogs.ShowError("설정", $"설정을 저장하지 못했습니다.\n\n{ex.Message}");
+        }
+
+        _backups.Retention = settings.BackupRetention;
+        SettingsChanged?.Invoke(this, settings);
+        StatusMessage = "설정을 적용했습니다.";
+    }
+
     [RelayCommand]
     private void ShowGlobalSearch()
     {

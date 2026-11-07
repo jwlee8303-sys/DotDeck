@@ -98,6 +98,12 @@ public sealed class DialogService : IDialogService
         return Modal(() => dialog.ShowDialog() == true) ? dialog.Value : null;
     }
 
+    public DotDeck.Core.Settings.AppSettings? ShowSettings(DotDeck.Core.Settings.AppSettings current)
+    {
+        var dialog = new SettingsDialog(current) { Owner = Owner };
+        return Modal(() => dialog.ShowDialog() == true) ? dialog.Result : null;
+    }
+
     public IReadOnlyList<string> PickOpenFiles(string title, string? initialDirectory)
     {
         var dialog = new OpenFileDialog

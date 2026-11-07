@@ -66,7 +66,10 @@ public partial class App : Application
                 MessageBox.Show(loadMessage, "DotDeck — 프로젝트 목록", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
 
-            var backups = new BackupStore(store, paths.BackupsDir, TimeProvider.System);
+            var settings = new DotDeck.Core.Settings.AppSettingsStore(store, paths.SettingsFile).Load();
+            Themes.ThemeManager.ApplyEditorFontSize(settings.EditorFontSize);
+            Themes.ThemeManager.Apply(settings.Theme == "Light" ? Themes.ThemeKind.Light : Themes.ThemeKind.Dark);
+            var backups = new BackupStore(store, paths.BackupsDir, TimeProvider.System, settings.BackupRetention);
             var services = new ShellServices(
                 paths,
                 _log,

@@ -32,7 +32,7 @@ public static partial class DarkTitleBar
             return;
         }
 
-        var enabled = 1;
+        var enabled = DotDeck.App.Themes.ThemeManager.Current == DotDeck.App.Themes.ThemeKind.Dark ? 1 : 0;
         // Failure (older Windows) is harmless: the title bar simply stays light.
         _ = DwmSetWindowAttribute(handle, DwmwaUseImmersiveDarkMode, ref enabled, sizeof(int));
     }

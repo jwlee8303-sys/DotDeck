@@ -50,4 +50,7 @@ public interface IDialogService
 
     /// <summary>Folder picker. Returns null when cancelled.</summary>
     string? PickFolder(string title, string? initialDirectory);
+
+    /// <summary>Settings dialog. Returns the new settings, or null when cancelled.</summary>
+    DotDeck.Core.Settings.AppSettings? ShowSettings(DotDeck.Core.Settings.AppSettings current);
 }

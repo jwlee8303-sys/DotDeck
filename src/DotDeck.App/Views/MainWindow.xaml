@@ -104,7 +104,7 @@
                 <Separator />
                 <MenuItem Header="관리자 권한으로 다시 시작(_A)" Command="{Binding RestartAsAdministratorCommand}" />
                 <Separator />
-                <MenuItem Header="설정(_O)..." IsEnabled="False" />
+                <MenuItem Header="설정(_O)..." Command="{Binding OpenSettingsCommand}" />
             </MenuItem>
             <MenuItem Header="창(_W)">
                 <MenuItem Header="새 창(_N)" Command="{Binding ActiveTextDocument.NewViewCommand}"

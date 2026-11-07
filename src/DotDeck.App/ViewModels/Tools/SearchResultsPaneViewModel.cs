@@ -38,7 +38,14 @@ public sealed partial class SearchResultsPaneViewModel(IFileStore store, Func<IR
     /// <summary>Raised to move keyboard focus to the query box (Ctrl+Shift+F).</summary>
     public event EventHandler? FocusRequested;
 
-    public void RequestFocus() => FocusRequested?.Invoke(this, EventArgs.Empty);
+    /// <summary>True until the view has moved focus (the view may not exist yet when the pane is first shown).</summary>
+    public bool FocusPending { get; set; }
+
+    public void RequestFocus()
+    {
+        FocusPending = true;
+        FocusRequested?.Invoke(this, EventArgs.Empty);
+    }
 
     [RelayCommand]
     private async Task SearchAsync()

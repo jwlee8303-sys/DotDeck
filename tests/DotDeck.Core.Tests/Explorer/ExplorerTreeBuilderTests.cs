@@ -239,6 +239,10 @@ public sealed class ExplorerTreeBuilderTests : IDisposable
 
         public byte[] ReadAllBytes(string path) => _inner.ReadAllBytes(path);
 
+        public byte[] ReadHead(string path, int maxBytes) => _inner.ReadHead(path, maxBytes);
+
+        public string? ResolveLinkTarget(string path) => _inner.ResolveLinkTarget(path);
+
         public void WriteAllBytes(string path, byte[] bytes) => _inner.WriteAllBytes(path, bytes);
 
         public void CreateDirectory(string path) => _inner.CreateDirectory(path);

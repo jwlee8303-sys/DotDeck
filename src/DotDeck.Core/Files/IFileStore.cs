@@ -48,6 +48,12 @@ public interface IFileStore
 
     byte[] ReadAllBytes(string path);
 
+    /// <summary>Final target of a symbolic link or junction, or null when <paramref name="path"/> is not a link.</summary>
+    string? ResolveLinkTarget(string path);
+
+    /// <summary>Reads at most <paramref name="maxBytes"/> bytes from the start of a file.</summary>
+    byte[] ReadHead(string path, int maxBytes);
+
     void WriteAllBytes(string path, byte[] bytes);
 
     void CreateDirectory(string path);

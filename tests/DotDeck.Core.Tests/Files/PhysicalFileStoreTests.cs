@@ -25,6 +25,15 @@ public sealed class PhysicalFileStoreTests : IDisposable
     }
 
     [Fact]
+    public void ReadHead_reads_at_most_requested_bytes()
+    {
+        File.WriteAllText(_temp.Combine("h.txt"), "abcdef");
+
+        Assert.Equal("abc"u8.ToArray(), _store.ReadHead(_temp.Combine("h.txt"), 3));
+        Assert.Equal("abcdef"u8.ToArray(), _store.ReadHead(_temp.Combine("h.txt"), 100));
+    }
+
+    [Fact]
     public void GetEntry_returns_null_for_missing_path()
     {
         Assert.Null(_store.GetEntry(_temp.Combine("missing")));

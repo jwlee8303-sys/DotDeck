@@ -37,6 +37,18 @@ public sealed class PhysicalFileStore : IFileStore
 
     public byte[] ReadAllBytes(string path) => File.ReadAllBytes(path);
 
+    public string? ResolveLinkTarget(string path) =>
+        File.ResolveLinkTarget(path, returnFinalTarget: true)?.FullName;
+
+    public byte[] ReadHead(string path, int maxBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxBytes);
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        var buffer = new byte[(int)Math.Min(maxBytes, stream.Length)];
+        var read = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+        return read == buffer.Length ? buffer : buffer[..read];
+    }
+
     public void WriteAllBytes(string path, byte[] bytes) => File.WriteAllBytes(path, bytes);
 
     public void CreateDirectory(string path) => Directory.CreateDirectory(path);

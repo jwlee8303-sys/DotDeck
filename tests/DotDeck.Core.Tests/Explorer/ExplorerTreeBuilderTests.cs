@@ -243,6 +243,8 @@ public sealed class ExplorerTreeBuilderTests : IDisposable
 
         public void CreateDirectory(string path) => _inner.CreateDirectory(path);
 
+        public void CreateFile(string path) => _inner.CreateFile(path);
+
         public void Move(string source, string destination, bool overwrite = false) => _inner.Move(source, destination, overwrite);
 
         public void Copy(string source, string destination) => _inner.Copy(source, destination);

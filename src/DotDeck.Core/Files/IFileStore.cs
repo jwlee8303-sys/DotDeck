@@ -1,5 +1,19 @@
 namespace DotDeck.Core.Files;
 
+/// <summary>A move, copy or create was refused because something already exists at the destination (nothing was changed).</summary>
+public sealed class DestinationExistsException(string path)
+    : IOException($"Destination already exists: {path}")
+{
+    public string Path { get; } = path;
+}
+
+/// <summary>A directory copy failed after it created <see cref="Destination"/>; the partial copy belongs to the caller.</summary>
+public sealed class PartialCopyException(string destination, Exception innerException)
+    : IOException($"Copy failed partway: {destination}\n{innerException.Message}", innerException)
+{
+    public string Destination { get; } = destination;
+}
+
 /// <summary>Snapshot of one file system entry.</summary>
 public sealed record FileSystemEntry(
     string Name,
@@ -38,10 +52,18 @@ public interface IFileStore
 
     void CreateDirectory(string path);
 
+    /// <summary>Creates an empty file. Throws <see cref="IOException"/> if a file or folder already exists there.</summary>
+    void CreateFile(string path);
+
     /// <summary>Moves a file or directory. Never overwrites an existing destination unless <paramref name="overwrite"/> (files only).</summary>
     void Move(string source, string destination, bool overwrite = false);
 
-    /// <summary>Copies a file, or a directory recursively. Never overwrites an existing destination.</summary>
+    /// <summary>
+    /// Copies a file, or a directory recursively. Never overwrites: an existing destination throws
+    /// <see cref="DestinationExistsException"/> before anything is created. A failed file copy leaves no file;
+    /// a directory copy that fails after creating the destination throws <see cref="PartialCopyException"/>
+    /// (any other failure created nothing).
+    /// </summary>
     void Copy(string source, string destination);
 
     /// <summary>Permanently deletes a file. Only for app-owned files (temp files, app data). User files go to the recycle bin.</summary>

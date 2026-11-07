@@ -41,6 +41,17 @@ public sealed class PhysicalFileStore : IFileStore
 
     public void CreateDirectory(string path) => Directory.CreateDirectory(path);
 
+    public void CreateFile(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            throw new DestinationExistsException(path);
+        }
+
+        // CreateNew fails if the file exists, so an existing file is never truncated.
+        using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+    }
+
     public void Move(string source, string destination, bool overwrite = false)
     {
         if (Directory.Exists(source))
@@ -50,7 +61,7 @@ public sealed class PhysicalFileStore : IFileStore
                 // Case-only rename of the same directory is allowed.
                 if (!IsSamePathIgnoringCase(source, destination))
                 {
-                    throw new IOException($"Destination already exists: {destination}");
+                    throw new DestinationExistsException(destination);
                 }
             }
 
@@ -60,7 +71,7 @@ public sealed class PhysicalFileStore : IFileStore
 
         if (!overwrite && Directory.Exists(destination))
         {
-            throw new IOException($"Destination already exists: {destination}");
+            throw new DestinationExistsException(destination);
         }
 
         File.Move(source, destination, overwrite);
@@ -70,7 +81,7 @@ public sealed class PhysicalFileStore : IFileStore
     {
         if (File.Exists(destination) || Directory.Exists(destination))
         {
-            throw new IOException($"Destination already exists: {destination}");
+            throw new DestinationExistsException(destination);
         }
 
         if (Directory.Exists(source))
@@ -121,17 +132,31 @@ public sealed class PhysicalFileStore : IFileStore
         var plan = new List<(FileSystemInfo Info, string Target)>();
         CollectTree(source, destination, plan);
 
-        Directory.CreateDirectory(destination);
-        foreach (var (info, target) in plan)
+        // Directory.CreateDirectory succeeds on an existing folder, so re-check right before creating it: a folder
+        // that appeared since the caller's check is refused instead of being merged into (and later claimed).
+        if (Directory.Exists(destination) || File.Exists(destination))
         {
-            if (info is DirectoryInfo)
+            throw new DestinationExistsException(destination);
+        }
+
+        Directory.CreateDirectory(destination);
+        try
+        {
+            foreach (var (info, target) in plan)
             {
-                Directory.CreateDirectory(target);
+                if (info is DirectoryInfo)
+                {
+                    Directory.CreateDirectory(target);
+                }
+                else
+                {
+                    File.Copy(info.FullName, target, overwrite: false);
+                }
             }
-            else
-            {
-                File.Copy(info.FullName, target, overwrite: false);
-            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new PartialCopyException(destination, ex);
         }
     }
 

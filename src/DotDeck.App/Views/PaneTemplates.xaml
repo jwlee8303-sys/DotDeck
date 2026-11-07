@@ -1,7 +1,9 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:docs="clr-namespace:DotDeck.App.ViewModels.Documents"
-                    xmlns:tools="clr-namespace:DotDeck.App.ViewModels.Tools">
+                    xmlns:tools="clr-namespace:DotDeck.App.ViewModels.Tools"
+                    xmlns:explorer="clr-namespace:DotDeck.App.ViewModels.Explorer"
+                    xmlns:explorerViews="clr-namespace:DotDeck.App.Views.Explorer">
 
     <!-- Implicit templates: AvalonDock shows each view model through these (keyed by type). -->
 
@@ -71,10 +73,8 @@
                  BorderThickness="0" Padding="6,4" />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type tools:ProjectsPaneViewModel}">
-        <Border Background="{DynamicResource DD.Brush.Panel.Background}">
-            <TextBlock Style="{StaticResource PlaceholderText}" Text="프로젝트 탐색기 — Phase 1b에서 구현됩니다." />
-        </Border>
+    <DataTemplate DataType="{x:Type explorer:ProjectsPaneViewModel}">
+        <explorerViews:ProjectsPaneView />
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:PropertiesPaneViewModel}">

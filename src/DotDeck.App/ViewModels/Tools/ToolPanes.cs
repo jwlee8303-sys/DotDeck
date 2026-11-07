@@ -1,7 +1,6 @@
 namespace DotDeck.App.ViewModels.Tools;
 
-/// <summary>Project area: stacked explorers (Phase 1b).</summary>
-public sealed class ProjectsPaneViewModel() : ToolPaneViewModel("tool.projects", "프로젝트", ToolLocation.Left);
+// The project area is DotDeck.App.ViewModels.Explorer.ProjectsPaneViewModel.
 
 /// <summary>Selected item information, validation summary, quick actions.</summary>
 public sealed class PropertiesPaneViewModel() : ToolPaneViewModel("tool.properties", "속성", ToolLocation.Right);

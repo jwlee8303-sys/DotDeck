@@ -3,11 +3,15 @@ using System.Security.Principal;
 using System.Windows;
 using System.Windows.Threading;
 using DotDeck.App.Docking;
+using DotDeck.App.Infrastructure.Windows;
 using DotDeck.App.ViewModels;
 using DotDeck.App.Views;
+using DotDeck.Core.Explorer;
+using DotDeck.Core.Files;
 using DotDeck.Core.Logging;
 using DotDeck.Core.Paths;
 using DotDeck.Core.Platform;
+using DotDeck.Core.Projects;
 
 namespace DotDeck.App;
 
@@ -42,8 +46,26 @@ public partial class App : Application
         try
         {
             var version = GetVersion();
-            var shell = new ShellViewModel(paths, _log, version, IsAdministrator());
             _log.Info($"DotDeck {version} 시작 (홈: {paths.Home}, 모드: {paths.HomeSource})");
+
+            var store = PhysicalFileStore.Instance;
+            var registry = new ProjectRegistry(store, paths.ProjectsFile, TimeProvider.System, _log);
+            var load = registry.Load();
+            if (load.Message is { } loadMessage)
+            {
+                // Corrupt/newer/unreadable project lists are recoverable: tell the user, then continue.
+                MessageBox.Show(loadMessage, "DotDeck — 프로젝트 목록", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+
+            var services = new ShellServices(
+                paths,
+                _log,
+                store,
+                registry,
+                new SessionStateStore(store, paths.SessionFile, _log),
+                new ClipboardService(),
+                new ShellLauncher());
+            var shell = new ShellViewModel(services, version, IsAdministrator());
 
             var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log));
             MainWindow = window;

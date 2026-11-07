@@ -36,5 +36,8 @@ public sealed record AppPaths(string Home, HomeSource HomeSource, string Roaming
 
     public string StateDir => Path.Combine(LocalDataDir, "state");
 
+    /// <summary>Explorer expansion/selection (and later open documents), DESIGN 4.</summary>
+    public string SessionFile => Path.Combine(StateDir, "session.json");
+
     public string WebView2DataDir => Path.Combine(LocalDataDir, "WebView2");
 }

@@ -39,6 +39,20 @@ public partial class MainWindow : Window
         {
             _shell.StatusMessage = "레이아웃 복원 실패 — 기본 레이아웃을 사용합니다. 자세한 내용은 출력 패널을 확인하세요.";
         }
+
+        _ = InitializeShellAsync();
+    }
+
+    private async Task InitializeShellAsync()
+    {
+        try
+        {
+            await _shell.InitializeAsync();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _shell.ReportError("프로젝트를 여는 중 오류가 발생했습니다.", ex);
+        }
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -47,6 +61,7 @@ public partial class MainWindow : Window
         if (!e.Cancel)
         {
             _layout.Save(DockManager);
+            _shell.SaveSession();
         }
     }
 

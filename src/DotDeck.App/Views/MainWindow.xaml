@@ -32,6 +32,7 @@
     <Window.InputBindings>
         <KeyBinding Gesture="Ctrl+N" Command="{Binding NewScratchDocumentCommand}" />
         <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveActiveCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
     </Window.InputBindings>
 
     <DockPanel>
@@ -42,7 +43,8 @@
                 <MenuItem Header="열기(_O)..." InputGestureText="Ctrl+O" IsEnabled="False" />
                 <Separator />
                 <MenuItem Header="저장(_S)" InputGestureText="Ctrl+S" Command="{Binding SaveActiveCommand}" />
-                <MenuItem Header="모두 저장(_L)" InputGestureText="Ctrl+Shift+S" IsEnabled="False" />
+                <MenuItem Header="모두 저장(_L)" InputGestureText="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
+                <MenuItem Header="백업에서 복원(_B)..." Command="{Binding RestoreBackupCommand}" />
                 <Separator />
                 <MenuItem Header="끝내기(_X)" Click="OnExitClick" />
             </MenuItem>
@@ -113,7 +115,7 @@
                 <Button ToolTip="저장 (Ctrl+S)" Command="{Binding SaveActiveCommand}">
                     <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE74E;" />
                 </Button>
-                <Button ToolTip="모두 저장 (Ctrl+Shift+S)" IsEnabled="False">
+                <Button ToolTip="모두 저장 (Ctrl+Shift+S)" Command="{Binding SaveAllCommand}">
                     <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xEA35;" />
                 </Button>
                 <Separator />

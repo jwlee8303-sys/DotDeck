@@ -12,6 +12,9 @@ public enum SaveChangesChoice
 /// <summary>Modal UI for view models (keeps Window types out of them).</summary>
 public interface IDialogService
 {
+    /// <summary>True while any dialog of this service is open (nested message loops run timers and posts).</summary>
+    bool IsShowingDialog { get; }
+
     /// <summary>Shows the project add/edit dialog. Returns true when it was committed.</summary>
     bool ShowProjectDialog(ProjectDialogViewModel viewModel);
 
@@ -20,6 +23,12 @@ public interface IDialogService
 
     /// <summary>Asks whether to save unsaved changes before closing. Default (Enter) is Save.</summary>
     SaveChangesChoice AskSaveChanges(string title, string message);
+
+    /// <summary>Shows a diff review; returns the chosen <see cref="DialogChoice.Id"/> or null when dismissed.</summary>
+    string? ShowDiffReview(DiffReviewViewModel viewModel);
+
+    /// <summary>Shows the backup list of a file. True when the user chose a backup to restore.</summary>
+    bool ShowBackupRestore(BackupRestoreViewModel viewModel);
 
     /// <summary>Shows an informational message.</summary>
     void ShowInfo(string title, string message);

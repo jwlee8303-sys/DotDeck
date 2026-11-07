@@ -29,20 +29,44 @@ public sealed class FolderWatcherFactory : IFolderWatcherFactory
         }
     }
 
+    /// <summary>
+    /// Watches the files directly inside a folder for content and name changes (open documents: external change
+    /// detection). Non-recursive. Same debounce as the tree watcher.
+    /// </summary>
+    public static IDisposable? WatchContent(string directory, Action changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+        try
+        {
+            return new FolderWatcher(directory, changed, contents: true);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            return null;
+        }
+    }
+
     private sealed class FolderWatcher : IDisposable
     {
         private readonly FileSystemWatcher _watcher;
         private readonly Debouncer _debouncer;
 
-        public FolderWatcher(string directory, Action changed)
+        public FolderWatcher(string directory, Action changed, bool contents = false)
         {
             _debouncer = new Debouncer(DefaultDelay, DefaultMaxDelay, changed);
             _watcher = new FileSystemWatcher(directory)
             {
-                IncludeSubdirectories = true,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName,
+                IncludeSubdirectories = !contents,
+                NotifyFilter = contents
+                    ? NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size
+                    : NotifyFilters.FileName | NotifyFilters.DirectoryName,
                 InternalBufferSize = 64 * 1024,
             };
+            if (contents)
+            {
+                _watcher.Changed += OnEvent;
+            }
+
             _watcher.Created += OnEvent;
             _watcher.Deleted += OnEvent;
             _watcher.Renamed += OnEvent;

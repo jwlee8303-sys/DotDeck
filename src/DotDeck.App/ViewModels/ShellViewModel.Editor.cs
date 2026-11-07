@@ -2,6 +2,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.Services;
+using DotDeck.App.ViewModels.Dialogs;
 using DotDeck.App.ViewModels.Documents;
 using DotDeck.App.ViewModels.Editor;
 using DotDeck.Core.Documents;
@@ -195,13 +196,14 @@ public sealed partial class ShellViewModel : ITextDocumentHost
         }
     }
 
-    private async Task<bool> SaveBufferAsync(DocumentBuffer buffer)
+    private async Task<bool> SaveBufferAsync(DocumentBuffer buffer, bool preview = true, WritePlan? approved = null)
     {
-        // One save per buffer at a time; a queued save plans from the text and snapshot current when it starts.
+        // One save per buffer at a time; a queued save plans from the text and snapshot current when it starts
+        // (unless an already reviewed plan is given).
         await buffer.SaveLock.WaitAsync().ConfigureAwait(true);
         try
         {
-            return await SaveBufferCoreAsync(buffer).ConfigureAwait(true);
+            return await SaveBufferCoreAsync(buffer, preview, approved).ConfigureAwait(true);
         }
         finally
         {
@@ -209,18 +211,50 @@ public sealed partial class ShellViewModel : ITextDocumentHost
         }
     }
 
-    private async Task<bool> SaveBufferCoreAsync(DocumentBuffer buffer)
+    private static string DescribeBlocked(WritePlan plan)
     {
-        var text = buffer.Document.Text;
+        var detail = plan.UnencodableCharacters.Count > 0
+            ? "\n\n" + string.Join("\n", plan.UnencodableCharacters.Take(5).Select(c => $"줄 {c.Line}, 열 {c.Column}: {c.Text}"))
+            : string.Empty;
+        return $"{plan.BlockingReason}{detail}";
+    }
+
+    private static DiffReviewItem ToReviewItem(WritePlan plan) =>
+        new(plan.Path, plan.Diff, plan.LineEndingsChanged ? "줄바꿈 변경" : null);
+
+    private async Task<bool> SaveBufferCoreAsync(DocumentBuffer buffer, bool preview, WritePlan? approved)
+    {
+        var text = approved?.NewText ?? buffer.Document.Text;
+
+        // Change count matching `text`; -1 when the editor already differs from an approved plan's text,
+        // so a later "reload" never discards edits the user has not seen in the comparison.
+        var textChangeCount = string.Equals(buffer.Document.Text, text, StringComparison.Ordinal) ? buffer.ChangeCount : -1;
         var baseline = buffer.Snapshot;
-        var plan = await Task.Run(() => SafeWriter.Prepare(buffer.Path, baseline, text)).ConfigureAwait(true);
+        var plan = approved ?? await Task.Run(() => SafeWriter.Prepare(buffer.Path, baseline, text)).ConfigureAwait(true);
         if (!plan.CanCommit)
         {
-            var detail = plan.UnencodableCharacters.Count > 0
-                ? "\n\n" + string.Join("\n", plan.UnencodableCharacters.Take(5).Select(c => $"줄 {c.Line}, 열 {c.Column}: {c.Text}"))
-                : string.Empty;
-            _dialogs.ShowError("저장할 수 없음", $"{plan.BlockingReason}{detail}");
+            _dialogs.ShowError("저장할 수 없음", $"{buffer.Path}\n\n{DescribeBlocked(plan)}");
             return false;
+        }
+
+        // SPEC 6: every write is previewed as a diff first (can be skipped for the rest of the session).
+        if (approved is null && preview && !_skipSavePreview && !plan.IsUnchanged)
+        {
+            var review = new DiffReviewViewModel(
+                "저장 전 확인",
+                $"{buffer.Path}\n저장하면 현재 디스크 내용은 백업됩니다.",
+                [ToReviewItem(plan)],
+                [new DialogChoice("save", "저장", IsDefault: true), new DialogChoice("cancel", "취소", IsCancel: true)])
+            {
+                SkipLabel = "이번 실행 동안 저장 전 미리보기 생략",
+            };
+            if (_dialogs.ShowDiffReview(review) != "save")
+            {
+                StatusMessage = "저장을 취소했습니다.";
+                return false;
+            }
+
+            _skipSavePreview |= review.SkipNextTime;
         }
 
         var overwrite = false;
@@ -230,6 +264,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost
             {
                 var result = await Task.Run(() => _writer.Commit(plan, overwrite)).ConfigureAwait(true);
                 buffer.MarkSaved(result.Snapshot, text);
+                buffer.DismissedDiskHash = null;
                 if (result.Backup is { } backup)
                 {
                     LastBackupText = $"백업: {backup.Directory}";
@@ -241,20 +276,18 @@ public sealed partial class ShellViewModel : ITextDocumentHost
             }
             catch (ExternalChangeException ex) when (!overwrite)
             {
-                // Three-way choice (reload / compare) arrives in 1c-4; for now overwrite only after confirmation.
-                var what = ex.Kind switch
+                switch (await ResolveConflictAsync(buffer, ex.Kind, text, onSave: true).ConfigureAwait(true))
                 {
-                    ExternalChangeKind.Deleted => "디스크에서 삭제되었습니다",
-                    ExternalChangeKind.Created => "다른 프로그램이 같은 이름의 파일을 만들었습니다",
-                    _ => "디스크에서 변경되었습니다",
-                };
-                if (!_dialogs.Confirm("외부 변경", $"{buffer.Path}\n\n파일이 {what}. 내 내용으로 덮어쓸까요? (현재 디스크 내용은 백업됩니다)"))
-                {
-                    StatusMessage = "저장을 취소했습니다.";
-                    return false;
+                    case "overwrite":
+                        overwrite = true;
+                        break;
+                    case "reload":
+                        await ReloadAsync(buffer, textChangeCount).ConfigureAwait(true);
+                        return false;
+                    default:
+                        StatusMessage = "저장을 취소했습니다.";
+                        return false;
                 }
-
-                overwrite = true;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -272,6 +305,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost
         _viewCounters[buffer.Path] = number;
         var document = new TextDocumentViewModel(buffer, number, preview, this, CloseDocument);
         Documents.Add(document);
+        UpdateContentWatchers();
         return document;
     }
 
@@ -322,6 +356,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost
         if (_buffers.Find(document.FilePath) is null)
         {
             _viewCounters.Remove(document.FilePath);
+            UpdateContentWatchers();
         }
 
         if (ActiveTextDocument == document)

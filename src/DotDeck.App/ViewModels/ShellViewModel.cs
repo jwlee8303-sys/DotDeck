@@ -28,7 +28,8 @@ public sealed record ShellServices(
     IDialogService Dialogs,
     FileOperationService FileOperations,
     TextFileReader Reader,
-    SafeWriter Writer);
+    SafeWriter Writer,
+    BackupStore Backups);
 
 /// <summary>Root view model: owns the documents and tool panes bound to the docking manager.</summary>
 public sealed partial class ShellViewModel : ObservableObject
@@ -37,6 +38,9 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly IDialogService _dialogs;
     private readonly DocumentBufferManager _buffers;
     private readonly SafeWriter _writer;
+    private readonly BackupStore _backups;
+    private readonly IFileStore _store;
+    private readonly SynchronizationContext? _ui;
     private int _scratchCounter;
 
     public ShellViewModel(ShellServices services, string version, bool isAdministrator)
@@ -47,6 +51,9 @@ public sealed partial class ShellViewModel : ObservableObject
         _dialogs = services.Dialogs;
         _buffers = new DocumentBufferManager(services.Reader);
         _writer = services.Writer;
+        _backups = services.Backups;
+        _store = services.Store;
+        _ui = SynchronizationContext.Current;
         Version = version;
         IsAdministrator = isAdministrator;
 

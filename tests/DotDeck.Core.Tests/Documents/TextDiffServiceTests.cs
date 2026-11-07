@@ -31,6 +31,27 @@ public sealed class TextDiffServiceTests
     }
 
     [Fact]
+    public void Compact_keeps_context_and_folds_long_unchanged_runs()
+    {
+        var oldText = string.Join("\n", Enumerable.Range(1, 20).Select(i => $"l{i}"));
+        var newText = oldText.Replace("l10", "X10", StringComparison.Ordinal);
+
+        var compact = TextDiffService.Compute(oldText, newText).Compact(context: 2);
+
+        Assert.Equal(
+            ["Gap:7", "Unchanged:l8", "Unchanged:l9", "Deleted:l10", "Inserted:X10", "Unchanged:l11", "Unchanged:l12", "Gap:8"],
+            compact.Select(l => $"{l.Kind}:{l.Text}"));
+    }
+
+    [Fact]
+    public void Compact_of_identical_texts_is_one_gap()
+    {
+        var compact = TextDiffService.Compute("a\nb", "a\nb").Compact();
+
+        Assert.Equal([new DiffLine(DiffLineKind.Gap, null, null, "2")], compact);
+    }
+
+    [Fact]
     public void Empty_old_text_is_all_insertions()
     {
         var diff = TextDiffService.Compute(string.Empty, "x\ny");

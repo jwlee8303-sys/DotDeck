@@ -8,28 +8,45 @@ namespace DotDeck.App.Infrastructure.Windows;
 
 public sealed class DialogService : IDialogService
 {
+    private int _depth;
+
+    public bool IsShowingDialog => _depth > 0;
+
+    private T Modal<T>(Func<T> show)
+    {
+        _depth++;
+        try
+        {
+            return show();
+        }
+        finally
+        {
+            _depth--;
+        }
+    }
+
     private static Window? Owner => Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
         ?? Application.Current?.MainWindow;
 
     public bool ShowProjectDialog(ProjectDialogViewModel viewModel)
     {
         var dialog = new ProjectDialog(viewModel) { Owner = Owner };
-        return dialog.ShowDialog() == true;
+        return Modal(() => dialog.ShowDialog() == true);
     }
 
     public bool Confirm(string title, string message)
     {
-        var result = Owner is { } owner
+        var result = Modal(() => Owner is { } owner
             ? MessageBox.Show(owner, message, title, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No)
-            : MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            : MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No));
         return result == MessageBoxResult.Yes;
     }
 
     public SaveChangesChoice AskSaveChanges(string title, string message)
     {
-        var result = Owner is { } owner
+        var result = Modal(() => Owner is { } owner
             ? MessageBox.Show(owner, message, title, MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.Yes)
-            : MessageBox.Show(message, title, MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.Yes);
+            : MessageBox.Show(message, title, MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.Yes));
         return result switch
         {
             MessageBoxResult.Yes => SaveChangesChoice.Save,
@@ -38,15 +55,28 @@ public sealed class DialogService : IDialogService
         };
     }
 
+    public string? ShowDiffReview(DiffReviewViewModel viewModel)
+    {
+        var dialog = new DiffReviewDialog(viewModel) { Owner = Owner };
+        Modal(dialog.ShowDialog);
+        return viewModel.Result;
+    }
+
+    public bool ShowBackupRestore(BackupRestoreViewModel viewModel)
+    {
+        var dialog = new BackupRestoreDialog(viewModel) { Owner = Owner };
+        return Modal(dialog.ShowDialog) == true && viewModel.Chosen is not null;
+    }
+
     public void ShowInfo(string title, string message)
     {
         if (Owner is { } owner)
         {
-            MessageBox.Show(owner, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+            Modal(() => MessageBox.Show(owner, message, title, MessageBoxButton.OK, MessageBoxImage.Information));
         }
         else
         {
-            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+            Modal(() => MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information));
         }
     }
 
@@ -54,11 +84,11 @@ public sealed class DialogService : IDialogService
     {
         if (Owner is { } owner)
         {
-            MessageBox.Show(owner, message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+            Modal(() => MessageBox.Show(owner, message, title, MessageBoxButton.OK, MessageBoxImage.Error));
         }
         else
         {
-            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+            Modal(() => MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error));
         }
     }
 

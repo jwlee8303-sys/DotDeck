@@ -82,6 +82,36 @@ public sealed partial class DocumentBuffer : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Replaces the text with what is on disk. The replacement is one undoable edit, so a mistaken reload can be
+    /// undone (the buffer then becomes dirty again).
+    /// </summary>
+    public void Reload(TextFileSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (!string.Equals(Document.Text, snapshot.Text, StringComparison.Ordinal))
+        {
+            Document.Text = snapshot.Text;
+        }
+
+        Snapshot = snapshot;
+        DismissedDiskHash = null;
+        Document.UndoStack.MarkAsOriginalFile();
+    }
+
+    /// <summary>The disk now holds <paramref name="snapshot"/> but the editor text differs: keep the text, stay dirty.</summary>
+    public void AcceptDiskSnapshot(TextFileSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        Snapshot = snapshot;
+        DismissedDiskHash = null;
+        Document.UndoStack.DiscardOriginalFileMarker();
+        IsDirty = true;
+    }
+
+    /// <summary>Disk content hash the user chose to keep their edits over ("deleted" for a deleted file).</summary>
+    internal string? DismissedDiskHash { get; set; }
+
     /// <summary>Serializes saves of this buffer.</summary>
     internal SemaphoreSlim SaveLock { get; } = new(1, 1);
 

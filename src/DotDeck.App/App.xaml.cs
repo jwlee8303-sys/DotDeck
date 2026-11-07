@@ -64,6 +64,7 @@ public partial class App : Application
                 MessageBox.Show(loadMessage, "DotDeck — 프로젝트 목록", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
 
+            var backups = new BackupStore(store, paths.BackupsDir, TimeProvider.System);
             var services = new ShellServices(
                 paths,
                 _log,
@@ -75,7 +76,8 @@ public partial class App : Application
                 new DialogService(),
                 new FileOperationService(store, new WindowsRecycleBin(_log), new FileOperationHistory()),
                 new TextFileReader(store),
-                new SafeWriter(store, new BackupStore(store, paths.BackupsDir, TimeProvider.System)));
+                new SafeWriter(store, backups),
+                backups);
             var shell = new ShellViewModel(services, version, IsAdministrator());
 
             var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log));

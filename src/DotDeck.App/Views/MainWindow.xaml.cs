@@ -30,6 +30,9 @@ public partial class MainWindow : Window
         // Start from the code-built default so "reset layout" and first run share one definition.
         DockManager.Layout = DefaultLayout.Create();
         Loaded += OnLoaded;
+
+        // Coming back to DotDeck is when external edits (another editor, git) are most likely: re-check open files.
+        Activated += (_, _) => _ = _shell.CheckExternalChangesAsync();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)

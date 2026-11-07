@@ -3,5 +3,12 @@
     <Version>0.1.0</Version>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <SatelliteResourceLanguages>en;ko</SatelliteResourceLanguages>
+    <Product>DotDeck</Product>
+    <Company>DotDeck</Company>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 </Project>

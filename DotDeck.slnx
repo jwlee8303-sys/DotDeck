@@ -1,3 +1,9 @@
 <Solution>
-  <Project Path="DotDeck/DotDeck.csproj" />
+  <Folder Name="/src/">
+    <Project Path="src/DotDeck.App/DotDeck.App.csproj" />
+    <Project Path="src/DotDeck.Core/DotDeck.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DotDeck.Core.Tests/DotDeck.Core.Tests.csproj" />
+  </Folder>
 </Solution>

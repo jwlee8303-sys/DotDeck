@@ -11,11 +11,11 @@
 
 ## 명령어
 - 빌드: `dotnet build DotDeck.slnx`
-- 테스트: `dotnet test DotDeck.slnx`
+- 테스트: `dotnet test --solution DotDeck.slnx` (xunit.v3 + Microsoft.Testing.Platform, `global.json`에서 지정)
 - 실행: `dotnet run --project src/DotDeck.App -- --home <테스트용 홈 폴더>`
 - 배포: `dotnet publish src/DotDeck.App -c Release -r win-x64 -p:PublishSingleFile=true`
 
-## 구조 (Phase 0 재구성 목표)
+## 구조
 - `src/DotDeck.App`: WPF 앱 (`net10.0-windows`) — Shell(도킹), 탐색기, 에디터, 테마, ViewModel
 - `src/DotDeck.Core`: UI 의존성 없는 라이브러리 (`net10.0`) — 프로젝트 모델, 파일 작업·이력, 파서, 검증기, 환경변수 추상화
 - `tests/DotDeck.Core.Tests`: xUnit
@@ -29,6 +29,7 @@
 - 비밀 파일(`.env*`(example 제외), `*.pfx`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`)은 열지 않는다. 비밀값은 로그·백업에 평문으로 남기지 않는다.
 - 저장 위치: 프로젝트 정의 `%APPDATA%\DotDeck\projects.json`, 템플릿 `%APPDATA%\DotDeck\templates\`, 로그 `%LOCALAPPDATA%\DotDeck\logs\`
 - 색은 모두 리소스 키로 관리(다크/라이트 테마 전환).
-- SPEC 3절 외 NuGet 패키지는 추가 전 사용자 승인.
+- 패키지 버전은 `Directory.Packages.props`(CPM)에서만 관리. SPEC 3절 외 NuGet 패키지는 추가 전 사용자 승인.
+- 경고는 오류(`TreatWarningsAsErrors`). 설계 결정은 `docs/DESIGN.md`.
 - Phase마다: 빌드 → 테스트 → `/codex-review` → 커밋 → 보고 → 사용자 확인 후 다음 Phase.
 - 버전: `Directory.Build.props` `<Version>` (SemVer, 태그 v접두사)

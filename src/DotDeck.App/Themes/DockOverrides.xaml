@@ -1,0 +1,44 @@
+<!--
+  Aligns AvalonDock's VS2022 dark theme with the DotDeck palette. Merged into DockingManager.Resources
+  after the AvalonDock theme (see ThemeManager) so these entries win. Values follow DD.* keys dynamically.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vs="clr-namespace:AvalonDock.Themes.VS.Themes;assembly=AvalonDock.Themes.VS">
+
+    <Color x:Key="{x:Static vs:ResourceKeys.ControlAccentColorKey}">#FF0078D4</Color>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ControlAccentBrushKey}" Color="{DynamicResource DD.Color.Accent}" />
+
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.Background}" Color="{DynamicResource DD.Color.Chrome.Background}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.PanelBorderBrush}" Color="{DynamicResource DD.Color.Border}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.TabBackground}" Color="{DynamicResource DD.Color.Chrome.Background}" />
+
+    <!-- Document tabs: active = accent, inactive selected = border gray (VS behaviour) -->
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabSelectedActiveBackground}" Color="{DynamicResource DD.Color.Accent}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabSelectedActiveText}" Color="{DynamicResource DD.Color.Text.OnAccent}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabSelectedInactiveBackground}" Color="{DynamicResource DD.Color.Selection.Inactive}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabSelectedInactiveText}" Color="{DynamicResource DD.Color.Text}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabUnselectedText}" Color="{DynamicResource DD.Color.Text}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabUnselectedHoveredBackground}" Color="{DynamicResource DD.Color.Accent.Hover}" />
+
+    <!-- Tool window captions -->
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionActiveBackground}" Color="{DynamicResource DD.Color.Accent}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionActiveText}" Color="{DynamicResource DD.Color.Text.OnAccent}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionInactiveBackground}" Color="{DynamicResource DD.Color.Chrome.Background}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionInactiveText}" Color="{DynamicResource DD.Color.Text}" />
+
+    <!-- Tool window tabs (bottom strip) -->
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabSelectedActiveBackground}" Color="{DynamicResource DD.Color.Panel.Background}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabSelectedActiveText}" Color="{DynamicResource DD.Color.Accent.Hover}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabSelectedInactiveBackground}" Color="{DynamicResource DD.Color.Panel.Background}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabSelectedInactiveText}" Color="{DynamicResource DD.Color.Text}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabUnselectedText}" Color="{DynamicResource DD.Color.Text.Secondary}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabUnselectedHoveredBackground}" Color="{DynamicResource DD.Color.Hover}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabUnselectedHoveredText}" Color="{DynamicResource DD.Color.Text}" />
+
+    <!-- Floating windows -->
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.FloatingDocumentWindowBackground}" Color="{DynamicResource DD.Color.Chrome.Background}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.FloatingDocumentWindowBorder}" Color="{DynamicResource DD.Color.Accent.Secondary}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.FloatingToolWindowBackground}" Color="{DynamicResource DD.Color.Chrome.Background}" />
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.FloatingToolWindowBorder}" Color="{DynamicResource DD.Color.Border}" />
+</ResourceDictionary>

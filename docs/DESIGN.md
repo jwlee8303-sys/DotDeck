@@ -126,7 +126,8 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 | 추상화 | `IFileStore` / `PhysicalFileStore` | 열거·읽기·쓰기·이동·복사·속성 |
 | | `IEnvironmentStore` | 사용자·시스템 환경변수. Phase 1은 읽기만. 구현 `RegistryEnvironmentStore`(App), `FakeEnvironmentStore`(테스트) |
 | | `IRecycleBin` | `Recycle(paths) → RecycleTicket[]`, `TryRestore(ticket)` |
-| | `IClock`, `IFileWatcher(Factory)`, `IAppLog` | 시간, 디바운스 FSW(overflow 시 재스캔), 파일 로그(14일 보관) |
+| | `TimeProvider`(.NET 내장), `IFileWatcher(Factory)`, `IAppLog` | 시간(구현 중 `IClock` 대신 내장 `TimeProvider` 채택, 테스트는 자체 `FakeTimeProvider`), 디바운스 FSW(overflow 시 재스캔), 파일 로그(14일 보관) |
+| | `IProcessEnvironment` (`DotDeck.Core.Platform`) | 프로세스 환경변수·특수 폴더·작업 폴더 읽기 (경로 해석용) |
 | 경로 | `AppPaths` / `AppPathsResolver` | 우선순위 `--home` > `DOTDECK_HOME` > `%USERPROFILE%`. Home, Roaming·Local 데이터 폴더 계산 |
 | 프로젝트 | `ProjectDefinition`, `ProjectRegistry` | projects.json 로드·저장(SafeWriter 사용), 스키마 버전 관리, 손상 시 `.corrupt-<ts>`로 보존. 기본 제공 프로젝트 삭제 거부 |
 | 소스 | `IProjectSource` → `FolderProjectSource`, `SystemProjectSource` | 노드 자식 열거. 시스템은 가상 노드 |

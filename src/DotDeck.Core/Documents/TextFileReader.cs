@@ -119,6 +119,13 @@ public sealed class TextFileReader(IFileStore store)
             RoundTrips: !hasErrors && EncodesTo(text, kind, bytes));
     }
 
+    /// <summary>
+    /// Snapshot for text DotDeck itself just encoded and wrote (no detection, so text with NUL is still accepted).
+    /// </summary>
+    public static TextFileSnapshot ForWrittenText(string path, string text, TextEncodingKind kind, byte[] bytes, DateTime lastWriteTimeUtc) =>
+        new(path, text, kind, LineEndingInfo.Detect(text), bytes.Length, lastWriteTimeUtc, ComputeHash(bytes), IsLarge(bytes.Length),
+            HasDecodingErrors: false, RoundTrips: true);
+
     public static string ComputeHash(ReadOnlySpan<byte> bytes) => Convert.ToHexString(SHA256.HashData(bytes));
 
     /// <summary>NUL byte in the sniffed region means binary (UTF-16/32 files must carry a BOM to be read as text).</summary>

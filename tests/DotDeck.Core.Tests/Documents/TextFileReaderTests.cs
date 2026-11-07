@@ -144,6 +144,8 @@ public sealed class TextFileReaderTests : IDisposable
         public byte[] ReadAllBytes(string path) => _inner.ReadAllBytes(path);
         public byte[] ReadHead(string path, int maxBytes) => _inner.ReadHead(path, maxBytes);
         public string? ResolveLinkTarget(string path) => _inner.ResolveLinkTarget(path);
+        public void ReplaceFile(string source, string destination) => _inner.ReplaceFile(source, destination);
+        public void DeleteDirectory(string path) => _inner.DeleteDirectory(path);
         public void WriteAllBytes(string path, byte[] bytes) => _inner.WriteAllBytes(path, bytes);
         public void CreateDirectory(string path) => _inner.CreateDirectory(path);
         public void CreateFile(string path) => _inner.CreateFile(path);

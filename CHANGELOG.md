@@ -23,6 +23,9 @@
 - 탐색기 실시간 반영: 프로젝트 루트를 `FileSystemWatcher`로 감시해 이름 변화(생성·삭제·이름 변경)를 디바운스(300ms, 최대 2초) 후 트리에 반영. 제자리 편집 중에는 반영을 미룸
 - Core: 휴지통 `$I` 메타데이터 파서(v1·v2), App: `SHFileOperationW` 기반 휴지통 보내기와 `$R` 이동 복원
 - Core: 텍스트 파일 읽기(`TextFileReader`) — BOM → 엄격 UTF-8 → CP949 순 인코딩 감지(UTF-16 LE/BE·UTF-32 LE BOM 포함), 줄바꿈 감지(혼합 표시), 바이너리 판별(앞 8KB NUL), 1MB 초과 대용량 플래그, SHA-256·수정 시각, 바이트 왕복 여부. 비밀 파일(링크 대상 포함)은 읽지 않음
+- Core: 안전 저장(`SafeWriter`) — 계획(diff·인코딩 검사·표현 불가 문자 위치) → 커밋(SHA-256 외부 변경 검사 → 백업 → 같은 폴더 임시 파일 → `File.Replace`, 교체 직전 재검사). 변경 없으면 파일을 건드리지 않음, BOM·줄바꿈·인코딩 보존, 읽기 전용·비밀 파일(링크 대상 포함) 거부, 실패 시 원본 유지·임시 파일 정리, 백업에서 복원(복원 전 현재본 백업)
+- Core: 백업 저장소(`BackupStore`) — `backups\<yyyyMMdd-HHmmss>[-n]\<드라이브>\<경로>`와 `manifest.json`, 목록·파일별 조회, 해시 검증 읽기, 보관 개수(기본 50) 정리(1분 이내 백업 제외)
+- Core: 줄 단위 diff(`TextDiffService`, DiffPlex 1.9.0)
 
 ### Fixed
 - 공용 ListBox 템플릿에서 UI 가상화가 꺼져 있던 문제(`CanContentScroll` 미전달)

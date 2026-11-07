@@ -5,6 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DiffPlex" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="DotDeck.Core.Tests" />
   </ItemGroup>
 

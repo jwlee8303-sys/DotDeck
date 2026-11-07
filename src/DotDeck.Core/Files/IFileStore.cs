@@ -48,7 +48,7 @@ public interface IFileStore
 
     byte[] ReadAllBytes(string path);
 
-    /// <summary>Final target of a symbolic link or junction, or null when <paramref name="path"/> is not a link.</summary>
+    /// <summary>Final target of a symbolic link or junction, or null when <paramref name="path"/> is not a link or does not exist.</summary>
     string? ResolveLinkTarget(string path);
 
     /// <summary>Reads at most <paramref name="maxBytes"/> bytes from the start of a file.</summary>
@@ -71,6 +71,15 @@ public interface IFileStore
     /// (any other failure created nothing).
     /// </summary>
     void Copy(string source, string destination);
+
+    /// <summary>
+    /// Atomically replaces an existing <paramref name="destination"/> with <paramref name="source"/> (same volume),
+    /// keeping the destination's attributes and ACL. <paramref name="source"/> no longer exists afterwards.
+    /// </summary>
+    void ReplaceFile(string source, string destination);
+
+    /// <summary>Permanently deletes a directory tree. Only for app-owned folders (e.g. pruned backups).</summary>
+    void DeleteDirectory(string path);
 
     /// <summary>Permanently deletes a file. Only for app-owned files (temp files, app data). User files go to the recycle bin.</summary>
     void DeleteFile(string path);

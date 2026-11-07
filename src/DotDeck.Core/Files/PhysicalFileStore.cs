@@ -38,7 +38,7 @@ public sealed class PhysicalFileStore : IFileStore
     public byte[] ReadAllBytes(string path) => File.ReadAllBytes(path);
 
     public string? ResolveLinkTarget(string path) =>
-        File.ResolveLinkTarget(path, returnFinalTarget: true)?.FullName;
+        File.Exists(path) || Directory.Exists(path) ? File.ResolveLinkTarget(path, returnFinalTarget: true)?.FullName : null;
 
     public byte[] ReadHead(string path, int maxBytes)
     {
@@ -105,6 +105,11 @@ public sealed class PhysicalFileStore : IFileStore
             File.Copy(source, destination, overwrite: false);
         }
     }
+
+    public void ReplaceFile(string source, string destination) =>
+        File.Replace(source, destination, destinationBackupFileName: null, ignoreMetadataErrors: true);
+
+    public void DeleteDirectory(string path) => Directory.Delete(path, recursive: true);
 
     public void DeleteFile(string path) => File.Delete(path);
 

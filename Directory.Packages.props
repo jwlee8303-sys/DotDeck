@@ -8,6 +8,9 @@
     <PackageVersion Include="Dirkster.AvalonDock.Themes.VS" Version="5.0.1" />
     <PackageVersion Include="Dirkster.AvalonDock.Serializer.Xml" Version="5.0.1" />
   </ItemGroup>
+  <ItemGroup Label="Core">
+    <PackageVersion Include="DiffPlex" Version="1.9.0" />
+  </ItemGroup>
   <ItemGroup Label="Tests">
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
   </ItemGroup>

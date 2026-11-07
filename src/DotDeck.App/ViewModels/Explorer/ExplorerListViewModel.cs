@@ -2,6 +2,7 @@ using System.IO;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DotDeck.Core.Explorer;
 using DotDeck.Core.Logging;
 
 namespace DotDeck.App.ViewModels.Explorer;
@@ -98,6 +99,9 @@ public sealed partial class ExplorerListViewModel : ObservableObject
                 break;
             case NodeRowViewModel { Node.CanOpen: true } file:
                 await _context.OpenFile(file.Node.FullPath!, false);
+                break;
+            case NodeRowViewModel { Node.Kind: NodeKind.Virtual, Node.IsEnabled: true } system:
+                _context.OpenSystemNode?.Invoke(system.Node.Id);
                 break;
             case MessageRowViewModel { Action: { } action }:
                 action.Execute(null);

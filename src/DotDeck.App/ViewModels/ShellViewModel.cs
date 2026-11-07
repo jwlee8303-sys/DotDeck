@@ -29,7 +29,8 @@ public sealed record ShellServices(
     FileOperationService FileOperations,
     TextFileReader Reader,
     SafeWriter Writer,
-    BackupStore Backups);
+    BackupStore Backups,
+    DotDeck.Core.SystemConfig.IEnvironmentStore Environment);
 
 /// <summary>Root view model: owns the documents and tool panes bound to the docking manager.</summary>
 public sealed partial class ShellViewModel : ObservableObject
@@ -41,6 +42,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly BackupStore _backups;
     private readonly IFileStore _store;
     private readonly SessionStateStore _session;
+    private readonly DotDeck.Core.SystemConfig.IEnvironmentStore _environment;
     private readonly SynchronizationContext? _ui;
     private int _scratchCounter;
 
@@ -55,6 +57,7 @@ public sealed partial class ShellViewModel : ObservableObject
         _backups = services.Backups;
         _store = services.Store;
         _session = services.Session;
+        _environment = services.Environment;
         _ui = SynchronizationContext.Current;
         Version = version;
         IsAdministrator = isAdministrator;
@@ -63,7 +66,7 @@ public sealed partial class ShellViewModel : ObservableObject
             new ProjectRegistryGateway(services.Registry), services.Paths, services.Store, services.Clipboard,
             services.Shell, services.Dialogs,
             new ExplorerFileOperations(services.FileOperations, services.Dialogs, services.Log, message => StatusMessage = message),
-            services.Log, message => StatusMessage = message, new FolderWatcherFactory(), OpenFileAsync);
+            services.Log, message => StatusMessage = message, new FolderWatcherFactory(), OpenFileAsync, OpenSystemNode);
         Properties = new PropertiesPaneViewModel();
         Output = new OutputPaneViewModel(services.Log);
         Validation = new ValidationPaneViewModel();
@@ -72,6 +75,13 @@ public sealed partial class ShellViewModel : ObservableObject
         Tools = [Properties, Output, Validation, SearchResults, HookTest];
         Projects = new ProjectsPaneViewModel(explorerContext, services.Session, Tools.Add, tool => Tools.Remove(tool));
         Tools.Insert(0, Projects);
+        Projects.List.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(Projects.List.SelectedRow))
+            {
+                Properties.Show((Projects.List.SelectedRow as NodeRowViewModel)?.Node.FullPath);
+            }
+        };
 
         Documents.Add(new WelcomeDocumentViewModel(Paths, version, CloseDocument));
     }
@@ -138,7 +148,8 @@ public sealed partial class ShellViewModel : ObservableObject
         }
 
         return (PaneViewModel?)Tools.FirstOrDefault(t => t.ContentId == contentId)
-            ?? Documents.FirstOrDefault(d => d.ContentId == contentId && d.IsRestorable);
+            ?? Documents.FirstOrDefault(d => d.ContentId == contentId && d.IsRestorable)
+            ?? CreateSystemDocument(contentId);
     }
 
     [RelayCommand]
@@ -190,6 +201,12 @@ public sealed partial class ShellViewModel : ObservableObject
         if (document is ScratchDocumentViewModel untitled)
         {
             _ = CloseUntitledAsync(untitled);
+            return;
+        }
+
+        if (document is SystemDocumentViewModel { IsDirty: true } system
+            && !_dialogs.Confirm("닫기", $"{system.Title}에 적용하지 않은 변경이 있습니다. 버리고 닫을까요?"))
+        {
             return;
         }
 

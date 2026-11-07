@@ -79,7 +79,8 @@ public partial class App : Application
                 new FileOperationService(store, new WindowsRecycleBin(_log), new FileOperationHistory()),
                 new TextFileReader(store),
                 new SafeWriter(store, backups),
-                backups);
+                backups,
+                CreateEnvironmentStore(paths, store));
             var shell = new ShellViewModel(services, version, IsAdministrator());
 
             var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log));
@@ -135,6 +136,12 @@ public partial class App : Application
     private static string GetVersion() =>
         typeof(App).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
         ?? "0.0.0";
+
+    // Sandbox mode (--home / DOTDECK_HOME) never touches the real registry: variables live in a JSON file there.
+    private static DotDeck.Core.SystemConfig.IEnvironmentStore CreateEnvironmentStore(AppPaths paths, PhysicalFileStore store) =>
+        paths.IsHomeOverridden
+            ? new DotDeck.Core.SystemConfig.FileEnvironmentStore(store, System.IO.Path.Combine(paths.Home, ".dotdeck-environment.json"), IsAdministrator())
+            : new Infrastructure.Windows.RegistryEnvironmentStore(IsAdministrator());
 
     private static bool IsAdministrator()
     {

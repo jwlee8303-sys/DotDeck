@@ -41,7 +41,7 @@ public static class ProjectSources
         ArgumentNullException.ThrowIfNull(paths);
         if (project.Builtin == BuiltinProject.System)
         {
-            return new SystemProjectSource(project);
+            return new SystemProjectSource(project, paths, store);
         }
 
         var root = project.Builtin is { } builtin ? BuiltinProjects.RootOf(builtin, paths) : project.Root;

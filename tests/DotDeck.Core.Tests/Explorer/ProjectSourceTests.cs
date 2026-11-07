@@ -185,7 +185,8 @@ public sealed class ProjectSourceTests : IDisposable
         Assert.Null(system.RootPath);
         var nodes = system.GetChildren(null);
         Assert.Equal(4, nodes.Count);
-        Assert.All(nodes, n => Assert.False(n.IsEnabled));
+        Assert.All(nodes, n => Assert.True(n.IsEnabled));
         Assert.All(nodes, n => Assert.False(n.CanOpen));
+        Assert.Equal(NodeKind.Folder, nodes[3].Kind);
     }
 }

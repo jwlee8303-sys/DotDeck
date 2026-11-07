@@ -194,6 +194,12 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - settings 폼은 permissions·hooks·env만 다루고 나머지 키·모르는 필드·표시 불가 훅 데이터는 보존한다. 섹션이 객체가 아니면 폼을 열지 않는다.
 - 훅 테스트는 사용자 확인 후 `cmd /d /s /c`로 실행, 제한 시간은 프로세스 시작부터 stdin 쓰기까지 포함, 취소·초과 시 프로세스 트리 종료.
 
+## Phase 3 시스템 프로젝트 규칙
+- 환경변수 저장소 `IEnvironmentStore`: 실제 실행은 레지스트리(`RegistryEnvironmentStore`, REG_EXPAND_SZ 유지, 적용 후 WM_SETTINGCHANGE), 샌드박스(`--home`)와 테스트는 `<home>\.dotdeck-environment.json`(`FileEnvironmentStore`). 샌드박스에서는 hosts 등 중요 파일 기본값도 홈 아래 경로를 쓴다.
+- 적용 흐름: 연 시점 값 기준으로 변경 계산 → diff 확인 → 현재 값과 충돌 검사(다르면 중단) → 변경 기록(`backups\env-*.json`)을 먼저 저장 → 쓰기. 중간 실패 시 기록을 실제 적용분으로 줄인다.
+- 이름에 KEY/TOKEN/SECRET/PASSWORD/PWD/CREDENTIAL이 있으면 화면·diff·기록 모두 마스킹. 따라서 비밀 변수는 되돌리기 대상에서 빠진다.
+- 중요 파일 목록: `%APPDATA%\DotDeck\important-files.json`(추가/제거 목록). ACL은 보기만 하고 수정 기능은 없다.
+
 **projects.json 초안**
 ```json
 {

@@ -37,6 +37,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost
         {
             case TextDocumentViewModel text:
                 ActiveTextDocument = text;
+                Properties.Show(text.FilePath);
                 break;
             case DocumentViewModel:
                 ActiveTextDocument = null;

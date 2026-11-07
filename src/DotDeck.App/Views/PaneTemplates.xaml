@@ -4,7 +4,11 @@
                     xmlns:tools="clr-namespace:DotDeck.App.ViewModels.Tools"
                     xmlns:explorer="clr-namespace:DotDeck.App.ViewModels.Explorer"
                     xmlns:explorerViews="clr-namespace:DotDeck.App.Views.Explorer"
-                    xmlns:editorViews="clr-namespace:DotDeck.App.Views.Editor">
+                    xmlns:editorViews="clr-namespace:DotDeck.App.Views.Editor"
+                    xmlns:conv="clr-namespace:DotDeck.App.Converters">
+
+    <BooleanToVisibilityConverter x:Key="SysBoolToVisible" />
+    <conv:FalseToVisibleConverter x:Key="SysFalseToVisible" />
 
     <!-- Implicit templates: AvalonDock shows each view model through these (keyed by type). -->
 
@@ -102,7 +106,32 @@
 
     <DataTemplate DataType="{x:Type tools:PropertiesPaneViewModel}">
         <Border Background="{DynamicResource DD.Brush.Panel.Background}">
-            <TextBlock Style="{StaticResource PlaceholderText}" Text="선택한 항목이 없습니다." />
+            <Grid>
+                <TextBlock Style="{StaticResource PlaceholderText}" Text="선택한 항목이 없습니다."
+                           Visibility="{Binding HasItem, Converter={StaticResource SysFalseToVisible}}" />
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding HasItem, Converter={StaticResource SysBoolToVisible}}">
+                    <StackPanel Margin="10,8">
+                        <TextBox Style="{StaticResource ValueText}" Text="{Binding Path, Mode=OneWay}" TextWrapping="Wrap" />
+                        <TextBlock Margin="0,4" TextWrapping="Wrap" Style="{StaticResource DD.Text.Secondary}" Text="{Binding Details}" />
+                        <TextBlock Margin="0,10,0,2" FontWeight="SemiBold" Text="Windows 권한(읽기 전용)" />
+                        <TextBlock TextWrapping="Wrap" Text="{Binding Owner, StringFormat=소유자: {0}}" />
+                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource DD.Brush.Warning}" Text="{Binding AclError}" />
+                        <ItemsControl Margin="0,4,0,0" ItemsSource="{Binding Rules}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,3">
+                                        <TextBlock TextWrapping="Wrap">
+                                            <Run FontWeight="SemiBold" Text="{Binding Identity, Mode=OneWay}" />
+                                            <Run Text="{Binding Access, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding Inherited, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <TextBlock TextWrapping="Wrap" Style="{StaticResource DD.Text.Secondary}" Text="{Binding Rights}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
         </Border>
     </DataTemplate>
 
@@ -186,4 +215,143 @@
             </Grid>
         </DockPanel>
     </DataTemplate>
+
+    <!-- System documents (SPEC §8): shared header bar -->
+
+    <DataTemplate x:Key="SystemHeader">
+        <StackPanel>
+            <DockPanel Margin="8,6" LastChildFill="False">
+                <Button Content="추가" Command="{Binding AddCommand}" IsEnabled="{Binding CanWrite}" Margin="0,0,4,0" />
+                <Button Content="적용..." Command="{Binding ApplyCommand}" IsEnabled="{Binding IsDirty}" Margin="0,0,4,0"
+                        ToolTip="변경 내용을 diff로 확인한 뒤 적용합니다" />
+                <Button Content="변경 취소" Command="{Binding RevertCommand}" IsEnabled="{Binding IsDirty}" Margin="0,0,4,0" />
+                <Button Content="마지막 변경 되돌리기" Command="{Binding UndoCommand}" IsEnabled="{Binding CanWrite}" Margin="0,0,12,0"
+                        ToolTip="백업 폴더의 변경 기록으로 되돌립니다" />
+                <TextBlock VerticalAlignment="Center" Style="{StaticResource DD.Text.Secondary}" Text="{Binding ScopeText, StringFormat=범위: {0}}" />
+            </DockPanel>
+            <Border Background="{DynamicResource DD.Brush.Chrome.Background}" Padding="8,4"
+                    Visibility="{Binding IsReadOnly, Converter={StaticResource SysBoolToVisible}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="관리자 권한으로 다시 시작" Command="{Binding RestartAsAdministratorCommand}" />
+                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
+                               Text="읽기 전용입니다. 시스템 범위는 관리자 권한일 때만 바꿀 수 있습니다." />
+                </DockPanel>
+            </Border>
+        </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type docs:EnvironmentDocumentViewModel}">
+        <DockPanel Background="{DynamicResource DD.Brush.Editor.Background}">
+            <ContentControl DockPanel.Dock="Top" Content="{Binding}" ContentTemplate="{StaticResource SystemHeader}" Focusable="False" />
+            <DockPanel DockPanel.Dock="Top" Margin="8,0,8,6">
+                <TextBlock Text="검색" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBox Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="환경변수 검색" />
+            </DockPanel>
+            <TextBlock DockPanel.Dock="Bottom" Margin="8,4" Style="{StaticResource DD.Text.Secondary}" TextWrapping="Wrap"
+                       Text="적용 후 새로 연 터미널·프로그램부터 반영됩니다(열린 터미널에는 적용되지 않음)." />
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding VisibleRows}" Margin="8,0" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="260" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,4,0"
+                                         IsReadOnly="{Binding DataContext.IsReadOnly, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                         Visibility="{Binding IsMasked, Converter={StaticResource SysFalseToVisible}}"
+                                         IsReadOnly="{Binding DataContext.IsReadOnly, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                <TextBox Grid.Column="1" Text="{Binding DisplayValue, Mode=OneWay}" IsReadOnly="True"
+                                         Visibility="{Binding IsMasked, Converter={StaticResource SysBoolToVisible}}" />
+                                <ToggleButton Grid.Column="2" Content="👁" Margin="4,0,0,0" IsChecked="{Binding IsRevealed}"
+                                              ToolTip="비밀 값 보기/숨기기"
+                                              Visibility="{Binding IsSecret, Converter={StaticResource SysBoolToVisible}}" />
+                                <Button Grid.Column="3" Content="✕" Margin="4,0,0,0" ToolTip="삭제"
+                                        Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}" />
+                                <TextBlock Grid.Row="1" Grid.ColumnSpan="4" Text="{Binding Issue}" Foreground="{DynamicResource DD.Brush.Warning}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <Trigger Property="Text" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </Trigger>
+                                                <Trigger Property="Text" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type docs:PathDocumentViewModel}">
+        <DockPanel Background="{DynamicResource DD.Brush.Editor.Background}">
+            <ContentControl DockPanel.Dock="Top" Content="{Binding}" ContentTemplate="{StaticResource SystemHeader}" Focusable="False" />
+            <DockPanel DockPanel.Dock="Top" Margin="8,0,8,6">
+                <TextBlock Text="범위" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding Scope}" Width="120" HorizontalAlignment="Left"
+                          AutomationProperties.Name="PATH 범위" />
+            </DockPanel>
+            <TextBlock DockPanel.Dock="Bottom" Margin="8,4" Style="{StaticResource DD.Text.Secondary}" TextWrapping="Wrap"
+                       Text="User = 사용자 PATH, Machine = 시스템 PATH. 적용 후 새로 연 터미널부터 반영됩니다." />
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Rows}" Margin="8,0" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                         IsReadOnly="{Binding DataContext.IsReadOnly, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                <Button Grid.Column="1" Content="▲" Margin="4,0,0,0" ToolTip="위로"
+                                        Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                <Button Grid.Column="2" Content="▼" Margin="2,0,0,0" ToolTip="아래로"
+                                        Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                <Button Grid.Column="3" Content="✕" Margin="2,0,0,0" ToolTip="삭제"
+                                        Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                <TextBlock Grid.Row="1" Grid.ColumnSpan="4" Text="{Binding Issue}" Foreground="{DynamicResource DD.Brush.Warning}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <Trigger Property="Text" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </Trigger>
+                                                <Trigger Property="Text" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+    </DataTemplate>
+
 </ResourceDictionary>

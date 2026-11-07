@@ -96,6 +96,11 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="도구(_T)">
+                <MenuItem Header="중요 파일 추가(_I)..." Command="{Binding AddImportantFileCommand}" />
+                <MenuItem Header="현재 파일을 중요 파일에서 제거(_R)" Command="{Binding RemoveImportantFileCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
+                <Separator />
+                <MenuItem Header="관리자 권한으로 다시 시작(_A)" Command="{Binding RestartAsAdministratorCommand}" />
+                <Separator />
                 <MenuItem Header="설정(_O)..." IsEnabled="False" />
             </MenuItem>
             <MenuItem Header="창(_W)">

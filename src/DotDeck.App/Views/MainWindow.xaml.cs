@@ -32,6 +32,7 @@ public partial class MainWindow : Window
         // Start from the code-built default so "reset layout" and first run share one definition.
         DockManager.Layout = DefaultLayout.Create();
         Loaded += OnLoaded;
+        _shell.RestartElevatedRequested += (_, _) => RestartElevated();
 
         // Coming back to DotDeck is when external edits (another editor, git) are most likely: re-check open files.
         Activated += (_, _) => _ = _shell.CheckExternalChangesAsync();
@@ -82,6 +83,36 @@ public partial class MainWindow : Window
     }
 
     private bool _closeConfirmed;
+
+    // Saves tabs and layout first so the elevated instance restores them, then starts it (UAC) and closes.
+    private void RestartElevated()
+    {
+        if (_shell.HasUnsavedDocuments)
+        {
+            MessageBox.Show(this, "저장하지 않은 문서가 있습니다. 저장하거나 닫은 뒤 다시 시도하세요.", "관리자 권한으로 다시 시작",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        _layout.Save(DockManager);
+        _shell.SaveSession();
+        var args = string.Join(' ', Environment.GetCommandLineArgs().Skip(1).Select(a => $"\"{a.TrimEnd('\\')}\""));
+        try
+        {
+            using var _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, args)
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+            });
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return; // UAC prompt declined
+        }
+
+        _closeConfirmed = true;
+        Close();
+    }
 
     // Closing before the session was restored must not overwrite it with the partial state.
     private bool _restoring;

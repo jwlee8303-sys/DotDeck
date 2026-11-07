@@ -127,9 +127,20 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:ValidationPaneViewModel}">
-        <Border Background="{DynamicResource DD.Brush.Panel.Background}">
-            <TextBlock Style="{StaticResource PlaceholderText}" Text="검증 결과가 없습니다. (Phase 2)" />
-        </Border>
+        <DockPanel Background="{DynamicResource DD.Brush.Panel.Background}">
+            <TextBlock DockPanel.Dock="Top" Margin="6,3" Style="{StaticResource DD.Text.Secondary}" Text="{Binding Summary}" />
+            <ListBox ItemsSource="{Binding Issues}" BorderThickness="0" Background="Transparent">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type tools:ValidationRow}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Width="18" Text="{Binding Glyph}" ToolTip="{Binding SeverityText}" />
+                            <TextBlock Width="44" Style="{StaticResource DD.Text.Secondary}" Text="{Binding LineText}" />
+                            <TextBlock Text="{Binding Message}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:SearchResultsPaneViewModel}">

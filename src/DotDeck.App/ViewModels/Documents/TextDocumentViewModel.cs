@@ -2,6 +2,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.ViewModels.Editor;
+using DotDeck.Core.Editors;
 
 namespace DotDeck.App.ViewModels.Documents;
 
@@ -11,6 +12,9 @@ public interface ITextDocumentHost
     Task SaveAsync(TextDocumentViewModel document);
 
     void OpenNewView(TextDocumentViewModel document);
+
+    /// <summary>Runs a hook row of a settings form in the hook test pane.</summary>
+    void RunHook(HookRow row);
 }
 
 /// <summary>
@@ -29,6 +33,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
         _host = host;
         _isPreview = isPreview;
         Find = new FindReplaceViewModel(buffer.Document);
+        Kind = EditorKinds.Detect(buffer.Path);
         Buffer.PropertyChanged += OnBufferPropertyChanged;
         Buffer.TextChanged += OnBufferTextChanged;
         UpdateTitle();
@@ -60,6 +65,24 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     private int _caretColumn = 1;
 
     public bool CanClose => !IsPinned;
+
+    /// <summary>Type-specific editor of this file (SPEC §7).</summary>
+    public EditorKind Kind { get; }
+
+    /// <summary>Agents, skills and Claude settings have a form view besides the text.</summary>
+    public bool HasForm => Kind is EditorKind.Agent or EditorKind.Skill or EditorKind.ClaudeSettings;
+
+    [ObservableProperty]
+    private bool _isFormView;
+
+    [ObservableProperty]
+    private DocumentFormViewModel? _form;
+
+    /// <summary>Why the form cannot be shown (e.g. invalid JSON); shown above the text editor.</summary>
+    [ObservableProperty]
+    private string? _formError;
+
+    private bool _applyingForm;
 
     /// <summary>Recreated from session.json before the layout is restored.</summary>
     public override bool IsRestorable => true;
@@ -106,6 +129,39 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     private void ToggleMarkdownPreview() => IsMarkdownPreviewOpen = !IsMarkdownPreviewOpen;
 
     [RelayCommand]
+    private void ShowText() => IsFormView = false;
+
+    [RelayCommand(CanExecute = nameof(HasForm))]
+    private void ShowForm()
+    {
+        Form ??= Kind == EditorKind.ClaudeSettings
+            ? new SettingsFormViewModel(ApplyFormText) { RunHook = _host.RunHook }
+            : new FrontmatterFormViewModel(Kind, ApplyFormText);
+        FormError = Form.Load(Buffer.Document.Text);
+        IsFormView = FormError is null;
+    }
+
+    // The form writes whole text; one Replace keeps it a single undo step in the editor.
+    private void ApplyFormText(string text)
+    {
+        var document = Buffer.Document;
+        if (document.Text == text)
+        {
+            return;
+        }
+
+        _applyingForm = true;
+        try
+        {
+            document.Replace(0, document.TextLength, text);
+        }
+        finally
+        {
+            _applyingForm = false;
+        }
+    }
+
+    [RelayCommand]
     private void OpenFind() => Find.Open(replace: false);
 
     [RelayCommand]
@@ -113,7 +169,17 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 
     partial void OnIsPreviewChanged(bool value) => UpdateTitle();
 
-    private void OnBufferTextChanged(object? sender, EventArgs e) => Promote();
+    private void OnBufferTextChanged(object? sender, EventArgs e)
+    {
+        Promote();
+
+        // Text changed outside the form (reload, undo, restore): refresh the form, or fall back to text.
+        if (IsFormView && !_applyingForm && Form is not null)
+        {
+            FormError = Form.Load(Buffer.Document.Text);
+            IsFormView = FormError is null;
+        }
+    }
 
     private void OnBufferPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

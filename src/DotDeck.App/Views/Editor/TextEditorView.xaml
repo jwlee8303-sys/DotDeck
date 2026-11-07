@@ -6,12 +6,19 @@
              xmlns:ae="http://icsharpcode.net/sharpdevelop/avalonedit"
              xmlns:docs="clr-namespace:DotDeck.App.ViewModels.Documents"
              xmlns:editor="clr-namespace:DotDeck.App.Views.Editor"
+             xmlns:conv="clr-namespace:DotDeck.App.Converters"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=docs:TextDocumentViewModel}"
              Background="{DynamicResource DD.Brush.Editor.Background}">
 
     <UserControl.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <editor:FormTemplates />
+        </ResourceDictionary.MergedDictionaries>
         <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+        <conv:InvertBooleanConverter x:Key="InvertBool" />
+        <conv:FalseToVisibleConverter x:Key="FalseToVisible" />
         <Style x:Key="FindButton" TargetType="Button" BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
             <Setter Property="Margin" Value="1,0" />
             <Setter Property="Padding" Value="4,1" />
@@ -22,6 +29,11 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Focusable" Value="False" />
         </Style>
+        <Style x:Key="ViewTab" TargetType="ToggleButton" BasedOn="{StaticResource {x:Static ToolBar.ToggleButtonStyleKey}}">
+            <Setter Property="Padding" Value="10,2" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <UserControl.InputBindings>
@@ -33,6 +45,20 @@
     </UserControl.InputBindings>
 
     <DockPanel>
+        <!-- View switch (typed documents only) -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource DD.Brush.Panel.Background}"
+                BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="0,0,0,1" Padding="4,2"
+                Visibility="{Binding HasForm, Converter={StaticResource BoolToVisible}}">
+            <DockPanel>
+                <ToggleButton Style="{StaticResource ViewTab}" Content="텍스트" Command="{Binding ShowTextCommand}"
+                              IsChecked="{Binding IsFormView, Mode=OneWay, Converter={StaticResource InvertBool}}" />
+                <ToggleButton Style="{StaticResource ViewTab}" Content="폼" Command="{Binding ShowFormCommand}"
+                              IsChecked="{Binding IsFormView, Mode=OneWay}" />
+                <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource DD.Brush.Error}" Text="{Binding FormError}" ToolTip="{Binding FormError}" />
+            </DockPanel>
+        </Border>
+
         <!-- Find / replace bar -->
         <Border DockPanel.Dock="Top" x:Name="FindBar"
                 Background="{DynamicResource DD.Brush.Panel.Background}"
@@ -93,6 +119,10 @@
         </Border>
 
         <Grid>
+        <!-- Form view (typed documents) replaces the text editor area -->
+        <ContentControl Content="{Binding Form}" Focusable="False"
+                        Visibility="{Binding IsFormView, Converter={StaticResource BoolToVisible}}" />
+        <Grid Visibility="{Binding IsFormView, Converter={StaticResource FalseToVisible}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -115,6 +145,7 @@
             <editor:MarkdownPreviewView x:Name="Preview" Grid.Column="2"
                                         Document="{Binding Buffer.Document}" FilePath="{Binding FilePath}"
                                         Visibility="{Binding IsMarkdownPreviewOpen, Converter={StaticResource BoolToVisible}}" />
+        </Grid>
         </Grid>
     </DockPanel>
 </UserControl>

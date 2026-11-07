@@ -138,6 +138,38 @@ public partial class MainWindow : Window
         return _restoring;
     }
 
+    private void OnTemplateSubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (!ReferenceEquals(e.OriginalSource, TemplateMenu))
+        {
+            return;
+        }
+
+        TemplateMenu.Items.Clear();
+        var builtInDone = false;
+        foreach (var template in _shell.LoadTemplates())
+        {
+            if (!template.IsBuiltIn && !builtInDone)
+            {
+                TemplateMenu.Items.Add(new Separator());
+                builtInDone = true;
+            }
+
+            var item = new MenuItem { Header = new TextBlock { Text = template.Name } };
+            item.Click += (_, _) => _shell.NewFromTemplate(template);
+            TemplateMenu.Items.Add(item);
+        }
+
+        TemplateMenu.Items.Add(new Separator());
+        var open = new MenuItem { Header = "템플릿 폴더 열기..." };
+        open.Click += (_, _) =>
+        {
+            System.IO.Directory.CreateDirectory(_shell.Paths.TemplatesDir);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_shell.Paths.TemplatesDir) { UseShellExecute = true });
+        };
+        TemplateMenu.Items.Add(open);
+    }
+
     private void OnSaveNamedLayoutClick(object sender, RoutedEventArgs e)
     {
         if (LayoutBusy())

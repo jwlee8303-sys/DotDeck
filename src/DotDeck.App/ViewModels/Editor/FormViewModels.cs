@@ -331,7 +331,8 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
                 h.Command,
                 int.TryParse(h.Timeout, NumberStyles.Integer, CultureInfo.InvariantCulture, out var t) ? t : null,
                 h.Source?.CommandExtra,
-                h.Source?.GroupExtra))
+                h.Source?.GroupExtra,
+                h.Source?.GroupKey))
             .ToList());
         _doc.SetEnv(Env.Select(e => new KeyValuePair<string, string>(e.Key, e.Value)).ToList());
         Apply(_doc.ToJson());

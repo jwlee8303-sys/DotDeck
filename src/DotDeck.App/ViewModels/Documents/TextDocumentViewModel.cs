@@ -69,6 +69,23 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     /// <summary>Type-specific editor of this file (SPEC §7).</summary>
     public EditorKind Kind { get; }
 
+    /// <summary>Markdown-based documents get a table of contents.</summary>
+    public bool HasOutline => Kind is EditorKind.Markdown or EditorKind.Agent or EditorKind.Skill;
+
+    /// <summary>The view bar (text/form switch, table of contents) is shown for typed documents.</summary>
+    public bool HasViewBar => HasForm || HasOutline;
+
+    /// <summary>Raised to move the editor caret to a 1-based line (table of contents, validation).</summary>
+    public event EventHandler<int>? GoToLineRequested;
+
+    public IReadOnlyList<OutlineHeading> GetOutline() => MarkdownOutline.Parse(Buffer.Document.Text);
+
+    public void GoToLine(int line)
+    {
+        IsFormView = false;
+        GoToLineRequested?.Invoke(this, line);
+    }
+
     /// <summary>Agents, skills and Claude settings have a form view besides the text.</summary>
     public bool HasForm => Kind is EditorKind.Agent or EditorKind.Skill or EditorKind.ClaudeSettings;
 

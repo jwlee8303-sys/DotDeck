@@ -150,8 +150,40 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:HookTestPaneViewModel}">
-        <Border Background="{DynamicResource DD.Brush.Panel.Background}">
-            <TextBlock Style="{StaticResource PlaceholderText}" Text="훅 테스트 실행 기록이 없습니다. (Phase 2)" />
-        </Border>
+        <DockPanel Background="{DynamicResource DD.Brush.Panel.Background}">
+            <DockPanel DockPanel.Dock="Top" Margin="4,3">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="6,0,0,0">
+                    <Button Style="{StaticResource PaneBarButton}" Command="{Binding RunCommand}" ToolTip="실행 (실행 전 확인)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE768;" Margin="0,0,4,0" />
+                            <TextBlock Text="실행" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource PaneBarButton}" Command="{Binding StopCommand}" ToolTip="중지">
+                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE71A;" />
+                    </Button>
+                    <Button Style="{StaticResource PaneBarButton}" Command="{Binding ResetSampleCommand}" ToolTip="이벤트 샘플 입력으로 되돌리기">
+                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE72C;" />
+                    </Button>
+                </StackPanel>
+                <TextBox DockPanel.Dock="Left" Width="130" Margin="0,0,4,0" Text="{Binding Event, UpdateSourceTrigger=PropertyChanged}" ToolTip="이벤트" />
+                <TextBox DockPanel.Dock="Left" Width="100" Margin="0,0,4,0" Text="{Binding Matcher, UpdateSourceTrigger=PropertyChanged}" ToolTip="matcher" />
+                <TextBox Text="{Binding Command, UpdateSourceTrigger=PropertyChanged}" FontFamily="{DynamicResource DD.Font.Editor}" ToolTip="command" />
+            </DockPanel>
+            <TextBlock DockPanel.Dock="Top" Margin="6,0,6,3" Style="{StaticResource DD.Text.Secondary}" Text="{Binding ResultText}" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="4" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBox Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" AcceptsTab="True"
+                         FontFamily="{DynamicResource DD.Font.Editor}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                         ToolTip="stdin으로 전달할 이벤트 JSON" />
+                <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="{DynamicResource DD.Brush.Border}" />
+                <TextBox Grid.Column="2" Text="{Binding Output, Mode=OneWay}" IsReadOnly="True" FontFamily="{DynamicResource DD.Font.Editor}"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+            </Grid>
+        </DockPanel>
     </DataTemplate>
 </ResourceDictionary>

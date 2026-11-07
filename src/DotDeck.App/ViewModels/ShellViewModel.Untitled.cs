@@ -2,6 +2,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.Services;
 using DotDeck.App.ViewModels.Documents;
+using DotDeck.Core.Editors;
 using DotDeck.Core.Explorer;
 using DotDeck.Core.Logging;
 
@@ -10,6 +11,18 @@ namespace DotDeck.App.ViewModels;
 /// <summary>Opening files from a dialog and saving untitled ("새 파일") documents.</summary>
 public sealed partial class ShellViewModel
 {
+    /// <summary>Built-in and user templates (user folder read on each call so new files show up).</summary>
+    public IReadOnlyList<DocumentTemplate> LoadTemplates() => TemplateCatalog.Load(_store, Paths.TemplatesDir);
+
+    /// <summary>New untitled document from a template; saving asks for a path with the template's file name.</summary>
+    public void NewFromTemplate(DocumentTemplate template)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        var doc = new ScratchDocumentViewModel(++_scratchCounter, CloseDocument, template.Text, template.FileName);
+        Documents.Add(doc);
+        ActiveContent = doc;
+    }
+
     private bool HasUnsavedUntitled => Documents.OfType<ScratchDocumentViewModel>().Any(d => d.IsDirty);
 
     /// <summary>File → Open (Ctrl+O): opens every chosen file in its own tab.</summary>

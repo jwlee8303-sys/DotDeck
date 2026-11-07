@@ -9,16 +9,23 @@ namespace DotDeck.App.ViewModels.Documents;
 public sealed class ScratchDocumentViewModel : DocumentViewModel
 {
     private readonly string _name;
+    private readonly string? _suggested;
 
-    public ScratchDocumentViewModel(int number, Action<DocumentViewModel> close)
+    public ScratchDocumentViewModel(int number, Action<DocumentViewModel> close, string? text = null, string? suggestedFileName = null)
         : base($"doc:scratch:{number}", $"제목 없음 {number}", close)
     {
         _name = $"제목 없음 {number}";
+        _suggested = suggestedFileName;
         Document.TextChanged += (_, _) =>
         {
             Title = IsDirty ? _name + " *" : _name;
             OnPropertyChanged(nameof(IsDirty));
         };
+        if (!string.IsNullOrEmpty(text))
+        {
+            Document.Text = text;
+            Document.UndoStack.ClearAll();
+        }
     }
 
     /// <summary>Editor content (same document type as file tabs, so the same editor control shows it).</summary>
@@ -29,5 +36,5 @@ public sealed class ScratchDocumentViewModel : DocumentViewModel
     /// <summary>Unsaved content worth asking about (an empty untitled tab closes silently).</summary>
     public bool IsDirty => Document.TextLength > 0;
 
-    public string SuggestedFileName => _name + ".md";
+    public string SuggestedFileName => _suggested ?? _name + ".md";
 }

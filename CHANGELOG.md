@@ -3,6 +3,9 @@
 
 ## [Unreleased]
 ### Added
+- 훅 테스트 실행기 창: 설정 폼의 훅 행 ▷로 불러와 샘플 stdin JSON과 함께 실행(확인 후, 10초 제한, 출력 상한), 종료 코드 의미 표시
+- Markdown 목차(제목 목록 → 해당 줄로 이동)
+- 템플릿에서 새 파일(기본 agent·skill·settings·CLAUDE.md·AGENTS.md + 사용자 템플릿 폴더)
 - 프로젝트 초기 설정: CLAUDE.md, Directory.Build.props(버전 0.1.0), CHANGELOG.md, .gitignore
 - Phase 0 설계안(`docs/DESIGN.md`)
 - Core: 홈·데이터 경로 해석(`--home` > `DOTDECK_HOME` > 사용자 프로필, 홈 변경 시 데이터 폴더 격리, `--data`)
@@ -45,6 +48,10 @@
 - App: 파일 > 열기(Ctrl+O, 툴바) — 여러 파일을 한 번에 선택해 각각 탭으로 열기
 
 ### Fixed
+- settings.json 폼 저장 시 폼이 표시하지 못하는 훅 데이터(빈 이벤트, 비객체 항목)와 그룹 구분이 사라지던 문제
+- permissions/hooks/env가 객체가 아니면 폼이 예외로 멈추던 문제(이제 폼 오류로 안내)
+- frontmatter 키를 지울 때 뒤따르던 주석·빈 줄이 함께 사라지던 문제
+- 훅 실행 제한 시간이 stdin 쓰기·출력 대기까지 적용되도록 수정
 - 새 파일(제목 없음) 문서를 저장할 수 없던 문제 — 저장(Ctrl+S)·모두 저장 시 다른 이름으로 저장 대화상자, 안전 저장 파이프라인(diff 확인·백업·원자적 쓰기)으로 기록하고 탭을 파일 이름으로 전환. 취소·실패 시 제목 없음 탭과 내용 유지(새로 만든 빈 파일은 정리), 열려 있고 수정된 파일은 대상으로 거부. 닫기·종료 시 저장 여부 확인
 - 새 파일 문서가 키보드 포커스를 받지 않던 문제 — 편집기(AvalonEdit)로 바꾸고 열 때 포커스
 - 공용 ListBox 템플릿에서 UI 가상화가 꺼져 있던 문제(`CanContentScroll` 미전달)

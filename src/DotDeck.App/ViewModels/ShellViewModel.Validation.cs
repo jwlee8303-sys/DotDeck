@@ -29,8 +29,14 @@ public sealed partial class ShellViewModel
         _ = ValidateAsync(immediate: true);
     }
 
-    /// <summary>Runs a hook row in the hook test pane (Phase 2-3).</summary>
-    public void RunHook(Editor.HookRow row) => StatusMessage = "훅 테스트 실행기는 다음 단계에서 연결됩니다.";
+    /// <summary>Loads a hook row of a settings form into the hook test pane and shows it.</summary>
+    public void RunHook(Editor.HookRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        HookTest.Load(row.Event, row.Matcher, row.Command);
+        HookTest.IsVisible = true;
+        HookTest.IsActive = true;
+    }
 
     private void OnValidatedTextChanged(object? sender, EventArgs e) => _ = ValidateAsync(immediate: false);
 

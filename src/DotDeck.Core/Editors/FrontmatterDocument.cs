@@ -151,7 +151,15 @@ public sealed class FrontmatterDocument
         {
             if (entry is not null)
             {
-                _entries.Remove(entry);
+                var index = _entries.IndexOf(entry);
+                var trailing = Trailing(entry);
+                _entries.RemoveAt(index);
+                if (trailing.Count > 0)
+                {
+                    var loose = new Entry(null, 0);
+                    loose.Lines.AddRange(trailing);
+                    _entries.Insert(index, loose);
+                }
             }
 
             return;
@@ -222,11 +230,14 @@ public sealed class FrontmatterDocument
         }
 
         // Keep blank/comment lines that trailed the old value (they separate entries visually).
-        var trailing = entry.Lines.Skip(1).Reverse().TakeWhile(l => l.Trim().Length == 0 || l.StartsWith('#')).Reverse().ToList();
+        var trailing = Trailing(entry);
         entry.Lines.Clear();
         entry.Lines.AddRange(lines);
         entry.Lines.AddRange(trailing);
     }
+
+    private static List<string> Trailing(Entry entry) =>
+        entry.Lines.Skip(1).Reverse().TakeWhile(l => l.Trim().Length == 0 || l.StartsWith('#')).Reverse().ToList();
 
     private static IEnumerable<string> ListItems(IEnumerable<string> lines) =>
         lines.Select(l => l.Trim()).Where(l => l.StartsWith('-')).Select(l => Unquote(l[1..].Trim())).Where(v => v.Length > 0);

@@ -53,6 +53,7 @@ public partial class TextEditorView : UserControl, IEditorSelection
         {
             _viewModel.Find.FocusRequested -= OnFindFocusRequested;
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _viewModel.GoToLineRequested -= OnGoToLineRequested;
             if (ReferenceEquals(_viewModel.Find.Editor, this))
             {
                 _viewModel.Find.Editor = null;
@@ -68,6 +69,7 @@ public partial class TextEditorView : UserControl, IEditorSelection
         viewModel.Find.Editor = this;
         viewModel.Find.FocusRequested += OnFindFocusRequested;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        viewModel.GoToLineRequested += OnGoToLineRequested;
         UpdatePreviewColumn();
         Editor.SyntaxHighlighting = HighlightingCatalog.ForPath(viewModel.FilePath);
 
@@ -113,6 +115,42 @@ public partial class TextEditorView : UserControl, IEditorSelection
             FindBox.Focus();
             FindBox.SelectAll();
         });
+
+    private void OnGoToLineRequested(object? sender, int line) =>
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            RestoreCaret(line, 1);
+            Editor.TextArea.Focus();
+        });
+
+    // Table of contents: a menu of the current headings (indented by level).
+    private void OnOutlineClick(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel is not { } vm || sender is not Button button)
+        {
+            return;
+        }
+
+        var menu = new ContextMenu { PlacementTarget = button, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        var outline = vm.GetOutline();
+        if (outline.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "머리글이 없습니다", IsEnabled = false });
+        }
+
+        foreach (var heading in outline)
+        {
+            var item = new MenuItem
+            {
+                Header = new TextBlock { Text = heading.Title, Margin = new Thickness((heading.Level - 1) * 14, 0, 0, 0) },
+                InputGestureText = heading.Line.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            };
+            item.Click += (_, _) => vm.GoToLine(heading.Line);
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
 
     private void RestoreCaret(int line, int column)
     {

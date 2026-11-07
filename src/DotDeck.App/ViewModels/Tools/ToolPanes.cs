@@ -8,4 +8,3 @@ public sealed class PropertiesPaneViewModel() : ToolPaneViewModel("tool.properti
 
 public sealed class SearchResultsPaneViewModel() : ToolPaneViewModel("tool.search", "검색 결과", ToolLocation.Bottom);
 
-public sealed class HookTestPaneViewModel() : ToolPaneViewModel("tool.hooktest", "훅 테스트", ToolLocation.Bottom);

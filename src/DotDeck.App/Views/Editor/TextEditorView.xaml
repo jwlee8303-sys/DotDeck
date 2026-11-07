@@ -48,12 +48,22 @@
         <!-- View switch (typed documents only) -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource DD.Brush.Panel.Background}"
                 BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="0,0,0,1" Padding="4,2"
-                Visibility="{Binding HasForm, Converter={StaticResource BoolToVisible}}">
+                Visibility="{Binding HasViewBar, Converter={StaticResource BoolToVisible}}">
             <DockPanel>
-                <ToggleButton Style="{StaticResource ViewTab}" Content="텍스트" Command="{Binding ShowTextCommand}"
-                              IsChecked="{Binding IsFormView, Mode=OneWay, Converter={StaticResource InvertBool}}" />
-                <ToggleButton Style="{StaticResource ViewTab}" Content="폼" Command="{Binding ShowFormCommand}"
-                              IsChecked="{Binding IsFormView, Mode=OneWay}" />
+                <Button DockPanel.Dock="Right" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Padding="8,2" Focusable="False"
+                        Click="OnOutlineClick" ToolTip="목차 (머리글로 이동)"
+                        Visibility="{Binding HasOutline, Converter={StaticResource BoolToVisible}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE8FD;" Margin="0,0,4,0" />
+                        <TextBlock Text="목차" />
+                    </StackPanel>
+                </Button>
+                <StackPanel Orientation="Horizontal" Visibility="{Binding HasForm, Converter={StaticResource BoolToVisible}}">
+                    <ToggleButton Style="{StaticResource ViewTab}" Content="텍스트" Command="{Binding ShowTextCommand}"
+                                  IsChecked="{Binding IsFormView, Mode=OneWay, Converter={StaticResource InvertBool}}" />
+                    <ToggleButton Style="{StaticResource ViewTab}" Content="폼" Command="{Binding ShowFormCommand}"
+                                  IsChecked="{Binding IsFormView, Mode=OneWay}" />
+                </StackPanel>
                 <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource DD.Brush.Error}" Text="{Binding FormError}" ToolTip="{Binding FormError}" />
             </DockPanel>

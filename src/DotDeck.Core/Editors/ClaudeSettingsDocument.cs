@@ -1,4 +1,4 @@
-using System.Text.Encodings.Web;
+﻿using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Unicode;
@@ -8,13 +8,15 @@ namespace DotDeck.Core.Editors;
 /// <summary>One flattened hook command: <c>hooks.&lt;Event&gt;[i].hooks[j]</c>.</summary>
 /// <param name="CommandExtra">The original command object (unknown fields are written back).</param>
 /// <param name="GroupExtra">The original matcher group object (unknown fields are written back).</param>
+/// <param name="GroupKey">Original group ("Event#index"); rows of one group stay in one group when written back.</param>
 public sealed record HookRule(
     string Event,
     string Matcher,
     string Command,
     int? Timeout = null,
     JsonObject? CommandExtra = null,
-    JsonObject? GroupExtra = null);
+    JsonObject? GroupExtra = null,
+    string? GroupKey = null);
 
 /// <summary>
 /// Claude Code settings.json as a JSON tree. The form reads and replaces only <c>permissions.allow|ask|deny</c>,
@@ -58,6 +60,15 @@ public sealed class ClaudeSettingsDocument
             if (JsonNode.Parse(text, documentOptions: s_read) is JsonObject obj)
             {
                 _ = obj.Count; // surfaces duplicate keys
+                foreach (var section in new[] { "permissions", "hooks", "env" })
+                {
+                    if (obj[section] is { } node && node is not JsonObject)
+                    {
+                        error = $"'{section}' 값이 객체가 아닙니다.";
+                        return null;
+                    }
+                }
+
                 return new ClaudeSettingsDocument(obj);
             }
 
@@ -76,7 +87,7 @@ public sealed class ClaudeSettingsDocument
     }
 
     public IReadOnlyList<string> GetPermissions(string kind) =>
-        _root["permissions"]?[kind] is JsonArray array
+        _root["permissions"] is JsonObject permissions && permissions[kind] is JsonArray array
             ? array.Select(n => n is JsonValue v && v.TryGetValue<string>(out var s) ? s : n?.ToJsonString() ?? "null").ToList()
             : [];
 
@@ -122,8 +133,15 @@ public sealed class ClaudeSettingsDocument
                 continue;
             }
 
-            foreach (var group in groupArray.OfType<JsonObject>())
+            var index = -1;
+            foreach (var item in groupArray)
             {
+                index++;
+                if (item is not JsonObject group)
+                {
+                    continue;
+                }
+
                 var matcher = group["matcher"] is JsonValue m && m.TryGetValue<string>(out var ms) ? ms : string.Empty;
                 if (group["hooks"] is not JsonArray commands)
                 {
@@ -134,7 +152,7 @@ public sealed class ClaudeSettingsDocument
                 {
                     var text = command["command"] is JsonValue c && c.TryGetValue<string>(out var cs) ? cs : string.Empty;
                     int? timeout = command["timeout"] is JsonValue t && t.TryGetValue<int>(out var ti) ? ti : null;
-                    result.Add(new HookRule(evt, matcher, text, timeout, (JsonObject)command.DeepClone(), (JsonObject)group.DeepClone()));
+                    result.Add(new HookRule(evt, matcher, text, timeout, (JsonObject)command.DeepClone(), (JsonObject)group.DeepClone(), $"{evt}#{index}"));
                 }
             }
         }
@@ -143,27 +161,36 @@ public sealed class ClaudeSettingsDocument
     }
 
     /// <summary>
-    /// Replaces <c>hooks</c>. Rows of the same event and matcher (in order of first appearance) share one group;
-    /// unknown fields of the original group/command objects are kept. Events not present in any row are removed.
+    /// Replaces the hook commands the form shows. Rows keep their original group (new rows of one event and matcher
+    /// share a new group); unknown fields of groups and commands are kept, and so is everything the form cannot
+    /// show (empty event arrays, non-object items, groups without a <c>hooks</c> array, non-object commands).
     /// </summary>
     public void SetHooks(IReadOnlyList<HookRule> rules)
     {
-        if (rules.Count == 0)
-        {
-            _root.Remove("hooks");
-            return;
-        }
-
+        var old = _root["hooks"] as JsonObject;
         var hooks = new JsonObject();
         foreach (var byEvent in rules.Where(r => r.Event.Trim().Length > 0).GroupBy(r => r.Event.Trim(), StringComparer.Ordinal))
         {
             var groups = new JsonArray();
-            foreach (var byMatcher in byEvent.GroupBy(r => r.Matcher.Trim(), StringComparer.Ordinal))
+            // New rows (no GroupKey) join the first existing group with the same matcher.
+            var firstGroup = new Dictionary<string, (string Key, JsonObject? Extra)>(StringComparer.Ordinal);
+            foreach (var r in byEvent.Where(r => r.GroupKey is not null))
             {
-                var group = (JsonObject?)byMatcher.First().GroupExtra?.DeepClone() ?? [];
-                if (byMatcher.Key.Length > 0)
+                firstGroup.TryAdd(r.Matcher.Trim(), (r.GroupKey!, r.GroupExtra));
+            }
+
+            var resolved = byEvent.Select(r => r.GroupKey is null && firstGroup.TryGetValue(r.Matcher.Trim(), out var g)
+                ? r with { GroupKey = g.Key, GroupExtra = g.Extra }
+                : r);
+            foreach (var byMatcher in resolved.GroupBy(r => (Group: r.GroupKey ?? string.Empty, Matcher: r.Matcher.Trim())))
+            {
+                var byMatcherKey = byMatcher.Key.Matcher;
+                var source = byMatcher.First().GroupExtra;
+                var group = (JsonObject?)source?.DeepClone() ?? [];
+                var hidden = (source?["hooks"] as JsonArray)?.Where(n => n is not JsonObject).Select(n => n?.DeepClone()).ToList() ?? [];
+                if (byMatcherKey.Length > 0)
                 {
-                    group["matcher"] = byMatcher.Key;
+                    group["matcher"] = byMatcherKey;
                 }
                 else
                 {
@@ -188,6 +215,11 @@ public sealed class ClaudeSettingsDocument
                     commands.Add(command);
                 }
 
+                foreach (var node in hidden)
+                {
+                    commands.Add(node);
+                }
+
                 group["hooks"] = commands;
                 groups.Add(group);
             }
@@ -195,13 +227,45 @@ public sealed class ClaudeSettingsDocument
             hooks[byEvent.Key] = groups;
         }
 
-        // Keep unknown non-array members of the old hooks object (e.g. future settings).
-        if (_root["hooks"] is JsonObject old)
+        if (old is not null)
         {
-            foreach (var (key, value) in old.Where(p => p.Value is not JsonArray).ToList())
+            foreach (var (key, value) in old.ToList())
             {
-                hooks[key] = value?.DeepClone();
+                if (value is not JsonArray array)
+                {
+                    // Unknown non-array member (e.g. a future setting).
+                    hooks[key] = value?.DeepClone();
+                    continue;
+                }
+
+                var kept = array.Where(n => n is not JsonObject g || g["hooks"] is not JsonArray cmds || !cmds.OfType<JsonObject>().Any()).Select(n => n?.DeepClone()).ToList();
+                if (kept.Count == 0 && array.Count > 0)
+                {
+                    continue;
+                }
+
+                if (hooks[key] is not JsonArray target)
+                {
+                    target = [];
+                    hooks[key] = target;
+                }
+
+                foreach (var node in kept)
+                {
+                    target.Add(node);
+                }
             }
+        }
+
+        if (hooks.Count == 0 && old is null)
+        {
+            return;
+        }
+
+        if (hooks.Count == 0)
+        {
+            _root.Remove("hooks");
+            return;
         }
 
         _root["hooks"] = hooks;

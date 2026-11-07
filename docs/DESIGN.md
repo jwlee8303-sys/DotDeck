@@ -205,6 +205,12 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - 전체 검색: `GlobalSearch`가 프로젝트 루트를 순회(링크·제외 폴더·비밀·NUL 포함·2MB 초과 파일 제외), 최대 2000건.
 - 배포: `PublishSingleFile=true`일 때 자체 포함 + 네이티브 라이브러리 포함 + 임베디드 PDB로 `DotDeck.exe` 하나만 만든다.
 
+## 사용자 요청 반영(Phase 4 이후)
+- 단일 클릭 미리보기 제거: 파일은 더블클릭·Enter로만 연다.
+- 보이는 항목: `ProjectDefinition.VisibleItems`(상대 경로). 비어 있으면 전체 표시. 체크한 항목, 체크한 폴더의 하위 전체, 체크한 항목의 상위 폴더가 보인다. 편집 모드에서는 `FolderProjectSource.ShowAllItems`로 전체를 보여 주고, 종료 시 레지스트리에 저장한다.
+- 백업 폴더: `settings.json`의 `BackupDirectory`(없으면 기본 경로). 바꾸면 이후 백업부터 새 폴더에 저장하고 기존 백업은 옮기지 않는다. 환경변수 변경 기록도 같은 폴더를 쓴다.
+- 프로젝트 백업: `ProjectBackup.CreateZip`이 선택한 프로젝트를 `DotDeck-projects-<시각>.zip` 하나로 저장(비밀 파일·링크·제외 폴더·출력 zip 자신 제외).
+
 **projects.json 초안**
 ```json
 {

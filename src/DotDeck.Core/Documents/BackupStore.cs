@@ -52,7 +52,18 @@ public sealed class BackupStore
         Retention = retention;
     }
 
-    public string BackupsDirectory { get; }
+    /// <summary>Where new backup sets go (settings can move it; existing sets stay where they were).</summary>
+    public string BackupsDirectory
+    {
+        get => _backupsDirectory;
+        set
+        {
+            ArgumentException.ThrowIfNullOrEmpty(value);
+            _backupsDirectory = value;
+        }
+    }
+
+    private string _backupsDirectory = string.Empty;
 
     public int Retention { get; set; }
 

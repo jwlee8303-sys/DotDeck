@@ -41,10 +41,10 @@ public sealed partial class ShellViewModel
     /// and is saved through the safe-save pipeline (diff review, backup, atomic write). A new path is first
     /// created as an empty file. Returns false when cancelled or failed; the untitled tab then stays open.
     /// </summary>
-    public async Task<bool> SaveUntitledAsync(ScratchDocumentViewModel untitled)
+    public async Task<bool> SaveUntitledAsync(ScratchDocumentViewModel untitled, string? initialDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(untitled);
-        var path = _dialogs.PickSaveFile("다른 이름으로 저장", untitled.SuggestedFileName, Paths.Home);
+        var path = _dialogs.PickSaveFile("다른 이름으로 저장", untitled.SuggestedFileName, initialDirectory ?? Paths.Home);
         if (path is null)
         {
             return false;
@@ -118,6 +118,41 @@ public sealed partial class ShellViewModel
         CleanUpCreated(created, full, target, wasOpen);
         ActiveContent = untitled;
         return false;
+    }
+
+    private bool CanSaveActiveAs() => ActiveContent is ScratchDocumentViewModel || ActiveTextDocument is not null;
+
+    /// <summary>
+    /// Saves the active tab's text to a new file (same pipeline as a new file: diff review, atomic write). The tab
+    /// then shows the new file; the original file is left as it was on disk (its unsaved edits went to the copy).
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSaveActiveAs))]
+    private async Task SaveActiveAsAsync()
+    {
+        switch (ActiveContent)
+        {
+            case ScratchDocumentViewModel untitled:
+                await SaveUntitledAsync(untitled);
+                break;
+            case TextDocumentViewModel text:
+                var copy = new ScratchDocumentViewModel(0, _ => { }, text.Buffer.Document.Text, Path.GetFileName(text.FilePath));
+                if (await SaveUntitledAsync(copy, Path.GetDirectoryName(text.FilePath)))
+                {
+                    var saved = ActiveContent;
+                    if (!string.Equals(Path.GetFullPath(text.FilePath), (saved as TextDocumentViewModel)?.FilePath is { } p ? Path.GetFullPath(p) : null, StringComparison.OrdinalIgnoreCase))
+                    {
+                        RemoveTextDocument(text);
+                    }
+
+                    ActiveContent = saved;
+                }
+                else if (Documents.Contains(text))
+                {
+                    ActiveContent = text; // cancelled or failed: back to the original tab, not the temporary copy
+                }
+
+                break;
+        }
     }
 
     private TextDocumentViewModel? FindTextDocument(string fullPath) =>

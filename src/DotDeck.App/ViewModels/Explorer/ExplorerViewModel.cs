@@ -112,10 +112,16 @@ public sealed partial class ExplorerViewModel : ObservableObject
         ApplyHeader();
         var treeChanged = old.Filter != project.Filter
             || !string.Equals(old.Root, project.Root, StringComparison.OrdinalIgnoreCase)
-            || !SameList(old.ExcludedFolders, project.ExcludedFolders);
+            || !SameList(old.ExcludedFolders, project.ExcludedFolders)
+            || !SameList(old.VisibleItems, project.VisibleItems);
         if (treeChanged)
         {
             Source = ProjectSources.Create(project, _context.Paths, _context.Store);
+            if (IsEditingVisibility && Source is FolderProjectSource folder)
+            {
+                folder.ShowAllItems = true;
+            }
+
             ApplyHeader();
             await LoadAsync();
         }
@@ -691,7 +697,69 @@ public sealed partial class ExplorerViewModel : ObservableObject
         return [.. result.Rows.Select(CreateNodeRow)];
     }
 
-    private NodeRowViewModel CreateNodeRow(TreeRow row) => new(this, row.Node, row.Depth, row.IsExpanded, row.Error);
+    private NodeRowViewModel CreateNodeRow(TreeRow row) => new(this, row.Node, row.Depth, row.IsExpanded, row.Error)
+    {
+        ShowsVisibilityCheck = IsEditingVisibility && row.Node.RelativePath is not null,
+        IsVisibilityChecked = IsEditingVisibility && row.Node.RelativePath is { } relative && _checkedItems.Contains(relative),
+    };
+
+    private readonly HashSet<string> _checkedItems = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Visibility edit mode (folder projects): every file and folder is listed with a check box; leaving the mode
+    /// saves the checked items and shows only them (a checked folder shows its whole content).
+    /// </summary>
+    [ObservableProperty]
+    private bool _isEditingVisibility;
+
+    public bool CanEditVisibility => Source is FolderProjectSource;
+
+    internal void SetVisibilityChecked(string relativePath, bool isChecked)
+    {
+        if (isChecked)
+        {
+            _checkedItems.Add(relativePath);
+        }
+        else
+        {
+            _checkedItems.Remove(relativePath);
+        }
+    }
+
+    [RelayCommand]
+    private async Task ToggleVisibilityEditAsync()
+    {
+        if (Source is not FolderProjectSource folder)
+        {
+            return;
+        }
+
+        if (!IsEditingVisibility)
+        {
+            _checkedItems.Clear();
+            _checkedItems.UnionWith(Project.VisibleItems ?? []);
+            IsEditingVisibility = true;
+            folder.ShowAllItems = true;
+            Header.IsCollapsed = false;
+            _context.SetStatus($"{Project.Name}: 보일 파일·폴더를 체크한 뒤 '보이는 항목 편집 끝내기'를 누르세요. 아무것도 체크하지 않으면 모두 보입니다.");
+            await LoadAsync();
+            return;
+        }
+
+        IsEditingVisibility = false;
+        folder.ShowAllItems = false;
+        var items = _checkedItems.ToList();
+        if (SameList(Project.VisibleItems, items.Count == 0 ? null : items))
+        {
+            await LoadAsync();
+        }
+        else if (!await _owner.ChangeRegistryAsync(r => r.SetVisibleItems(Id, items)))
+        {
+            await LoadAsync();
+        }
+
+        _context.SetStatus(items.Count == 0 ? $"{Project.Name}: 모든 항목을 표시합니다." : $"{Project.Name}: 체크한 {items.Count}개 항목만 표시합니다.");
+    }
 
     private void RestoreSelection()
     {

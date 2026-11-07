@@ -271,6 +271,18 @@ public sealed partial class ProjectRegistry
         Replace(Require(id) with { ExcludedFolders = cleaned });
     }
 
+    /// <summary>Sets the "show only these" list (relative paths). Null or empty shows everything.</summary>
+    public void SetVisibleItems(string id, IReadOnlyList<string>? items)
+    {
+        var cleaned = items?
+            .Select(Explorer.VisibleItemsPolicy.Normalize)
+            .Where(f => f.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        Replace(Require(id) with { VisibleItems = cleaned is { Count: > 0 } ? cleaned : null });
+    }
+
     /// <summary>Moves a project to a new display index (clamped).</summary>
     public void MoveTo(string id, int newIndex)
     {

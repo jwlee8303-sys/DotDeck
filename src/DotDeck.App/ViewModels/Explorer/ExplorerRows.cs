@@ -110,6 +110,20 @@ public sealed partial class NodeRowViewModel : ExplorerRowViewModel, IEditableRo
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToolTipText))]
     private string? _error;
+
+    /// <summary>True in visibility edit mode: the row shows a check box.</summary>
+    public bool ShowsVisibilityCheck { get; init; }
+
+    [ObservableProperty]
+    private bool _isVisibilityChecked;
+
+    partial void OnIsVisibilityCheckedChanged(bool value)
+    {
+        if (ShowsVisibilityCheck && Node.RelativePath is { } relative)
+        {
+            Explorer.SetVisibilityChecked(relative, value);
+        }
+    }
 }
 
 /// <summary>Placeholder row where the name of a new file or folder is typed (removed on commit or cancel).</summary>

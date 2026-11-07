@@ -18,6 +18,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <TextBlock Text="테마" VerticalAlignment="Center" />
             <ComboBox x:Name="ThemeBox" Grid.Column="1" Margin="0,3" AutomationProperties.Name="테마">
@@ -28,10 +29,16 @@
             <TextBox x:Name="FontSizeBox" Grid.Row="1" Grid.Column="1" Margin="0,3" AutomationProperties.Name="편집기 글꼴 크기" />
             <TextBlock Grid.Row="2" Text="백업 보관 개수" VerticalAlignment="Center" />
             <TextBox x:Name="RetentionBox" Grid.Row="2" Grid.Column="1" Margin="0,3" AutomationProperties.Name="백업 보관 개수" />
+            <TextBlock Grid.Row="3" Text="백업 폴더" VerticalAlignment="Center" />
+            <DockPanel Grid.Row="3" Grid.Column="1" Margin="0,3">
+                <Button DockPanel.Dock="Right" Content="기본값" Margin="4,0,0,0" Padding="6,1" Click="OnDefaultBackupClick" />
+                <Button DockPanel.Dock="Right" Content="찾아보기..." Margin="4,0,0,0" Padding="6,1" Click="OnBrowseBackupClick" />
+                <TextBox x:Name="BackupDirBox" AutomationProperties.Name="백업 폴더" />
+            </DockPanel>
         </Grid>
         <TextBlock x:Name="ErrorText" Margin="0,6,0,0" TextWrapping="Wrap" Visibility="Collapsed" Foreground="{DynamicResource DD.Brush.Error}" />
         <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Style="{StaticResource DD.Text.Secondary}"
-                   Text="라이트 테마에서도 구문 강조와 Markdown 미리보기 색은 아직 다크 기준입니다." />
+                   Text="백업 폴더를 바꾸면 이후 백업부터 새 폴더에 저장됩니다(기존 백업은 옮기지 않음). 라이트 테마에서도 구문 강조와 Markdown 미리보기 색은 아직 다크 기준입니다." />
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
             <Button Content="확인" IsDefault="True" MinWidth="80" Click="OnOkClick" />
             <Button Content="취소" IsCancel="True" MinWidth="80" Margin="8,0,0,0" />

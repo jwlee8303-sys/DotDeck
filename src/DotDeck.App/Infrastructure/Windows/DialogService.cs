@@ -98,10 +98,17 @@ public sealed class DialogService : IDialogService
         return Modal(() => dialog.ShowDialog() == true) ? dialog.Value : null;
     }
 
-    public DotDeck.Core.Settings.AppSettings? ShowSettings(DotDeck.Core.Settings.AppSettings current)
+    public DotDeck.Core.Settings.AppSettings? ShowSettings(DotDeck.Core.Settings.AppSettings current, string defaultBackupDirectory)
     {
-        var dialog = new SettingsDialog(current) { Owner = Owner };
+        var dialog = new SettingsDialog(current, defaultBackupDirectory) { Owner = Owner };
         return Modal(() => dialog.ShowDialog() == true) ? dialog.Result : null;
+    }
+
+    public (IReadOnlyList<string> ProjectIds, string Destination)? ShowProjectBackup(
+        IReadOnlyList<(string Id, string Name, string Root)> projects, string? lastDestination)
+    {
+        var dialog = new ProjectBackupDialog(projects.Select(p => new BackupChoice(p.Id, p.Name, p.Root)).ToList(), lastDestination) { Owner = Owner };
+        return Modal(() => dialog.ShowDialog() == true) ? (dialog.SelectedIds, dialog.Destination) : null;
     }
 
     public IReadOnlyList<string> PickOpenFiles(string title, string? initialDirectory)

@@ -20,7 +20,8 @@ public sealed record SystemContext(
     AppPaths Paths,
     IDialogService Dialogs,
     Action<string> SetStatus,
-    Action RestartAsAdministrator);
+    Action RestartAsAdministrator,
+    Func<string> BackupsDirectory);
 
 public sealed partial class EnvironmentRow : ObservableObject
 {
@@ -230,7 +231,7 @@ public abstract partial class SystemDocumentViewModel : DocumentViewModel
                 return;
             }
 
-            EnvironmentChanges.Apply(Context.Environment, Scope, changes, Context.Store, Context.Paths.BackupsDir, TimeProvider.System);
+            EnvironmentChanges.Apply(Context.Environment, Scope, changes, Context.Store, Context.BackupsDirectory(), TimeProvider.System);
             Context.SetStatus(done);
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException)
@@ -249,7 +250,7 @@ public abstract partial class SystemDocumentViewModel : DocumentViewModel
             return;
         }
 
-        var record = EnvironmentChanges.History(Context.Store, Context.Paths.BackupsDir).FirstOrDefault(r => r.Scope == Scope);
+        var record = EnvironmentChanges.History(Context.Store, Context.BackupsDirectory()).FirstOrDefault(r => r.Scope == Scope);
         if (record is null)
         {
             Context.Dialogs.ShowInfo("되돌리기", "되돌릴 변경 기록이 없습니다.");

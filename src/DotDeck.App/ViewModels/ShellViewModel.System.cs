@@ -1,5 +1,6 @@
 using System.IO;
 using CommunityToolkit.Mvvm.Input;
+using DotDeck.Core.Logging;
 using DotDeck.App.ViewModels.Documents;
 using DotDeck.Core.Explorer;
 using DotDeck.Core.Projects;
@@ -16,7 +17,7 @@ public sealed partial class ShellViewModel
     public event EventHandler? RestartElevatedRequested;
 
     private SystemContext SystemDocs => _systemContext ??= new SystemContext(
-        _environment, _store, Paths, _dialogs, message => StatusMessage = message, RestartAsAdministrator);
+        _environment, _store, Paths, _dialogs, message => StatusMessage = message, RestartAsAdministrator, () => _backups.BackupsDirectory);
 
     /// <summary>Opens the document of a virtual System node (environment tables, PATH).</summary>
     public void OpenSystemNode(string nodeId)
@@ -114,7 +115,7 @@ public sealed partial class ShellViewModel
     private void OpenSettings()
     {
         var store = new DotDeck.Core.Settings.AppSettingsStore(_store, Paths.SettingsFile);
-        if (_dialogs.ShowSettings(store.Load()) is not { } settings)
+        if (_dialogs.ShowSettings(store.Load(), Paths.BackupsDir) is not { } settings)
         {
             return;
         }
@@ -129,8 +130,51 @@ public sealed partial class ShellViewModel
         }
 
         _backups.Retention = settings.BackupRetention;
+        _backups.BackupsDirectory = settings.BackupDirectory ?? Paths.BackupsDir;
         SettingsChanged?.Invoke(this, settings);
         StatusMessage = "설정을 적용했습니다.";
+    }
+
+    /// <summary>Zips chosen projects to a user-chosen folder (secret files, links and excluded folders left out).</summary>
+    [RelayCommand]
+    private async Task BackupProjectsAsync()
+    {
+        var roots = Projects.Explorers
+            .Where(e => e.Source.RootPath is not null)
+            .Select(e => (e.Id, e.Source.Project.Name, Root: e.Source.RootPath!, Excluded: ExcludedFolderPolicy.For(e.Source.Project)))
+            .ToList();
+        var store = new DotDeck.Core.Settings.AppSettingsStore(_store, Paths.SettingsFile);
+        var settings = store.Load();
+        if (_dialogs.ShowProjectBackup(roots.Select(r => (r.Id, r.Name, r.Root)).ToList(), settings.ProjectBackupDirectory) is not { } choice)
+        {
+            return;
+        }
+
+        var selected = roots.Where(r => choice.ProjectIds.Contains(r.Id))
+            .Select(r => new DotDeck.Core.Documents.SearchRoot(r.Name, r.Root, r.Excluded))
+            .ToList();
+        StatusMessage = "프로젝트를 백업하는 중…";
+        try
+        {
+            var result = await Task.Run(() => DotDeck.Core.Documents.ProjectBackup.CreateZip(_store, selected, choice.Destination, TimeProvider.System));
+            try
+            {
+                store.Save(settings with { ProjectBackupDirectory = choice.Destination });
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _log.Warning($"설정을 저장하지 못했습니다: {ex.Message}");
+            }
+
+            var skipped = result.SkippedSecrets > 0 ? $"\n비밀 파일 {result.SkippedSecrets}개는 넣지 않았습니다." : string.Empty;
+            StatusMessage = $"프로젝트 백업 완료: {result.ZipPath}";
+            _dialogs.ShowInfo("프로젝트 백업", $"{selected.Count}개 프로젝트, 파일 {result.FileCount}개를 백업했습니다.\n\n{result.ZipPath}{skipped}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            StatusMessage = "프로젝트 백업 실패";
+            _dialogs.ShowError("프로젝트 백업", $"백업하지 못했습니다.\n\n{ex.Message}");
+        }
     }
 
     [RelayCommand]

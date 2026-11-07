@@ -77,6 +77,9 @@
                         <MenuItem Header="붙여넣기(_P)" Command="{Binding Explorer.List.PasteCommand}" InputGestureText="Ctrl+V" />
                         <Separator />
                         <MenuItem Header="프로젝트 편집(_E)..." Command="{Binding Explorer.EditProjectCommand}" />
+                        <MenuItem Header="보이는 항목 편집(_I)" Command="{Binding Explorer.ToggleVisibilityEditCommand}"
+                                  IsCheckable="True" IsChecked="{Binding Explorer.IsEditingVisibility, Mode=OneWay}"
+                                  Visibility="{Binding Explorer.CanEditVisibility, Converter={StaticResource TrueToVisible}}" />
                         <MenuItem Header="숨기기(_H)" Command="{Binding Explorer.HideProjectCommand}" />
                         <Separator />
                         <MenuItem Header="위로 이동(_U)" Command="{Binding Explorer.MoveUpCommand}" />
@@ -101,12 +104,16 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="HeaderChevron" Style="{StaticResource Chevron}" Text="&#xE70D;" />
                 <Border Grid.Column="1" Width="3" Height="14" Margin="2,0,6,0" VerticalAlignment="Center"
                         Background="{Binding Color, TargetNullValue=Transparent}" />
                 <TextBlock Grid.Column="2" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" />
+                <Button Grid.Column="4" Content="보이는 항목 편집 끝내기" Margin="4,0" Padding="6,0"
+                        Command="{Binding Explorer.ToggleVisibilityEditCommand}"
+                        Visibility="{Binding Explorer.IsEditingVisibility, Converter={StaticResource TrueToVisible}}" />
                 <StackPanel x:Name="Toolbar" Grid.Column="3" Orientation="Horizontal" Visibility="Hidden">
                     <!-- A plain Button: a ToggleButton would overwrite its IsChecked binding on click. Tag = "on". -->
                     <Button Style="{StaticResource HeaderButton}" Tag="{Binding IsConfigDocsFilter}"
@@ -154,6 +161,9 @@
             <StackPanel x:Name="Root" Orientation="Horizontal" Margin="{Binding Depth, Converter={StaticResource Indent}}"
                         Background="Transparent" ToolTip="{Binding ToolTipText}" IsEnabled="{Binding IsEnabled}">
                 <TextBlock x:Name="NodeChevron" Style="{StaticResource Chevron}" Text="" />
+                <CheckBox VerticalAlignment="Center" Margin="0,0,4,0" IsChecked="{Binding IsVisibilityChecked}"
+                          Visibility="{Binding ShowsVisibilityCheck, Converter={StaticResource TrueToVisible}}"
+                          ToolTip="체크하면 편집 모드를 끝낸 뒤에도 보입니다(폴더는 안의 내용 전체)" Focusable="False" />
                 <TextBlock x:Name="Icon" Style="{StaticResource RowGlyph}"
                            Text="{Binding Node.FileKind, Converter={StaticResource FileGlyph}}"
                            Foreground="{DynamicResource DD.Brush.FileKind.Text}" />

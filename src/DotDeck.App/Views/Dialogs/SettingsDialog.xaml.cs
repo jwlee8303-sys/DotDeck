@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using DotDeck.App.Infrastructure.Windows;
@@ -8,15 +9,35 @@ namespace DotDeck.App.Views.Dialogs;
 
 public partial class SettingsDialog : Window
 {
-    public SettingsDialog(AppSettings current)
+    private readonly string _defaultBackupDirectory;
+
+    public SettingsDialog(AppSettings current, string defaultBackupDirectory)
     {
+        _defaultBackupDirectory = defaultBackupDirectory;
         InitializeComponent();
         DarkTitleBar.Attach(this);
         ThemeBox.SelectedIndex = current.Theme == "Light" ? 1 : 0;
         FontSizeBox.Text = current.EditorFontSize.ToString("0.##", CultureInfo.InvariantCulture);
         RetentionBox.Text = current.BackupRetention.ToString(CultureInfo.InvariantCulture);
+        BackupDirBox.Text = current.BackupDirectory ?? defaultBackupDirectory;
         Result = current;
     }
+
+    private void OnBrowseBackupClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "백업 폴더" };
+        if (Directory.Exists(BackupDirBox.Text))
+        {
+            dialog.InitialDirectory = BackupDirBox.Text;
+        }
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            BackupDirBox.Text = dialog.FolderName;
+        }
+    }
+
+    private void OnDefaultBackupClick(object sender, RoutedEventArgs e) => BackupDirBox.Text = _defaultBackupDirectory;
 
     public AppSettings Result { get; private set; }
 
@@ -35,7 +56,30 @@ public partial class SettingsDialog : Window
             return;
         }
 
-        Result = new AppSettings
+        var backupDir = BackupDirBox.Text.Trim();
+        if (!Path.IsPathFullyQualified(backupDir))
+        {
+            ShowError("백업 폴더는 전체 경로여야 합니다.");
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(backupDir);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            ShowError($"백업 폴더를 만들 수 없습니다: {ex.Message}");
+            return;
+        }
+
+        Result = Result with
+        {
+            BackupDirectory = string.Equals(Path.GetFullPath(backupDir).TrimEnd('\\'), Path.GetFullPath(_defaultBackupDirectory).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)
+                ? null
+                : backupDir,
+        };
+        Result = Result with
         {
             Theme = (ThemeBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "Dark",
             EditorFontSize = size,

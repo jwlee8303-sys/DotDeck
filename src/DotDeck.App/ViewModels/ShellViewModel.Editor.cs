@@ -19,7 +19,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost
     /// <summary>The editor tab the status bar describes: the active text tab, kept while a tool pane has focus.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveTextDocument))]
-    [NotifyCanExecuteChangedFor(nameof(SaveActiveCommand), nameof(FindCommand), nameof(ReplaceCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveActiveCommand), nameof(SaveActiveAsCommand), nameof(FindCommand), nameof(ReplaceCommand))]
     private TextDocumentViewModel? _activeTextDocument;
 
     [ObservableProperty]

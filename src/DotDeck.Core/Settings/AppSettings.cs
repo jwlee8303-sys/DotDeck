@@ -15,13 +15,24 @@ public sealed record AppSettings
 
     public int BackupRetention { get; init; } = 50;
 
+    /// <summary>User-chosen backup folder; null uses <c>%LOCALAPPDATA%\DotDeck\backups</c>.</summary>
+    public string? BackupDirectory { get; init; }
+
+    /// <summary>Last folder used by "project backup" (remembered for the next time).</summary>
+    public string? ProjectBackupDirectory { get; init; }
+
     /// <summary>Clamps out-of-range values (hand-edited files) to safe ones.</summary>
     public AppSettings Normalize() => this with
     {
         Theme = Theme is "Light" ? "Light" : "Dark",
         EditorFontSize = double.IsFinite(EditorFontSize) ? Math.Clamp(EditorFontSize, MinFontSize, MaxFontSize) : 13.333,
         BackupRetention = Math.Clamp(BackupRetention, 1, 1000),
+        BackupDirectory = FullOrNull(BackupDirectory),
+        ProjectBackupDirectory = FullOrNull(ProjectBackupDirectory),
     };
+
+    private static string? FullOrNull(string? path) =>
+        !string.IsNullOrWhiteSpace(path) && Path.IsPathFullyQualified(path.Trim()) ? path.Trim() : null;
 }
 
 public sealed class AppSettingsStore(IFileStore store, string path)

@@ -34,6 +34,7 @@
         <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenFilesCommand}" />
         <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveActiveCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
+        <KeyBinding Gesture="Ctrl+Alt+S" Command="{Binding SaveActiveAsCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+F" Command="{Binding ShowGlobalSearchCommand}" />
     </Window.InputBindings>
 
@@ -48,6 +49,7 @@
                 <MenuItem Header="열기(_O)..." InputGestureText="Ctrl+O" Command="{Binding OpenFilesCommand}" />
                 <Separator />
                 <MenuItem Header="저장(_S)" InputGestureText="Ctrl+S" Command="{Binding SaveActiveCommand}" />
+                <MenuItem Header="다른 이름으로 저장(_A)..." InputGestureText="Ctrl+Alt+S" Command="{Binding SaveActiveAsCommand}" />
                 <MenuItem Header="모두 저장(_L)" InputGestureText="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
                 <MenuItem Header="백업에서 복원(_B)..." Command="{Binding RestoreBackupCommand}" />
                 <Separator />
@@ -103,8 +105,10 @@
                 <MenuItem Header="현재 파일을 중요 파일에서 제거(_R)" Command="{Binding RemoveImportantFileCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
                 <Separator />
                 <MenuItem Header="관리자 권한으로 다시 시작(_A)" Command="{Binding RestartAsAdministratorCommand}" />
-                <Separator />
-                <MenuItem Header="설정(_O)..." Command="{Binding OpenSettingsCommand}" />
+            </MenuItem>
+            <MenuItem Header="설정(_S)">
+                <MenuItem Header="환경 설정(_O)..." Command="{Binding OpenSettingsCommand}" />
+                <MenuItem Header="프로젝트 백업(_B)..." Command="{Binding BackupProjectsCommand}" />
             </MenuItem>
             <MenuItem Header="창(_W)">
                 <MenuItem Header="새 창(_N)" Command="{Binding ActiveTextDocument.NewViewCommand}"

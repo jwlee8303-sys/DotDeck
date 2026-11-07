@@ -22,7 +22,7 @@ public static class ProjectsFileSerializer
     private static readonly HashSet<string> s_knownRootKeys = ["schemaVersion", "projects"];
 
     private static readonly HashSet<string> s_knownProjectKeys =
-        ["id", "kind", "builtinKey", "name", "root", "color", "filter", "order", "hidden", "excludedFolders"];
+        ["id", "kind", "builtinKey", "name", "root", "color", "filter", "order", "hidden", "excludedFolders", "visibleItems"];
 
     // Keep non-ASCII (Korean names, paths) readable for users who open the file; HTML-sensitive characters
     // are still escaped by the encoder.
@@ -138,7 +138,8 @@ public static class ProjectsFileSerializer
             || !TryGetFilter(entry, out var filter)
             || !TryGetInt(entry, "order", out var order)
             || !TryGetBool(entry, "hidden", out var hidden)
-            || !TryGetExcluded(entry, out var excluded))
+            || !TryGetExcluded(entry, out var excluded)
+            || !TryGetStringList(entry, "visibleItems", out var visible))
         {
             return null;
         }
@@ -165,6 +166,7 @@ public static class ProjectsFileSerializer
                     Order = order,
                     Hidden = hidden,
                     ExcludedFolders = excluded,
+                    VisibleItems = visible,
                     Extra = extra,
                 };
 
@@ -199,6 +201,7 @@ public static class ProjectsFileSerializer
                     Order = order,
                     Hidden = hidden,
                     ExcludedFolders = excluded,
+                    VisibleItems = visible,
                     Extra = extra,
                 };
 
@@ -236,6 +239,11 @@ public static class ProjectsFileSerializer
         obj["excludedFolders"] = project.ExcludedFolders is null
             ? null
             : new JsonArray(project.ExcludedFolders.Select(f => (JsonNode?)JsonValue.Create(f)).ToArray());
+
+        if (project.VisibleItems is { Count: > 0 } visibleItems)
+        {
+            obj["visibleItems"] = new JsonArray(visibleItems.Select(f => (JsonNode?)JsonValue.Create(f)).ToArray());
+        }
 
         CopyExtra(project.Extra, obj, s_knownProjectKeys);
         return obj;
@@ -305,10 +313,13 @@ public static class ProjectsFileSerializer
         return node is null || (node is JsonValue v && v.TryGetValue(out value));
     }
 
-    private static bool TryGetExcluded(JsonObject obj, out IReadOnlyList<string>? excluded)
+    private static bool TryGetExcluded(JsonObject obj, out IReadOnlyList<string>? excluded) =>
+        TryGetStringList(obj, "excludedFolders", out excluded);
+
+    private static bool TryGetStringList(JsonObject obj, string key, out IReadOnlyList<string>? excluded)
     {
         excluded = null;
-        switch (obj["excludedFolders"])
+        switch (obj[key])
         {
             case null:
                 return true;

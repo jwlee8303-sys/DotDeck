@@ -3,6 +3,9 @@
 
 ## [Unreleased]
 ### Added
+- 프로젝트 "보이는 항목 편집" 모드: 체크한 파일·폴더만 탐색기에 표시(폴더는 안의 내용 전체, `projects.json`의 `visibleItems`에 저장)
+- 다른 이름으로 저장(Ctrl+Alt+S)
+- 설정 메뉴: 환경 설정에서 백업 폴더 직접 지정, 프로젝트 백업(선택한 프로젝트를 원하는 폴더에 zip으로, 비밀 파일·링크·제외 폴더 제외)
 - 전체 검색(Ctrl+Shift+F): 모든 폴더 프로젝트의 텍스트 파일 검색(대/소문자·정규식, 비밀·바이너리·2MB 초과·제외 폴더 건너뜀), 결과에서 해당 줄 열기
 - 라이트 테마와 설정 화면(테마, 편집기 글꼴 크기, 백업 보관 개수; `%APPDATA%\DotDeck\settings.json`)
 - README, 단일 exe 배포 설정(자체 포함, 네이티브 라이브러리 포함)
@@ -65,6 +68,7 @@
 - 공용 ListBox 템플릿에서 UI 가상화가 꺼져 있던 문제(`CanContentScroll` 미전달)
 
 ### Changed
+- 탐색기에서 한 번 클릭으로 파일이 열리지 않음(더블클릭·Enter로 열기)
 - 솔루션을 `src/DotDeck.App`(WPF, net10.0-windows), `src/DotDeck.Core`(net10.0), `tests/DotDeck.Core.Tests`(xunit.v3) 구조로 재구성
 - 중앙 패키지 관리, 경고를 오류로 처리, `.editorconfig`, 앱 매니페스트(asInvoker, PerMonitorV2, longPath) 추가
 - 레지스트리 쓰기(필터 전환 등)를 UI 스레드 밖에서 직렬화해 실행

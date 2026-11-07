@@ -56,6 +56,9 @@ public sealed record ProjectDefinition
     /// <summary>Folder names excluded from the tree. Null means "use defaults".</summary>
     public IReadOnlyList<string>? ExcludedFolders { get; init; }
 
+    /// <summary>"Show only these" relative paths chosen in visibility edit mode; null/empty shows everything.</summary>
+    public IReadOnlyList<string>? VisibleItems { get; init; }
+
     public JsonObject? Extra { get; init; }
 
     public bool IsBuiltin => Kind == ProjectKind.Builtin;

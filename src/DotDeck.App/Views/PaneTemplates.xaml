@@ -3,7 +3,8 @@
                     xmlns:docs="clr-namespace:DotDeck.App.ViewModels.Documents"
                     xmlns:tools="clr-namespace:DotDeck.App.ViewModels.Tools"
                     xmlns:explorer="clr-namespace:DotDeck.App.ViewModels.Explorer"
-                    xmlns:explorerViews="clr-namespace:DotDeck.App.Views.Explorer">
+                    xmlns:explorerViews="clr-namespace:DotDeck.App.Views.Explorer"
+                    xmlns:editorViews="clr-namespace:DotDeck.App.Views.Editor">
 
     <!-- Implicit templates: AvalonDock shows each view model through these (keyed by type). -->
 
@@ -62,6 +63,10 @@
                 </Grid>
             </StackPanel>
         </ScrollViewer>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type docs:TextDocumentViewModel}">
+        <editorViews:TextEditorView />
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type docs:ScratchDocumentViewModel}">

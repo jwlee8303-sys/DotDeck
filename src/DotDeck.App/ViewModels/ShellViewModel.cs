@@ -3,8 +3,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.Services;
 using DotDeck.App.ViewModels.Documents;
+using DotDeck.App.ViewModels.Editor;
 using DotDeck.App.ViewModels.Explorer;
 using DotDeck.App.ViewModels.Tools;
+using DotDeck.Core.Documents;
 using DotDeck.Core.Explorer;
 using DotDeck.Core.FileOperations;
 using DotDeck.Core.Files;
@@ -24,12 +26,17 @@ public sealed record ShellServices(
     IClipboardService Clipboard,
     IShellLauncher Shell,
     IDialogService Dialogs,
-    FileOperationService FileOperations);
+    FileOperationService FileOperations,
+    TextFileReader Reader,
+    SafeWriter Writer);
 
 /// <summary>Root view model: owns the documents and tool panes bound to the docking manager.</summary>
 public sealed partial class ShellViewModel : ObservableObject
 {
     private readonly IAppLog _log;
+    private readonly IDialogService _dialogs;
+    private readonly DocumentBufferManager _buffers;
+    private readonly SafeWriter _writer;
     private int _scratchCounter;
 
     public ShellViewModel(ShellServices services, string version, bool isAdministrator)
@@ -37,6 +44,9 @@ public sealed partial class ShellViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(services);
         Paths = services.Paths;
         _log = services.Log;
+        _dialogs = services.Dialogs;
+        _buffers = new DocumentBufferManager(services.Reader);
+        _writer = services.Writer;
         Version = version;
         IsAdministrator = isAdministrator;
 
@@ -44,7 +54,7 @@ public sealed partial class ShellViewModel : ObservableObject
             new ProjectRegistryGateway(services.Registry), services.Paths, services.Store, services.Clipboard,
             services.Shell, services.Dialogs,
             new ExplorerFileOperations(services.FileOperations, services.Dialogs, services.Log, message => StatusMessage = message),
-            services.Log, message => StatusMessage = message, new FolderWatcherFactory());
+            services.Log, message => StatusMessage = message, new FolderWatcherFactory(), OpenFileAsync);
         Properties = new PropertiesPaneViewModel();
         Output = new OutputPaneViewModel(services.Log);
         Validation = new ValidationPaneViewModel();
@@ -157,6 +167,16 @@ public sealed partial class ShellViewModel : ObservableObject
 
     private void CloseDocument(DocumentViewModel document)
     {
+        if (document is TextDocumentViewModel text)
+        {
+            if (TryCloseTextDocument(text))
+            {
+                _log.Debug($"Closed document {document.ContentId}");
+            }
+
+            return;
+        }
+
         Documents.Remove(document);
         _log.Debug($"Closed document {document.ContentId}");
     }

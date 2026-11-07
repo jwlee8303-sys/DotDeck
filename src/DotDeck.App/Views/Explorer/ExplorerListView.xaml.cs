@@ -265,6 +265,13 @@ public partial class ExplorerListView : UserControl
             Tree.SelectedItem = _pressedRow;
         }
 
+        // A plain click (not a drag, no modifiers) previews the file.
+        if (_dragStart is not null && _pressedRow is NodeRowViewModel { IsFolder: false } file
+            && Keyboard.Modifiers == ModifierKeys.None && e.ChangedButton == MouseButton.Left)
+        {
+            _viewModel?.PreviewCommand.Execute(file);
+        }
+
         _deferredSelection = false;
         _dragStart = null;
         _pressedRow = null;

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SyntaxDefinition name="YAML" extensions=".yaml;.yml" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+  <Color name="Key" foreground="#9CDCFE" />
+  <Color name="String" foreground="#CE9178" />
+  <Color name="Number" foreground="#B5CEA8" />
+  <Color name="Keyword" foreground="#569CD6" />
+  <Color name="Comment" foreground="#6A9955" />
+  <Color name="Marker" foreground="#C586C0" />
+  <RuleSet>
+    <Span color="Comment" begin="(?&lt;=^|\s)\#" />
+    <Rule color="Marker">^(---|\.\.\.)\s*$</Rule>
+    <Span color="String"><Begin>"</Begin><End>"</End><RuleSet><Span begin="\\" end="." /></RuleSet></Span>
+    <Span color="String" begin="'" end="'" />
+    <Rule color="Key">^\s*(-\s+)?[^\s:#][^:#\r\n]*(?=:(\s|$))</Rule>
+    <Rule color="Marker">[&amp;*][A-Za-z0-9_\-]+</Rule>
+    <Keywords color="Keyword"><Word>true</Word><Word>false</Word><Word>null</Word><Word>yes</Word><Word>no</Word><Word>on</Word><Word>off</Word></Keywords>
+    <Rule color="Number">[-+]?\b\d+(\.\d+)?\b</Rule>
+  </RuleSet>
+</SyntaxDefinition>

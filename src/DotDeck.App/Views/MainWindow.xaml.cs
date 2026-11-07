@@ -56,13 +56,39 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool _closeConfirmed;
+
     protected override void OnClosing(CancelEventArgs e)
     {
         base.OnClosing(e);
+        if (!e.Cancel && !_closeConfirmed && _shell.HasUnsavedDocuments)
+        {
+            // Saving is asynchronous: cancel this close, ask, then close again.
+            e.Cancel = true;
+            _ = ConfirmAndCloseAsync();
+            return;
+        }
+
         if (!e.Cancel)
         {
             _layout.Save(DockManager);
             _shell.SaveSession();
+        }
+    }
+
+    private async Task ConfirmAndCloseAsync()
+    {
+        try
+        {
+            if (await _shell.ConfirmCloseAllAsync())
+            {
+                _closeConfirmed = true;
+                Close();
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _shell.ReportError("종료 중 오류가 발생했습니다.", ex);
         }
     }
 

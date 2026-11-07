@@ -1,0 +1,105 @@
+<UserControl x:Class="DotDeck.App.Views.Editor.TextEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ae="http://icsharpcode.net/sharpdevelop/avalonedit"
+             xmlns:docs="clr-namespace:DotDeck.App.ViewModels.Documents"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=docs:TextDocumentViewModel}"
+             Background="{DynamicResource DD.Brush.Editor.Background}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+        <Style x:Key="FindButton" TargetType="Button" BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
+            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="Padding" Value="4,1" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+        <Style x:Key="FindOption" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+    </UserControl.Resources>
+
+    <UserControl.InputBindings>
+        <KeyBinding Gesture="Ctrl+F" Command="{Binding OpenFindCommand}" />
+        <KeyBinding Gesture="Ctrl+H" Command="{Binding OpenReplaceCommand}" />
+        <KeyBinding Gesture="F3" Command="{Binding Find.FindNextCommand}" />
+        <KeyBinding Gesture="Shift+F3" Command="{Binding Find.FindPreviousCommand}" />
+    </UserControl.InputBindings>
+
+    <DockPanel>
+        <!-- Find / replace bar -->
+        <Border DockPanel.Dock="Top" x:Name="FindBar"
+                Background="{DynamicResource DD.Brush.Panel.Background}"
+                BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="0,0,0,1" Padding="6,3"
+                DataContext="{Binding Find}"
+                Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisible}}">
+            <Border.InputBindings>
+                <KeyBinding Key="Escape" Command="{Binding CloseCommand}" />
+            </Border.InputBindings>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="260" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBox x:Name="FindBox" Grid.Row="0" Text="{Binding Pattern, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="찾을 내용 (Enter: 다음, Shift+Enter: 이전)">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding FindNextCommand}" />
+                        <KeyBinding Gesture="Shift+Enter" Command="{Binding FindPreviousCommand}" />
+                    </TextBox.InputBindings>
+                </TextBox>
+                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="4,0,0,0">
+                    <Button Style="{StaticResource FindButton}" Command="{Binding FindPreviousCommand}" ToolTip="이전 (Shift+F3)">
+                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE70E;" />
+                    </Button>
+                    <Button Style="{StaticResource FindButton}" Command="{Binding FindNextCommand}" ToolTip="다음 (F3)">
+                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE70D;" />
+                    </Button>
+                    <CheckBox Style="{StaticResource FindOption}" Content="대/소문자" IsChecked="{Binding MatchCase}" />
+                    <CheckBox Style="{StaticResource FindOption}" Content="단어 단위" IsChecked="{Binding WholeWord}" />
+                    <CheckBox Style="{StaticResource FindOption}" Content="정규식" IsChecked="{Binding UseRegex}" />
+                    <Button Style="{StaticResource FindButton}" Command="{Binding CloseCommand}" ToolTip="닫기 (Esc)" Margin="6,0,0,0">
+                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE711;" />
+                    </Button>
+                </StackPanel>
+                <TextBlock Grid.Row="0" Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Center"
+                           Style="{StaticResource DD.Text.Secondary}" Text="{Binding Message}" TextTrimming="CharacterEllipsis" />
+
+                <TextBox Grid.Row="1" Margin="0,3,0,0" Text="{Binding Replacement, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="바꿀 내용 (정규식 모드에서 $1 등 사용 가능)"
+                         Visibility="{Binding IsReplaceVisible, Converter={StaticResource BoolToVisible}}">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding ReplaceOneCommand}" />
+                    </TextBox.InputBindings>
+                </TextBox>
+                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="4,3,0,0"
+                            Visibility="{Binding IsReplaceVisible, Converter={StaticResource BoolToVisible}}">
+                    <Button Style="{StaticResource FindButton}" Command="{Binding ReplaceOneCommand}" Content="바꾸기" />
+                    <Button Style="{StaticResource FindButton}" Command="{Binding ReplaceAllCommand}" Content="모두 바꾸기" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <ae:TextEditor x:Name="Editor"
+                       Document="{Binding Buffer.Document}"
+                       FontFamily="{DynamicResource DD.Font.Editor}"
+                       FontSize="{DynamicResource DD.FontSize.Editor}"
+                       Background="{DynamicResource DD.Brush.Editor.Background}"
+                       Foreground="{DynamicResource DD.Brush.Editor.Text}"
+                       LineNumbersForeground="{DynamicResource DD.Brush.Editor.LineNumber}"
+                       ShowLineNumbers="True"
+                       HorizontalScrollBarVisibility="Auto"
+                       VerticalScrollBarVisibility="Auto"
+                       Padding="4,0,0,0" />
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SyntaxDefinition name="Markdown" extensions=".md;.markdown" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+  <Color name="Heading" foreground="#569CD6" fontWeight="bold" />
+  <Color name="Emphasis" foreground="#CE9178" fontStyle="italic" />
+  <Color name="Strong" foreground="#CE9178" fontWeight="bold" />
+  <Color name="Code" foreground="#D7BA7D" />
+  <Color name="Link" foreground="#4EC9B0" />
+  <Color name="Marker" foreground="#C586C0" />
+  <Color name="Quote" foreground="#6A9955" />
+  <Color name="Frontmatter" foreground="#808080" />
+  <RuleSet>
+    <Span color="Code" multiline="true" begin="^\s*(```|~~~)" end="^\s*(```|~~~)" />
+    <Span color="Frontmatter" multiline="true" begin="\A---\s*$" end="^---\s*$" />
+    <Rule color="Heading">^\#{1,6}\s.*$</Rule>
+    <Rule color="Quote">^\s*&gt;.*$</Rule>
+    <Rule color="Marker">^\s*([-*+]|\d+\.)\s</Rule>
+    <Rule color="Code">`[^`\r\n]+`</Rule>
+    <Rule color="Strong">\*\*[^*\r\n]+\*\*|__[^_\r\n]+__</Rule>
+    <Rule color="Emphasis">(?&lt;![\w*])[*_][^*_\s][^*_\r\n]*[*_](?![\w*])</Rule>
+    <Rule color="Link">!?\[[^\]\r\n]*\]\([^)\r\n]*\)</Rule>
+  </RuleSet>
+</SyntaxDefinition>

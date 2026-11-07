@@ -9,6 +9,10 @@
 
     <!-- Surfaces -->
     <Color x:Key="DD.Color.Editor.Background">#FF1E1E1E</Color>
+    <Color x:Key="DD.Color.Editor.Text">#FFDCDCDC</Color>
+    <Color x:Key="DD.Color.Editor.LineNumber">#FF858585</Color>
+    <Color x:Key="DD.Color.Editor.Selection">#FF264F78</Color>
+    <Color x:Key="DD.Color.Editor.CurrentLine">#FF282828</Color>
     <Color x:Key="DD.Color.Panel.Background">#FF252526</Color>
     <Color x:Key="DD.Color.Chrome.Background">#FF2D2D30</Color>
     <Color x:Key="DD.Color.Border">#FF3F3F46</Color>
@@ -71,6 +75,10 @@
 
     <!-- Brushes -->
     <SolidColorBrush x:Key="DD.Brush.Editor.Background" Color="{StaticResource DD.Color.Editor.Background}" />
+    <SolidColorBrush x:Key="DD.Brush.Editor.Text" Color="{StaticResource DD.Color.Editor.Text}" />
+    <SolidColorBrush x:Key="DD.Brush.Editor.LineNumber" Color="{StaticResource DD.Color.Editor.LineNumber}" />
+    <SolidColorBrush x:Key="DD.Brush.Editor.Selection" Color="{StaticResource DD.Color.Editor.Selection}" />
+    <SolidColorBrush x:Key="DD.Brush.Editor.CurrentLine" Color="{StaticResource DD.Color.Editor.CurrentLine}" />
     <SolidColorBrush x:Key="DD.Brush.Panel.Background" Color="{StaticResource DD.Color.Panel.Background}" />
     <SolidColorBrush x:Key="DD.Brush.Chrome.Background" Color="{StaticResource DD.Color.Chrome.Background}" />
     <SolidColorBrush x:Key="DD.Brush.Border" Color="{StaticResource DD.Color.Border}" />

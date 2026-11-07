@@ -25,6 +25,31 @@ public sealed class DialogService : IDialogService
         return result == MessageBoxResult.Yes;
     }
 
+    public SaveChangesChoice AskSaveChanges(string title, string message)
+    {
+        var result = Owner is { } owner
+            ? MessageBox.Show(owner, message, title, MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.Yes)
+            : MessageBox.Show(message, title, MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.Yes);
+        return result switch
+        {
+            MessageBoxResult.Yes => SaveChangesChoice.Save,
+            MessageBoxResult.No => SaveChangesChoice.Discard,
+            _ => SaveChangesChoice.Cancel,
+        };
+    }
+
+    public void ShowInfo(string title, string message)
+    {
+        if (Owner is { } owner)
+        {
+            MessageBox.Show(owner, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        else
+        {
+            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
     public void ShowError(string title, string message)
     {
         if (Owner is { } owner)

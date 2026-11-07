@@ -16,6 +16,11 @@
     <PackageReference Include="Dirkster.AvalonDock" />
     <PackageReference Include="Dirkster.AvalonDock.Themes.VS" />
     <PackageReference Include="Dirkster.AvalonDock.Serializer.Xml" />
+    <PackageReference Include="AvalonEdit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Editor\Highlighting\*.xshd" />
   </ItemGroup>
 
   <ItemGroup>

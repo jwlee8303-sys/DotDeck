@@ -22,7 +22,8 @@ public sealed record ExplorerContext(
     ExplorerFileOperations FileOps,
     IAppLog Log,
     Action<string> SetStatus,
-    IFolderWatcherFactory Watchers);
+    IFolderWatcherFactory Watchers,
+    Func<string, bool, Task> OpenFile);
 
 /// <summary>
 /// One project's explorer. Its rows live in a list (<see cref="List"/>: the project area, or its own detached

@@ -6,6 +6,7 @@ using DotDeck.App.Docking;
 using DotDeck.App.Infrastructure.Windows;
 using DotDeck.App.ViewModels;
 using DotDeck.App.Views;
+using DotDeck.Core.Documents;
 using DotDeck.Core.Explorer;
 using DotDeck.Core.FileOperations;
 using DotDeck.Core.Files;
@@ -49,6 +50,11 @@ public partial class App : Application
             var version = GetVersion();
             _log.Info($"DotDeck {version} 시작 (홈: {paths.Home}, 모드: {paths.HomeSource})");
 
+            foreach (var error in Editor.HighlightingCatalog.Validate())
+            {
+                _log.Warning($"구문 강조 정의를 불러오지 못했습니다: {error}");
+            }
+
             var store = PhysicalFileStore.Instance;
             var registry = new ProjectRegistry(store, paths.ProjectsFile, TimeProvider.System, _log);
             var load = registry.Load();
@@ -67,7 +73,9 @@ public partial class App : Application
                 new ClipboardService(),
                 new ShellLauncher(),
                 new DialogService(),
-                new FileOperationService(store, new WindowsRecycleBin(_log), new FileOperationHistory()));
+                new FileOperationService(store, new WindowsRecycleBin(_log), new FileOperationHistory()),
+                new TextFileReader(store),
+                new SafeWriter(store, new BackupStore(store, paths.BackupsDir, TimeProvider.System)));
             var shell = new ShellViewModel(services, version, IsAdministrator());
 
             var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log));

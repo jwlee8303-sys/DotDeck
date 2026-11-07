@@ -25,11 +25,13 @@
                 <ResourceDictionary Source="PaneTemplates.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <conv:BoolToHiddenConverter x:Key="BoolToHidden" />
+            <BooleanToVisibilityConverter x:Key="BoolToVisible" />
         </ResourceDictionary>
     </Window.Resources>
 
     <Window.InputBindings>
         <KeyBinding Gesture="Ctrl+N" Command="{Binding NewScratchDocumentCommand}" />
+        <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveActiveCommand}" />
     </Window.InputBindings>
 
     <DockPanel>
@@ -39,17 +41,21 @@
                 <MenuItem Header="새 파일(_N)" InputGestureText="Ctrl+N" Command="{Binding NewScratchDocumentCommand}" />
                 <MenuItem Header="열기(_O)..." InputGestureText="Ctrl+O" IsEnabled="False" />
                 <Separator />
-                <MenuItem Header="저장(_S)" InputGestureText="Ctrl+S" IsEnabled="False" />
+                <MenuItem Header="저장(_S)" InputGestureText="Ctrl+S" Command="{Binding SaveActiveCommand}" />
                 <MenuItem Header="모두 저장(_L)" InputGestureText="Ctrl+Shift+S" IsEnabled="False" />
                 <Separator />
                 <MenuItem Header="끝내기(_X)" Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="편집(_E)">
-                <MenuItem Header="실행 취소(_U)" InputGestureText="Ctrl+Z" IsEnabled="False" />
-                <MenuItem Header="다시 실행(_R)" InputGestureText="Ctrl+Y" IsEnabled="False" />
+                <MenuItem Header="실행 취소(_U)" InputGestureText="Ctrl+Z" Command="Undo" />
+                <MenuItem Header="다시 실행(_R)" InputGestureText="Ctrl+Y" Command="Redo" />
                 <Separator />
-                <MenuItem Header="찾기(_F)" InputGestureText="Ctrl+F" IsEnabled="False" />
-                <MenuItem Header="바꾸기(_H)" InputGestureText="Ctrl+H" IsEnabled="False" />
+                <MenuItem Header="잘라내기(_T)" InputGestureText="Ctrl+X" Command="Cut" />
+                <MenuItem Header="복사(_C)" InputGestureText="Ctrl+C" Command="Copy" />
+                <MenuItem Header="붙여넣기(_P)" InputGestureText="Ctrl+V" Command="Paste" />
+                <Separator />
+                <MenuItem Header="찾기(_F)" InputGestureText="Ctrl+F" Command="{Binding FindCommand}" />
+                <MenuItem Header="바꾸기(_H)" InputGestureText="Ctrl+H" Command="{Binding ReplaceCommand}" />
             </MenuItem>
             <MenuItem Header="보기(_V)">
                 <MenuItem Header="시작 페이지" Command="{Binding ShowWelcomeCommand}" />
@@ -83,6 +89,11 @@
                 <MenuItem Header="설정(_O)..." IsEnabled="False" />
             </MenuItem>
             <MenuItem Header="창(_W)">
+                <MenuItem Header="새 창(_N)" Command="{Binding ActiveTextDocument.NewViewCommand}"
+                          IsEnabled="{Binding HasActiveTextDocument}" ToolTip="같은 파일을 다른 탭에서 함께 편집합니다" />
+                <MenuItem Header="탭 고정(_P)" IsCheckable="True" IsChecked="{Binding ActiveTextDocument.IsPinned, Mode=OneWay}"
+                          Command="{Binding ActiveTextDocument.TogglePinCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
+                <Separator />
                 <MenuItem Header="레이아웃 초기화(_R)" Click="OnResetLayoutClick" />
             </MenuItem>
             <MenuItem Header="도움말(_H)">
@@ -99,17 +110,17 @@
                 <Button ToolTip="열기 (Ctrl+O)" IsEnabled="False">
                     <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE8E5;" />
                 </Button>
-                <Button ToolTip="저장 (Ctrl+S)" IsEnabled="False">
+                <Button ToolTip="저장 (Ctrl+S)" Command="{Binding SaveActiveCommand}">
                     <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE74E;" />
                 </Button>
                 <Button ToolTip="모두 저장 (Ctrl+Shift+S)" IsEnabled="False">
                     <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xEA35;" />
                 </Button>
                 <Separator />
-                <Button ToolTip="실행 취소 (Ctrl+Z)" IsEnabled="False">
+                <Button ToolTip="실행 취소 (Ctrl+Z)" Command="Undo">
                     <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE7A7;" />
                 </Button>
-                <Button ToolTip="다시 실행 (Ctrl+Y)" IsEnabled="False">
+                <Button ToolTip="다시 실행 (Ctrl+Y)" Command="Redo">
                     <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE7A6;" />
                 </Button>
             </ToolBar>
@@ -138,6 +149,17 @@
             <Separator DockPanel.Dock="Right" />
             <StatusBarItem DockPanel.Dock="Right" Content="{Binding HomeStatusText}" />
             <Separator DockPanel.Dock="Right" />
+            <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.Buffer.LineEndingText}"
+                           Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" ToolTip="줄바꿈" />
+            <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.Buffer.EncodingText}"
+                           Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" ToolTip="인코딩" />
+            <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.CaretText}"
+                           Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" />
+            <StatusBarItem DockPanel.Dock="Right" Content="{Binding LastBackupText}" MaxWidth="320"
+                           ToolTip="{Binding LastBackupText}" />
+            <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.FilePath}" MaxWidth="420"
+                           ToolTip="{Binding ActiveTextDocument.FilePath}"
+                           Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" />
             <StatusBarItem Content="{Binding StatusMessage}" />
         </StatusBar>
 
@@ -147,6 +169,21 @@
                            AnchorablesSource="{Binding Tools}"
                            ActiveContent="{Binding ActiveContent, Mode=TwoWay}"
                            AllowMixedOrientation="True">
+            <ad:DockingManager.DocumentHeaderTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="10" Margin="0,0,4,0" VerticalAlignment="Center"
+                                   Text="&#xE718;" Visibility="{Binding Content.IsPinned, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}" />
+                        <TextBlock x:Name="HeaderText" Text="{Binding Title}" />
+                    </StackPanel>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Content.IsPreview, FallbackValue=False}" Value="True">
+                            <Setter TargetName="HeaderText" Property="FontStyle" Value="Italic" />
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ad:DockingManager.DocumentHeaderTemplate>
+
             <ad:DockingManager.LayoutUpdateStrategy>
                 <docking:LayoutInitializer />
             </ad:DockingManager.LayoutUpdateStrategy>
@@ -169,6 +206,8 @@
                             <Setter Property="IsSelected" Value="{Binding Model.IsSelected, Mode=TwoWay}" />
                             <Setter Property="IsActive" Value="{Binding Model.IsActive, Mode=TwoWay}" />
                             <Setter Property="CloseCommand" Value="{Binding Model.CloseCommand}" />
+                            <Setter Property="ToolTip" Value="{Binding Model.ToolTip, FallbackValue={x:Null}}" />
+                            <Setter Property="CanClose" Value="{Binding Model.CanClose, FallbackValue=True}" />
                         </Style>
                     </docking:PaneStyleSelector.DocumentStyle>
                 </docking:PaneStyleSelector>

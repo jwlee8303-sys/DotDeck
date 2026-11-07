@@ -97,14 +97,20 @@ public sealed partial class ExplorerListViewModel : ObservableObject
                 _context.SetStatus($"비밀 파일은 열 수 없습니다: {secret.Name}");
                 break;
             case NodeRowViewModel { Node.CanOpen: true } file:
-                // The editor arrives in Phase 1c.
-                _context.SetStatus($"편집기는 다음 단계(Phase 1c)에서 제공됩니다: {file.Node.FullPath}");
+                await _context.OpenFile(file.Node.FullPath!, false);
                 break;
             case MessageRowViewModel { Action: { } action }:
                 action.Execute(null);
                 break;
         }
     }
+
+    /// <summary>Single click on a file: show it in the reusable preview tab.</summary>
+    [RelayCommand]
+    private Task PreviewAsync(ExplorerRowViewModel? row) =>
+        row is NodeRowViewModel { IsFolder: false, Node.IsSecret: false, Node.CanOpen: true } file
+            ? _context.OpenFile(file.Node.FullPath!, true)
+            : Task.CompletedTask;
 
     /// <summary>Right arrow: expand, or move to the first child when already expanded.</summary>
     [RelayCommand]

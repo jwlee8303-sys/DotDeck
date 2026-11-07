@@ -21,7 +21,8 @@ public sealed record ExplorerContext(
     IDialogService Dialogs,
     ExplorerFileOperations FileOps,
     IAppLog Log,
-    Action<string> SetStatus);
+    Action<string> SetStatus,
+    IFolderWatcherFactory Watchers);
 
 /// <summary>
 /// One project's explorer. Its rows live in a list (<see cref="List"/>: the project area, or its own detached
@@ -36,6 +37,13 @@ public sealed partial class ExplorerViewModel : ObservableObject
     private int _loadVersion;
     private string? _pendingSelectionKey;
     private string? _selectionOverride;
+    private readonly SynchronizationContext? _ui;
+    private IDisposable? _watcher;
+    private string? _watchedRoot;
+    private bool _removed;
+    private bool _creatingWatcher;
+    private bool _watchDirty;
+    private bool _watchRefreshing;
 
     public ExplorerViewModel(
         ExplorerContext context,
@@ -53,6 +61,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         Project = project;
         Source = ProjectSources.Create(project, context.Paths, context.Store);
         ApplyHeader();
+        _ui = SynchronizationContext.Current;
     }
 
     /// <summary>The list currently showing this explorer.</summary>
@@ -137,10 +146,28 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
                 // The user expanded/collapsed something meanwhile: build again from the current state
                 // instead of applying the old snapshot.
-                if (_expanded.SetEquals(expanded))
+                if (!_expanded.SetEquals(expanded))
                 {
-                    break;
+                    continue;
                 }
+
+                // Replacing the rows would drop an in-place editor (rename / new item) the user started
+                // meanwhile: wait until it ends, then list again so the result is current.
+                if (BodyRows.OfType<IEditableRow>().Any(r => r.IsEditing))
+                {
+                    while (BodyRows.OfType<IEditableRow>().Any(r => r.IsEditing))
+                    {
+                        await Task.Delay(300);
+                        if (version != _loadVersion)
+                        {
+                            return;
+                        }
+                    }
+
+                    continue;
+                }
+
+                break;
             }
 
             // A refresh replaces the row objects: carry the selection as it is right now over by key,
@@ -158,6 +185,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
             _expanded.ExceptWith(result.StaleExpandedKeys);
             ReplaceBody(CreateBody(result));
             RestoreSelection();
+            UpdateWatcher();
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -515,6 +543,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public void RemoveRows()
     {
         ++_loadVersion;
+        _removed = true;
+        _watcher?.Dispose();
+        _watcher = null;
         if (List.SelectedRow?.Explorer == this)
         {
             List.SelectedRow = null;
@@ -538,6 +569,95 @@ public sealed partial class ExplorerViewModel : ObservableObject
         for (var i = end - 1; i >= start; i--)
         {
             Rows.RemoveAt(i);
+        }
+    }
+
+    /// <summary>Watches the project root (SPEC 2.3 live refresh). Recreated when the root changes or appears.</summary>
+    private async void UpdateWatcher()
+    {
+        var root = Source.RootPath;
+        if (_removed || _creatingWatcher
+            || (_watcher is not null && string.Equals(root, _watchedRoot, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        _watcher?.Dispose();
+        _watcher = null;
+        _watchedRoot = root;
+        if (root is null)
+        {
+            return;
+        }
+
+        _creatingWatcher = true;
+        try
+        {
+            // FileSystemWatcher setup touches the disk (slow on network paths): off the UI thread.
+            var watchers = _context.Watchers;
+            var watcher = await Task.Run(() => watchers.Watch(root, () => _ui?.Post(_ => OnFolderChanged(), null)));
+
+            // Removed or re-rooted meanwhile: this watcher is stale (a new root is retried in finally).
+            if (_removed || !string.Equals(root, Source.RootPath, StringComparison.OrdinalIgnoreCase))
+            {
+                watcher?.Dispose();
+                _watchedRoot = null;
+                return;
+            }
+
+            _watcher = watcher;
+
+            // Changes between the listing and the watcher starting were not seen: list once more.
+            if (watcher is not null)
+            {
+                OnFolderChanged();
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _context.Log.Warning($"폴더 변경 감시를 시작하지 못했습니다: {root}", ex);
+        }
+        finally
+        {
+            _creatingWatcher = false;
+        }
+
+        // The root changed while creating: watch the current one.
+        if (!_removed && _watcher is null && Source.RootPath is { } current
+            && !string.Equals(current, root, StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateWatcher();
+        }
+    }
+
+    /// <summary>Debounced file system change. Changes arriving during a refresh are coalesced into one more.</summary>
+    private async void OnFolderChanged()
+    {
+        _watchDirty = true;
+        if (_watchRefreshing)
+        {
+            return;
+        }
+
+        _watchRefreshing = true;
+        try
+        {
+            while (_watchDirty && !_removed)
+            {
+                _watchDirty = false;
+                if (!Header.IsCollapsed)
+                {
+                    await LoadAsync();
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _context.Log.Error($"변경 감지 후 트리를 새로 고치지 못했습니다: {Project.Name}", ex);
+        }
+        finally
+        {
+            _watchRefreshing = false;
         }
     }
 

@@ -42,7 +42,7 @@ public sealed class SystemProjectSource : IProjectSource
                 Create(UserEnvironmentId, "환경변수(사용자)"),
                 Create(MachineEnvironmentId, "환경변수(시스템)"),
                 Create(PathId, "PATH"),
-                new NodeInfo { Id = ImportantFilesId, Kind = NodeKind.Folder, Name = "중요 파일" },
+                new NodeInfo { Id = ImportantFilesId, Kind = NodeKind.Folder, Name = "기타 파일" },
             ];
         }
 
@@ -67,7 +67,7 @@ public sealed class SystemProjectSource : IProjectSource
                 FileKind = FileKindClassifier.Classify(name),
                 IsSecret = SecretFilePolicy.IsSecret(name),
                 IsReadOnly = entry?.IsReadOnly ?? false,
-                IsEnabled = exists,
+                IsEnabled = true,
                 Length = entry?.Length ?? 0,
                 LastWriteTimeUtc = entry?.LastWriteTimeUtc ?? default,
             };

@@ -24,7 +24,9 @@ public sealed record ExplorerContext(
     Action<string> SetStatus,
     IFolderWatcherFactory Watchers,
     Func<string, bool, Task> OpenFile,
-    Action<string>? OpenSystemNode = null);
+    Action<string>? OpenSystemNode = null,
+    Func<Task>? RegisterOtherFile = null,
+    Func<string, Task>? UnregisterOtherFile = null);
 
 /// <summary>
 /// One project's explorer. Its rows live in a list (<see cref="List"/>: the project area, or its own detached

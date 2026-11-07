@@ -66,7 +66,8 @@ public sealed partial class ShellViewModel : ObservableObject
             new ProjectRegistryGateway(services.Registry), services.Paths, services.Store, services.Clipboard,
             services.Shell, services.Dialogs,
             new ExplorerFileOperations(services.FileOperations, services.Dialogs, services.Log, message => StatusMessage = message),
-            services.Log, message => StatusMessage = message, new FolderWatcherFactory(), OpenFileAsync, OpenSystemNode);
+            services.Log, message => StatusMessage = message, new FolderWatcherFactory(), OpenFileAsync, OpenSystemNode,
+            RegisterOtherFileAsync, RemoveOtherFileAsync);
         Properties = new PropertiesPaneViewModel();
         Output = new OutputPaneViewModel(services.Log);
         Validation = new ValidationPaneViewModel();

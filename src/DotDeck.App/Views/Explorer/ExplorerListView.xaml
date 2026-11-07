@@ -358,6 +358,10 @@
             <ListBox.ContextMenu>
                 <ContextMenu Opened="OnContextMenuOpened">
                     <MenuItem Header="열기(_O)" Command="{Binding OpenSelectedCommand}" InputGestureText="Enter" />
+                    <MenuItem Header="기타 파일 등록(경로 입력)(_G)..." Command="{Binding RegisterOtherFileCommand}"
+                              Visibility="{Binding IsOtherFilesTarget, Converter={StaticResource TrueToVisible}}" />
+                    <MenuItem Header="기타 파일 목록에서 빼기(_U)" Command="{Binding UnregisterOtherFileCommand}"
+                              Visibility="{Binding IsOtherFileItem, Converter={StaticResource TrueToVisible}}" />
                     <Separator />
                     <MenuItem Header="새 파일(_W)" Command="{Binding NewFileCommand}" />
                     <MenuItem Header="새 폴더(_F)" Command="{Binding NewFolderCommand}" />

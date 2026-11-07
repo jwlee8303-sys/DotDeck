@@ -539,7 +539,24 @@ public sealed partial class ExplorerListViewModel : ObservableObject
     {
         UpdateBreadcrumb(value);
         RefreshCommandStates();
+        OnPropertyChanged(nameof(IsOtherFilesTarget));
+        OnPropertyChanged(nameof(IsOtherFileItem));
     }
+
+    /// <summary>The System project's "other files" node or one of its files is selected (context menu items).</summary>
+    public bool IsOtherFilesTarget => SelectedRow is NodeRowViewModel { Explorer.Source: SystemProjectSource } row
+        && (row.Node.Id == SystemProjectSource.ImportantFilesId || row.Node.Kind == NodeKind.File);
+
+    public bool IsOtherFileItem => SelectedRow is NodeRowViewModel { Explorer.Source: SystemProjectSource, Node.Kind: NodeKind.File };
+
+    [RelayCommand]
+    private Task RegisterOtherFileAsync() => _context.RegisterOtherFile?.Invoke() ?? Task.CompletedTask;
+
+    [RelayCommand]
+    private Task UnregisterOtherFileAsync() =>
+        IsOtherFileItem && SelectedRow is NodeRowViewModel { Node.FullPath: { } path } && _context.UnregisterOtherFile is { } remove
+            ? remove(path)
+            : Task.CompletedTask;
 
     private void UpdateBreadcrumb(ExplorerRowViewModel? row)
     {

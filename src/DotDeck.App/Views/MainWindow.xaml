@@ -101,8 +101,9 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="도구(_T)">
-                <MenuItem Header="중요 파일 추가(_I)..." Command="{Binding AddImportantFileCommand}" />
-                <MenuItem Header="현재 파일을 중요 파일에서 제거(_R)" Command="{Binding RemoveImportantFileCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
+                <MenuItem Header="기타 파일 등록(경로 입력)(_G)..." Command="{Binding RegisterOtherFileCommand}" />
+                <MenuItem Header="기타 파일 추가(찾아보기)(_I)..." Command="{Binding AddImportantFileCommand}" />
+                <MenuItem Header="현재 파일을 기타 파일에서 빼기(_R)" Command="{Binding RemoveImportantFileCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
                 <Separator />
                 <MenuItem Header="관리자 권한으로 다시 시작(_A)" Command="{Binding RestartAsAdministratorCommand}" />
             </MenuItem>

@@ -67,10 +67,92 @@ public sealed partial class ShellViewModel
         RestartElevatedRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Registers a file in "other files" by typing its path. A file that does not exist yet is created empty
+    /// (after confirmation) and opened, so new configuration files can be started from here.
+    /// </summary>
+    [RelayCommand]
+    private async Task RegisterOtherFileAsync()
+    {
+        var input = _dialogs.AskText("기타 파일 등록", "등록할 파일의 전체 경로를 입력하세요. 없는 파일이면 새로 만듭니다.", string.Empty, ValidateOtherFilePath);
+        if (input is null)
+        {
+            return;
+        }
+
+        var path = Path.GetFullPath(System.Environment.ExpandEnvironmentVariables(input.Trim().Trim('"')));
+        if (!_store.FileExists(path))
+        {
+            if (!_dialogs.Confirm("기타 파일 등록", $"파일이 없습니다. 빈 파일로 새로 만들까요?\n\n{path}"))
+            {
+                return;
+            }
+
+            try
+            {
+                _store.CreateDirectory(Path.GetDirectoryName(path)!);
+                _store.CreateFile(path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _dialogs.ShowError("기타 파일 등록", $"파일을 만들 수 없습니다.\n\n{ex.Message}");
+                return;
+            }
+        }
+
+        var list = new ImportantFiles(_store, ImportantFiles.ListFileFor(Paths));
+        if (list.Add(path) is { } error)
+        {
+            _dialogs.ShowError("기타 파일 등록", error);
+            return;
+        }
+
+        await RefreshSystemExplorerAsync();
+        StatusMessage = $"기타 파일에 등록했습니다: {path}";
+        await OpenFileAsync(path, preview: false);
+    }
+
+    private string? ValidateOtherFilePath(string text)
+    {
+        var raw = System.Environment.ExpandEnvironmentVariables(text.Trim().Trim('"'));
+        if (raw.Length == 0)
+        {
+            return "경로를 입력하세요.";
+        }
+
+        if (!Path.IsPathFullyQualified(raw))
+        {
+            return "전체 경로를 입력하세요(예: C:\\Users\\me\\.wslconfig, %USERPROFILE%\\.wslconfig).";
+        }
+
+        var name = Path.GetFileName(raw);
+        if (name.Length == 0 || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || Path.GetDirectoryName(raw)?.IndexOfAny([.. Path.GetInvalidPathChars(), '*', '?', '|', '<', '>', '"']) >= 0)
+        {
+            return "경로에 사용할 수 없는 문자가 있습니다.";
+        }
+
+        try
+        {
+            _ = Path.GetFullPath(raw);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return $"올바른 경로가 아닙니다: {ex.Message}";
+        }
+
+        if (_store.DirectoryExists(raw))
+        {
+            return "폴더가 아닌 파일 경로를 입력하세요.";
+        }
+
+        return SecretFilePolicy.IsSecret(Path.GetFileName(raw)) ? "비밀 파일은 등록할 수 없습니다." : null;
+    }
+
     [RelayCommand]
     private async Task AddImportantFileAsync()
     {
-        var picked = _dialogs.PickOpenFiles("중요 파일 추가", Paths.Home);
+        var picked = _dialogs.PickOpenFiles("기타 파일 추가", Paths.Home);
         if (picked.Count == 0)
         {
             return;
@@ -81,7 +163,7 @@ public sealed partial class ShellViewModel
         {
             if (list.Add(path) is { } error)
             {
-                _dialogs.ShowError("중요 파일", $"{Path.GetFileName(path)}: {error}");
+                _dialogs.ShowError("기타 파일", $"{Path.GetFileName(path)}: {error}");
             }
         }
 
@@ -89,23 +171,22 @@ public sealed partial class ShellViewModel
     }
 
     [RelayCommand]
-    private async Task RemoveImportantFileAsync()
-    {
-        if (ActiveTextDocument?.FilePath is not { } path)
-        {
-            return;
-        }
+    private Task RemoveImportantFileAsync() =>
+        ActiveTextDocument?.FilePath is { } path ? RemoveOtherFileAsync(path) : Task.CompletedTask;
 
+    /// <summary>Takes a file off the "other files" list (the file itself is not touched).</summary>
+    private async Task RemoveOtherFileAsync(string path)
+    {
         var list = new ImportantFiles(_store, ImportantFiles.ListFileFor(Paths));
         if (!list.List(ImportantFiles.DefaultsFor(Paths)).Contains(path, StringComparer.OrdinalIgnoreCase))
         {
-            _dialogs.ShowInfo("중요 파일", "현재 파일은 중요 파일 목록에 없습니다.");
+            _dialogs.ShowInfo("기타 파일", "이 파일은 기타 파일 목록에 없습니다.");
             return;
         }
 
         list.Remove(path);
         await RefreshSystemExplorerAsync();
-        StatusMessage = $"중요 파일 목록에서 뺐습니다: {Path.GetFileName(path)}";
+        StatusMessage = $"기타 파일 목록에서 뺐습니다(파일은 그대로 둡니다): {Path.GetFileName(path)}";
     }
 
     /// <summary>Raised after the settings changed; the view applies theme and font size.</summary>

@@ -66,7 +66,7 @@ public sealed class ImportantFiles(IFileStore store, string listFile)
 
         if (SecretFilePolicy.IsSecret(Path.GetFileName(path)))
         {
-            return "비밀 파일은 중요 파일 목록에 추가할 수 없습니다.";
+            return "비밀 파일은 기타 파일 목록에 추가할 수 없습니다.";
         }
 
         var stored = Load();

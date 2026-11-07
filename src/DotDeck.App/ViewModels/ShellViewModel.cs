@@ -38,6 +38,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public bool IsAdministrator { get; }
 
+    /// <summary>True when running against a substitute home (status bar turns orange as a warning sign).</summary>
+    public bool IsSandbox => Paths.IsHomeOverridden;
+
     public string Title => Paths.IsHomeOverridden ? $"DotDeck — 샌드박스: {Paths.Home}" : "DotDeck";
 
     public string HomeStatusText => Paths.IsHomeOverridden ? $"샌드박스 홈: {Paths.Home}" : $"홈: {Paths.Home}";

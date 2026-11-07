@@ -1,0 +1,21 @@
+<!-- Theme-independent typography and density (SPEC §5: compact, Segoe UI 9pt, editor 10pt, tree row ~22px). -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <FontFamily x:Key="DD.Font.Ui">Segoe UI</FontFamily>
+    <FontFamily x:Key="DD.Font.Editor">Cascadia Mono, Consolas</FontFamily>
+    <FontFamily x:Key="DD.Font.Icon">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+    <!-- WPF units are 1/96 inch: 9pt = 12, 10pt = 13.333 -->
+    <sys:Double x:Key="DD.FontSize.Ui">12</sys:Double>
+    <sys:Double x:Key="DD.FontSize.Editor">13.333</sys:Double>
+    <sys:Double x:Key="DD.FontSize.Icon">16</sys:Double>
+    <sys:Double x:Key="DD.FontSize.Title">26</sys:Double>
+
+    <sys:Double x:Key="DD.Size.TreeRowHeight">22</sys:Double>
+    <sys:Double x:Key="DD.Size.MenuItemHeight">22</sys:Double>
+    <sys:Double x:Key="DD.Size.ToolbarButton">24</sys:Double>
+    <sys:Double x:Key="DD.Size.ScrollBar">12</sys:Double>
+    <sys:Double x:Key="DD.Size.StatusBarHeight">22</sys:Double>
+</ResourceDictionary>

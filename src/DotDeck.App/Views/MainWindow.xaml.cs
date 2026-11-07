@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Windows;
 using DotDeck.App.Docking;
+using DotDeck.App.Infrastructure.Windows;
+using DotDeck.App.Themes;
 using DotDeck.App.ViewModels;
 
 namespace DotDeck.App.Views;
@@ -16,6 +18,14 @@ public partial class MainWindow : Window
         _layout = layout;
         DataContext = shell;
         InitializeComponent();
+
+        DarkTitleBar.Attach(this);
+        ThemeManager.ApplyDocking(DockManager);
+        DockManager.LayoutFloatingWindowControlCreated += (_, e) =>
+        {
+            ThemeManager.ApplyFloating(e.LayoutFloatingWindowControl);
+            DarkTitleBar.Attach(e.LayoutFloatingWindowControl);
+        };
 
         // Start from the code-built default so "reset layout" and first run share one definition.
         DockManager.Layout = DefaultLayout.Create();

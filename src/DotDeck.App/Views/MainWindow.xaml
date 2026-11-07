@@ -4,7 +4,6 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:ad="https://github.com/Dirkster99/AvalonDock"
-        xmlns:adv="clr-namespace:AvalonDock.Themes.VS;assembly=AvalonDock.Themes.VS"
         xmlns:vm="clr-namespace:DotDeck.App.ViewModels"
         xmlns:docking="clr-namespace:DotDeck.App.Docking"
         xmlns:conv="clr-namespace:DotDeck.App.Converters"
@@ -14,7 +13,11 @@
         Width="1400" Height="860" MinWidth="800" MinHeight="500"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True"
-        TextOptions.TextFormattingMode="Display">
+        TextOptions.TextFormattingMode="Display"
+        Background="{DynamicResource DD.Brush.Chrome.Background}"
+        Foreground="{DynamicResource DD.Brush.Text}"
+        FontFamily="{DynamicResource DD.Font.Ui}"
+        FontSize="{DynamicResource DD.FontSize.Ui}">
 
     <Window.Resources>
         <ResourceDictionary>
@@ -82,23 +85,23 @@
         <ToolBarTray DockPanel.Dock="Top" IsLocked="True">
             <ToolBar ToolBarTray.IsLocked="True">
                 <Button ToolTip="새 파일 (Ctrl+N)" Command="{Binding NewScratchDocumentCommand}">
-                    <TextBlock Style="{StaticResource ToolbarGlyph}" Text="&#xE8A5;" />
+                    <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE8A5;" />
                 </Button>
                 <Button ToolTip="열기 (Ctrl+O)" IsEnabled="False">
-                    <TextBlock Style="{StaticResource ToolbarGlyph}" Text="&#xE8E5;" />
+                    <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE8E5;" />
                 </Button>
                 <Button ToolTip="저장 (Ctrl+S)" IsEnabled="False">
-                    <TextBlock Style="{StaticResource ToolbarGlyph}" Text="&#xE74E;" />
+                    <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE74E;" />
                 </Button>
                 <Button ToolTip="모두 저장 (Ctrl+Shift+S)" IsEnabled="False">
-                    <TextBlock Style="{StaticResource ToolbarGlyph}" Text="&#xEA35;" />
+                    <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xEA35;" />
                 </Button>
                 <Separator />
                 <Button ToolTip="실행 취소 (Ctrl+Z)" IsEnabled="False">
-                    <TextBlock Style="{StaticResource ToolbarGlyph}" Text="&#xE7A7;" />
+                    <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE7A7;" />
                 </Button>
                 <Button ToolTip="다시 실행 (Ctrl+Y)" IsEnabled="False">
-                    <TextBlock Style="{StaticResource ToolbarGlyph}" Text="&#xE7A6;" />
+                    <TextBlock Style="{StaticResource DD.Glyph}" Text="&#xE7A6;" />
                 </Button>
             </ToolBar>
             <ToolBar ToolBarTray.IsLocked="True">
@@ -108,6 +111,15 @@
 
         <!-- Status bar -->
         <StatusBar DockPanel.Dock="Bottom">
+            <StatusBar.Style>
+                <Style TargetType="StatusBar" BasedOn="{StaticResource {x:Type StatusBar}}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSandbox}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource DD.Brush.StatusBar.Sandbox}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StatusBar.Style>
             <StatusBar.ItemsPanel>
                 <ItemsPanelTemplate>
                     <DockPanel LastChildFill="True" />
@@ -126,10 +138,6 @@
                            AnchorablesSource="{Binding Tools}"
                            ActiveContent="{Binding ActiveContent, Mode=TwoWay}"
                            AllowMixedOrientation="True">
-            <ad:DockingManager.Theme>
-                <adv:VS2022DarkTheme />
-            </ad:DockingManager.Theme>
-
             <ad:DockingManager.LayoutUpdateStrategy>
                 <docking:LayoutInitializer />
             </ad:DockingManager.LayoutUpdateStrategy>

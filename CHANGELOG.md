@@ -9,6 +9,7 @@
 - Core: 파일 로그(일별 파일, 14일 보관, 비밀값 마스킹), 비밀 이름·값 마스킹(`SecretMasker`)
 - App: AvalonDock 5 도킹 셸(메뉴·툴바·상태줄, 프로젝트·속성·출력·검증·검색·훅 테스트 패널, 시작 페이지), VS2022 다크 도킹 테마
 - App: 레이아웃 저장(종료 시)·복원(시작 시)·초기화, 출력 패널에 앱 로그 표시, 샌드박스 모드 표시
+- App: VS2022 다크 테마 리소스(`DD.*` 키 체계: 팔레트·글꼴·밀도), 메뉴·툴바·스크롤바·입력·목록·상태줄·툴팁 스타일, AvalonDock 색 정렬, 다크 타이틀바, 샌드박스 모드 주황색 상태줄
 
 ### Changed
 - 솔루션을 `src/DotDeck.App`(WPF, net10.0-windows), `src/DotDeck.Core`(net10.0), `tests/DotDeck.Core.Tests`(xunit.v3) 구조로 재구성

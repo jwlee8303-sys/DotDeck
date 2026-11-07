@@ -7,6 +7,8 @@
     <AssemblyName>DotDeck</AssemblyName>
     <RootNamespace>DotDeck.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Required by LibraryImport source-generated P/Invoke marshalling. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

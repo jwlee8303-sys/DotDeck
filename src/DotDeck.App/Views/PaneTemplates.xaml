@@ -5,23 +5,27 @@
 
     <!-- Implicit templates: AvalonDock shows each view model through these (keyed by type). -->
 
-    <Style x:Key="ToolbarGlyph" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
-        <Setter Property="FontSize" Value="16" />
+    <Style x:Key="PlaceholderText" TargetType="TextBlock" BasedOn="{StaticResource DD.Text.Secondary}">
+        <Setter Property="Margin" Value="12,10" />
+        <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
-    <Style x:Key="PlaceholderText" TargetType="TextBlock">
-        <Setter Property="Margin" Value="12" />
-        <Setter Property="TextWrapping" Value="Wrap" />
-        <Setter Property="Opacity" Value="0.7" />
+    <!-- Read-only selectable value (paths on the start page) -->
+    <Style x:Key="ValueText" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+        <Setter Property="IsReadOnly" Value="True" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0,3" />
     </Style>
 
     <DataTemplate DataType="{x:Type docs:WelcomeDocumentViewModel}">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="32,24" MaxWidth="820" HorizontalAlignment="Left">
-                <TextBlock FontSize="26" FontWeight="Light" Text="DotDeck" />
-                <TextBlock Margin="0,2,0,20" Opacity="0.7">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource DD.Brush.Editor.Background}">
+            <StackPanel Margin="32,24" MaxWidth="900" HorizontalAlignment="Left">
+                <TextBlock FontSize="{DynamicResource DD.FontSize.Title}" FontWeight="Light" Text="DotDeck" />
+                <TextBlock Margin="0,2,0,20" Style="{StaticResource DD.Text.Secondary}">
                     <Run Text="버전" /> <Run Text="{Binding Version, Mode=OneWay}" />
+                    <Run Text=" · 개발 환경 설정 파일과 문서를 한 창에서" />
                 </TextBlock>
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -37,29 +41,22 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid.Resources>
-                        <Style TargetType="TextBlock">
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource DD.Text.Secondary}">
                             <Setter Property="Margin" Value="0,3,24,3" />
-                        </Style>
-                        <Style TargetType="TextBox">
-                            <Setter Property="IsReadOnly" Value="True" />
-                            <Setter Property="BorderThickness" Value="0" />
-                            <Setter Property="Background" Value="Transparent" />
-                            <Setter Property="Foreground" Value="{Binding (TextElement.Foreground), RelativeSource={RelativeSource AncestorType=ContentPresenter}}" />
-                            <Setter Property="Margin" Value="0,3" />
                         </Style>
                     </Grid.Resources>
                     <TextBlock Grid.Row="0" Text="모드" />
-                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding HomeModeText, Mode=OneWay}" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource ValueText}" Text="{Binding HomeModeText, Mode=OneWay}" />
                     <TextBlock Grid.Row="1" Text="홈" />
-                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Paths.Home, Mode=OneWay}" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource ValueText}" Text="{Binding Paths.Home, Mode=OneWay}" />
                     <TextBlock Grid.Row="2" Text="Claude 전역" />
-                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Paths.ClaudeHome, Mode=OneWay}" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource ValueText}" Text="{Binding Paths.ClaudeHome, Mode=OneWay}" />
                     <TextBlock Grid.Row="3" Text="Codex 전역" />
-                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Paths.CodexHome, Mode=OneWay}" />
+                    <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource ValueText}" Text="{Binding Paths.CodexHome, Mode=OneWay}" />
                     <TextBlock Grid.Row="4" Text="앱 데이터 (Roaming)" />
-                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Paths.RoamingDataDir, Mode=OneWay}" />
+                    <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource ValueText}" Text="{Binding Paths.RoamingDataDir, Mode=OneWay}" />
                     <TextBlock Grid.Row="5" Text="앱 데이터 (Local)" />
-                    <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Paths.LocalDataDir, Mode=OneWay}" />
+                    <TextBox Grid.Row="5" Grid.Column="1" Style="{StaticResource ValueText}" Text="{Binding Paths.LocalDataDir, Mode=OneWay}" />
                 </Grid>
             </StackPanel>
         </ScrollViewer>
@@ -69,40 +66,58 @@
         <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
                  AcceptsReturn="True" AcceptsTab="True"
                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                 FontFamily="Cascadia Mono, Consolas" FontSize="13"
-                 BorderThickness="0" />
+                 FontFamily="{DynamicResource DD.Font.Editor}" FontSize="{DynamicResource DD.FontSize.Editor}"
+                 Background="{DynamicResource DD.Brush.Editor.Background}"
+                 BorderThickness="0" Padding="6,4" />
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:ProjectsPaneViewModel}">
-        <TextBlock Style="{StaticResource PlaceholderText}" Text="프로젝트 탐색기 — Phase 1b에서 구현됩니다." />
+        <Border Background="{DynamicResource DD.Brush.Panel.Background}">
+            <TextBlock Style="{StaticResource PlaceholderText}" Text="프로젝트 탐색기 — Phase 1b에서 구현됩니다." />
+        </Border>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:PropertiesPaneViewModel}">
-        <TextBlock Style="{StaticResource PlaceholderText}" Text="선택한 항목이 없습니다." />
+        <Border Background="{DynamicResource DD.Brush.Panel.Background}">
+            <TextBlock Style="{StaticResource PlaceholderText}" Text="선택한 항목이 없습니다." />
+        </Border>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:OutputPaneViewModel}">
-        <DockPanel>
-            <ToolBar DockPanel.Dock="Top" ToolBarTray.IsLocked="True">
+        <DockPanel Background="{DynamicResource DD.Brush.Panel.Background}">
+            <ToolBar DockPanel.Dock="Top" ToolBarTray.IsLocked="True" Background="{DynamicResource DD.Brush.Panel.Background}">
                 <Button Command="{Binding ClearCommand}" ToolTip="모두 지우기">
-                    <TextBlock Style="{StaticResource ToolbarGlyph}" FontSize="14" Text="&#xE894;" />
+                    <TextBlock Style="{StaticResource DD.Glyph}" FontSize="14" Text="&#xE894;" />
                 </Button>
             </ToolBar>
-            <ListBox ItemsSource="{Binding Lines}" BorderThickness="0"
-                     FontFamily="Cascadia Mono, Consolas" FontSize="12"
-                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" />
+            <ListBox ItemsSource="{Binding Lines}"
+                     FontFamily="{DynamicResource DD.Font.Editor}" FontSize="{DynamicResource DD.FontSize.Ui}"
+                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <Setter Property="MinHeight" Value="0" />
+                        <Setter Property="Padding" Value="6,1" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+            </ListBox>
         </DockPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:ValidationPaneViewModel}">
-        <TextBlock Style="{StaticResource PlaceholderText}" Text="검증 결과가 없습니다. (Phase 2)" />
+        <Border Background="{DynamicResource DD.Brush.Panel.Background}">
+            <TextBlock Style="{StaticResource PlaceholderText}" Text="검증 결과가 없습니다. (Phase 2)" />
+        </Border>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:SearchResultsPaneViewModel}">
-        <TextBlock Style="{StaticResource PlaceholderText}" Text="검색 결과가 없습니다. (Phase 4)" />
+        <Border Background="{DynamicResource DD.Brush.Panel.Background}">
+            <TextBlock Style="{StaticResource PlaceholderText}" Text="검색 결과가 없습니다. (Phase 4)" />
+        </Border>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:HookTestPaneViewModel}">
-        <TextBlock Style="{StaticResource PlaceholderText}" Text="훅 테스트 실행 기록이 없습니다. (Phase 2)" />
+        <Border Background="{DynamicResource DD.Brush.Panel.Background}">
+            <TextBlock Style="{StaticResource PlaceholderText}" Text="훅 테스트 실행 기록이 없습니다. (Phase 2)" />
+        </Border>
     </DataTemplate>
 </ResourceDictionary>

@@ -266,6 +266,51 @@ public sealed class ProjectRegistryTests : IDisposable
     }
 
     [Fact]
+    public void Korean_names_are_written_readably()
+    {
+        var registry = LoadNew();
+
+        registry.AddFolder("샘플 프로젝트", @"D:\샘플");
+
+        var text = File.ReadAllText(FilePath);
+        Assert.Contains("\"샘플 프로젝트\"", text, StringComparison.Ordinal);
+        Assert.Contains(@"D:\\샘플", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Update_changes_all_settings_in_one_commit_or_none()
+    {
+        var registry = LoadNew();
+        var a = registry.AddFolder("A", @"D:\a");
+        registry.AddFolder("B", @"D:\b");
+
+        var updated = registry.Update(a.Id, " A2 ", @"D:\a2\", "#00ff00", ExplorerFilterMode.All);
+
+        Assert.Equal("A2", updated.Name);
+        Assert.Equal(@"D:\a2", updated.Root);
+        Assert.Equal("#00FF00", updated.Color);
+        Assert.Equal(updated, LoadNew().Find(a.Id));
+
+        // Root clashes with B: name and color must not be saved either.
+        Assert.Throws<ArgumentException>(() => registry.Update(a.Id, "A3", @"D:\b", null, ExplorerFilterMode.All));
+        Assert.Equal(updated, LoadNew().Find(a.Id));
+    }
+
+    [Fact]
+    public void Update_of_builtin_accepts_only_color_and_filter()
+    {
+        var registry = LoadNew();
+
+        registry.Update("builtin.claude", null, null, "#123456", ExplorerFilterMode.ConfigDocs);
+
+        var claude = LoadNew().Find("builtin.claude")!;
+        Assert.Equal("#123456", claude.Color);
+        Assert.Equal(ExplorerFilterMode.ConfigDocs, claude.Filter);
+        Assert.Throws<InvalidOperationException>(() => registry.Update("builtin.claude", "X", null, null, ExplorerFilterMode.All));
+        Assert.Throws<InvalidOperationException>(() => registry.Update("builtin.claude", null, @"D:\x", null, ExplorerFilterMode.All));
+    }
+
+    [Fact]
     public void Concurrent_instance_change_is_detected_and_reloaded_instead_of_overwritten()
     {
         var a = LoadNew();

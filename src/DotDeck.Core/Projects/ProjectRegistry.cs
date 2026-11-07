@@ -226,6 +226,34 @@ public sealed partial class ProjectRegistry
         Replace(project with { Root = validRoot });
     }
 
+    /// <summary>
+    /// Changes the editable settings in one validated commit (nothing is saved if any value is invalid).
+    /// Built-in projects accept only color and filter; their name and root must be passed unchanged or null.
+    /// </summary>
+    public ProjectDefinition Update(string id, string? name, string? root, string? color, ExplorerFilterMode filter)
+    {
+        var project = Require(id);
+        var updated = project with { Color = ValidateColor(color), Filter = filter };
+        if (project.IsBuiltin)
+        {
+            if ((name is not null && name != project.Name) || root is not null)
+            {
+                throw new InvalidOperationException("기본 제공 프로젝트의 이름과 루트는 바꿀 수 없습니다.");
+            }
+        }
+        else
+        {
+            updated = updated with
+            {
+                Name = name is null ? project.Name : ValidateName(name, exceptId: id),
+                Root = root is null ? project.Root : ValidateRoot(root, exceptId: id),
+            };
+        }
+
+        Replace(updated);
+        return updated;
+    }
+
     public void SetHidden(string id, bool hidden) => Replace(Require(id) with { Hidden = hidden });
 
     public void SetFilter(string id, ExplorerFilterMode filter) => Replace(Require(id) with { Filter = filter });

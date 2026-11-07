@@ -165,7 +165,7 @@ public sealed class ExplorerTreeBuilderTests : IDisposable
 
         store.SaveExplorers(new Dictionary<string, ExplorerViewState>
         {
-            ["p1"] = new(true, ["docs", @"docs\guide"], @"docs\a.md"),
+            ["p1"] = new(true, ["docs", @"docs\guide"], @"docs\a.md", IsDetached: true),
             ["builtin.claude"] = ExplorerViewState.Default,
         });
 
@@ -173,6 +173,8 @@ public sealed class ExplorerTreeBuilderTests : IDisposable
         Assert.True(loaded["p1"].IsCollapsed);
         Assert.Equal(["docs", @"docs\guide"], loaded["p1"].Expanded);
         Assert.Equal(@"docs\a.md", loaded["p1"].Selected);
+        Assert.True(loaded["p1"].IsDetached);
+        Assert.False(loaded["builtin.claude"].IsDetached);
         Assert.False(loaded["builtin.claude"].IsCollapsed);
         Assert.Contains("\"documents\"", File.ReadAllText(file), StringComparison.Ordinal);
     }

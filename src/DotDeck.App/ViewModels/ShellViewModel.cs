@@ -21,7 +21,8 @@ public sealed record ShellServices(
     ProjectRegistry Registry,
     SessionStateStore Session,
     IClipboardService Clipboard,
-    IShellLauncher Shell);
+    IShellLauncher Shell,
+    IDialogService Dialogs);
 
 /// <summary>Root view model: owns the documents and tool panes bound to the docking manager.</summary>
 public sealed partial class ShellViewModel : ObservableObject
@@ -38,18 +39,22 @@ public sealed partial class ShellViewModel : ObservableObject
         IsAdministrator = isAdministrator;
 
         var explorerContext = new ExplorerContext(
-            services.Registry, services.Paths, services.Store, services.Clipboard, services.Shell, services.Log,
-            message => StatusMessage = message);
-        Projects = new ProjectsPaneViewModel(explorerContext, services.Session);
+            new ProjectRegistryGateway(services.Registry), services.Paths, services.Store, services.Clipboard,
+            services.Shell, services.Dialogs, services.Log, message => StatusMessage = message);
         Properties = new PropertiesPaneViewModel();
         Output = new OutputPaneViewModel(services.Log);
         Validation = new ValidationPaneViewModel();
         SearchResults = new SearchResultsPaneViewModel();
         HookTest = new HookTestPaneViewModel();
-        Tools = [Projects, Properties, Output, Validation, SearchResults, HookTest];
+        Tools = [Properties, Output, Validation, SearchResults, HookTest];
+        Projects = new ProjectsPaneViewModel(explorerContext, services.Session, Tools.Add, tool => Tools.Remove(tool));
+        Tools.Insert(0, Projects);
 
         Documents.Add(new WelcomeDocumentViewModel(Paths, version, CloseDocument));
     }
+
+    /// <summary>Creates dynamic tool panes (detached explorers) that the saved docking layout refers to.</summary>
+    public void PrepareLayoutContent() => Projects.PrepareDetachedPanes();
 
     /// <summary>Runs once the main window is shown: opens the projects and restores their state.</summary>
     public Task InitializeAsync() => Projects.InitializeAsync();

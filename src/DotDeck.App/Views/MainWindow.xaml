@@ -68,7 +68,16 @@
                           Command="{Binding ToggleToolCommand}" CommandParameter="{Binding HookTest}" />
             </MenuItem>
             <MenuItem Header="프로젝트(_P)">
-                <MenuItem Header="프로젝트 추가(_A)..." IsEnabled="False" />
+                <MenuItem Header="프로젝트 추가(_A)..." Command="{Binding Projects.AddProjectCommand}" />
+                <MenuItem Header="숨긴 프로젝트 표시(_H)" ItemsSource="{Binding Projects.HiddenProjects}">
+                    <MenuItem.ItemContainerStyle>
+                        <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                            <Setter Property="Header" Value="{Binding Name}" />
+                            <Setter Property="Command" Value="{Binding DataContext.Projects.ShowProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            <Setter Property="CommandParameter" Value="{Binding Id}" />
+                        </Style>
+                    </MenuItem.ItemContainerStyle>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="도구(_T)">
                 <MenuItem Header="설정(_O)..." IsEnabled="False" />

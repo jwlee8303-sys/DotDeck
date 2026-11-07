@@ -19,6 +19,24 @@ public sealed class DepthToIndentConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+/// <summary>bool → !bool (both directions).</summary>
+public sealed class InvertBooleanConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
+}
+
+/// <summary>false → Visible, true → Collapsed.</summary>
+public sealed class FalseToVisibleConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is true ? Visibility.Collapsed : Visibility.Visible;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 /// <summary>null → Collapsed, anything else → Visible.</summary>
 public sealed class NullToCollapsedConverter : IValueConverter
 {

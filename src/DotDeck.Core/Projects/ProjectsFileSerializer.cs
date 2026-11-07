@@ -24,7 +24,13 @@ public static class ProjectsFileSerializer
     private static readonly HashSet<string> s_knownProjectKeys =
         ["id", "kind", "builtinKey", "name", "root", "color", "filter", "order", "hidden", "excludedFolders"];
 
-    private static readonly JsonSerializerOptions s_writeOptions = new() { WriteIndented = true };
+    // Keep non-ASCII (Korean names, paths) readable for users who open the file; HTML-sensitive characters
+    // are still escaped by the encoder.
+    private static readonly JsonSerializerOptions s_writeOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All),
+    };
 
     /// <exception cref="ProjectsFileException">The JSON is malformed or the schema is not supported.</exception>
     public static ProjectsFileContent Parse(string json)

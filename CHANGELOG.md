@@ -15,6 +15,9 @@
 - Core: 탐색기 노드 모델과 프로젝트 소스(폴더·시스템 가상 노드), 표시 필터(모든 파일 / 설정·문서만), 제외 폴더(이름·루트 기준 경로), 비밀 파일 판별, 파일 종류 분류
 - App: 프로젝트 영역 — 모든 프로젝트를 하나의 가상화 목록에 섹션으로 표시(자동 열기), 백그라운드 트리 로딩, 키보드(←/→/Enter)·더블클릭·펼침 화살표, 헤더 툴바(설정·문서 필터 전환, 모두 접기, 새로고침, 루트 경로 복사, 탐색기에서 열기), 선택 경로 breadcrumb, "폴더 없음 — 만들기"
 - Core/App: 탐색기 펼침·선택·접힘 상태를 `state\session.json`에 저장하고 시작 시 복원(사라진 폴더 정리)
+- App: 프로젝트 추가·편집 대화상자(이름·루트·색·필터), 제거(확인), 숨김·숨긴 프로젝트 표시, 위·아래 순서 이동
+- App: 프로젝트 탐색기를 별도 도구 패널로 떼어내기·다시 붙이기(세션에 저장·복원)
+- Core: `ProjectRegistry.Update` — 이름·루트·색·필터를 한 번에 검증·저장
 
 ### Fixed
 - 공용 ListBox 템플릿에서 UI 가상화가 꺼져 있던 문제(`CanContentScroll` 미전달)
@@ -22,3 +25,5 @@
 ### Changed
 - 솔루션을 `src/DotDeck.App`(WPF, net10.0-windows), `src/DotDeck.Core`(net10.0), `tests/DotDeck.Core.Tests`(xunit.v3) 구조로 재구성
 - 중앙 패키지 관리, 경고를 오류로 처리, `.editorconfig`, 앱 매니페스트(asInvoker, PerMonitorV2, longPath) 추가
+- 레지스트리 쓰기(필터 전환 등)를 UI 스레드 밖에서 직렬화해 실행
+- `projects.json`·`session.json`에 한글 등 비ASCII 문자를 이스케이프하지 않고 저장

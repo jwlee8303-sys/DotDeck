@@ -13,35 +13,38 @@ namespace DotDeck.App.ViewModels.Explorer;
 
 /// <summary>Services shared by all explorers.</summary>
 public sealed record ExplorerContext(
-    ProjectRegistry Registry,
+    ProjectRegistryGateway Registry,
     AppPaths Paths,
     IFileStore Store,
     IClipboardService Clipboard,
     IShellLauncher Shell,
+    IDialogService Dialogs,
     IAppLog Log,
     Action<string> SetStatus);
 
 /// <summary>
-/// One project's explorer. Its rows live in the pane's shared flattened list as a contiguous segment that starts
-/// with <see cref="Header"/>. File system listing runs on the thread pool; results are applied on the UI thread
-/// and discarded if a newer load started meanwhile.
+/// One project's explorer. Its rows live in a list (<see cref="List"/>: the project area, or its own detached
+/// pane) as a contiguous segment that starts with <see cref="Header"/>. File system listing runs on the thread
+/// pool; results are applied on the UI thread and discarded if a newer load started meanwhile.
 /// </summary>
 public sealed partial class ExplorerViewModel : ObservableObject
 {
     private readonly ExplorerContext _context;
-    private readonly ObservableCollection<ExplorerRowViewModel> _rows;
+    private readonly ProjectsPaneViewModel _owner;
     private readonly HashSet<string> _expanded = new(ExplorerTreeBuilder.KeyComparer);
     private int _loadVersion;
     private string? _pendingSelectionKey;
 
     public ExplorerViewModel(
         ExplorerContext context,
-        ObservableCollection<ExplorerRowViewModel> sharedRows,
+        ProjectsPaneViewModel owner,
+        ExplorerListViewModel list,
         ProjectDefinition project,
         ExplorerViewState state)
     {
         _context = context;
-        _rows = sharedRows;
+        _owner = owner;
+        List = list;
         Header = new ProjectHeaderRowViewModel(this) { IsCollapsed = state.IsCollapsed };
         _expanded.UnionWith(state.Expanded);
         _pendingSelectionKey = state.Selected;
@@ -50,8 +53,16 @@ public sealed partial class ExplorerViewModel : ObservableObject
         ApplyHeader();
     }
 
-    /// <summary>Raised when a restored or requested row should become the selection.</summary>
-    public event EventHandler<ExplorerRowViewModel>? SelectionRequested;
+    /// <summary>The list currently showing this explorer.</summary>
+    public ExplorerListViewModel List { get; private set; }
+
+    private ObservableCollection<ExplorerRowViewModel> Rows => List.Rows;
+
+    /// <summary>True while shown in its own tool pane instead of the project area.</summary>
+    [ObservableProperty]
+    private bool _isDetached;
+
+    public bool IsBuiltin => Project.IsBuiltin;
 
     public ProjectDefinition Project { get; private set; }
 
@@ -69,15 +80,15 @@ public sealed partial class ExplorerViewModel : ObservableObject
             var (start, end) = Segment();
             for (var i = start; i < end; i++)
             {
-                yield return _rows[i];
+                yield return Rows[i];
             }
         }
     }
 
-    public ExplorerViewState GetState(ExplorerRowViewModel? selected)
+    public ExplorerViewState GetState()
     {
-        var selectedKey = selected is NodeRowViewModel node && node.Explorer == this ? node.Key : _pendingSelectionKey;
-        return new ExplorerViewState(Header.IsCollapsed, [.. _expanded], selectedKey);
+        var selectedKey = List.SelectedRow is NodeRowViewModel node && node.Explorer == this ? node.Key : _pendingSelectionKey;
+        return new ExplorerViewState(Header.IsCollapsed, [.. _expanded], selectedKey, IsDetached);
     }
 
     /// <summary>Applies a changed definition (from the registry). Reloads when the tree content could differ.</summary>
@@ -195,7 +206,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
             var stale = new HashSet<string>(ExplorerTreeBuilder.KeyComparer);
             var source = Source;
             var children = await Task.Run(() => ExplorerTreeBuilder.BuildChildren(source, row.Node, row.Depth, expanded, stale));
-            if (version != _loadVersion || row.IsExpanded || _rows.IndexOf(row) is var index && index < 0)
+            if (version != _loadVersion || row.IsExpanded || Rows.IndexOf(row) is var index && index < 0)
             {
                 return;
             }
@@ -204,16 +215,16 @@ public sealed partial class ExplorerViewModel : ObservableObject
             row.Error = null;
             row.IsExpanded = true;
             row.IsKnownEmpty = children.Count == 0;
-            var i = _rows.IndexOf(row) + 1;
+            var i = Rows.IndexOf(row) + 1;
             foreach (var child in children)
             {
-                _rows.Insert(i++, CreateNodeRow(child));
+                Rows.Insert(i++, CreateNodeRow(child));
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // A stale attempt (row replaced by a refresh, or a newer load) must not touch current state.
-            if (version == _loadVersion && _rows.Contains(row) && !row.IsExpanded)
+            if (version == _loadVersion && Rows.Contains(row) && !row.IsExpanded)
             {
                 _expanded.Remove(row.Key);
                 row.Error = ex.Message;
@@ -236,7 +247,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
     public void Collapse(NodeRowViewModel row)
     {
-        var index = _rows.IndexOf(row);
+        var index = Rows.IndexOf(row);
         if (index < 0)
         {
             return;
@@ -246,16 +257,16 @@ public sealed partial class ExplorerViewModel : ObservableObject
         _expanded.Remove(row.Key);
         row.IsExpanded = false;
         var hidSelection = false;
-        while (index + 1 < _rows.Count && _rows[index + 1] is NodeRowViewModel child && child.Explorer == this && child.Depth > row.Depth)
+        while (index + 1 < Rows.Count && Rows[index + 1] is NodeRowViewModel child && child.Explorer == this && child.Depth > row.Depth)
         {
             hidSelection |= child.IsSelected;
-            _rows.RemoveAt(index + 1);
+            Rows.RemoveAt(index + 1);
         }
 
         // Like a tree view: a selection inside the collapsed folder moves to the folder.
         if (hidSelection)
         {
-            SelectionRequested?.Invoke(this, row);
+            List.RequestSelection(this, row);
         }
     }
 
@@ -279,10 +290,59 @@ public sealed partial class ExplorerViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ToggleFilter()
+    private Task ToggleFilterAsync()
     {
         var next = Project.Filter == ExplorerFilterMode.All ? ExplorerFilterMode.ConfigDocs : ExplorerFilterMode.All;
-        TryChangeRegistry(() => _context.Registry.SetFilter(Project.Id, next));
+        var id = Project.Id;
+        return _owner.ChangeRegistryAsync(r => r.SetFilter(id, next));
+    }
+
+    // Project management (header context menu); the project area owns dialogs and ordering.
+    [RelayCommand]
+    private Task EditProjectAsync() => _owner.EditProjectAsync(this);
+
+    [RelayCommand]
+    private Task HideProjectAsync() => _owner.ChangeRegistryAsync(r => r.SetHidden(Id, true));
+
+    [RelayCommand]
+    private Task MoveUpAsync() => _owner.MoveProjectAsync(this, -1);
+
+    [RelayCommand]
+    private Task MoveDownAsync() => _owner.MoveProjectAsync(this, +1);
+
+    [RelayCommand]
+    private Task RemoveProjectAsync() => _owner.RemoveProjectAsync(this);
+
+    [RelayCommand]
+    private void Detach() => _owner.Detach(this);
+
+    [RelayCommand]
+    private void Reattach() => _owner.Reattach(this);
+
+    /// <summary>
+    /// Moves this explorer's rows (header included) into <paramref name="target"/> at <paramref name="index"/>,
+    /// keeping expansion, loaded rows and in-flight loads.
+    /// </summary>
+    public void MoveToList(ExplorerListViewModel target, int index)
+    {
+        var rows = SnapshotRows();
+        var wasSelected = rows.FirstOrDefault(r => r.IsSelected);
+        if (List.SelectedRow is { } selected && rows.Contains(selected))
+        {
+            List.SelectedRow = null;
+        }
+
+        RemoveSegment();
+        List = target;
+        for (var i = 0; i < rows.Count; i++)
+        {
+            target.Rows.Insert(Math.Min(index + i, target.Rows.Count), rows[i]);
+        }
+
+        if (wasSelected is not null)
+        {
+            target.Select(wasSelected);
+        }
     }
 
     [RelayCommand]
@@ -338,11 +398,24 @@ public sealed partial class ExplorerViewModel : ObservableObject
         await LoadAsync();
     }
 
-    /// <summary>Removes this explorer's rows (header included) from the shared list.</summary>
+    /// <summary>Removes this explorer for good: pending loads are discarded and its rows leave the list.</summary>
     public void RemoveRows()
     {
         ++_loadVersion;
-        var start = _rows.IndexOf(Header);
+        if (List.SelectedRow?.Explorer == this)
+        {
+            List.SelectedRow = null;
+        }
+
+        RemoveSegment();
+    }
+
+    /// <summary>Header plus body, for re-inserting the segment when projects are reordered.</summary>
+    public List<ExplorerRowViewModel> SnapshotRows() => [Header, .. BodyRows];
+
+    private void RemoveSegment()
+    {
+        var start = Rows.IndexOf(Header);
         if (start < 0)
         {
             return;
@@ -351,31 +424,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         var (_, end) = Segment();
         for (var i = end - 1; i >= start; i--)
         {
-            _rows.RemoveAt(i);
-        }
-    }
-
-    /// <summary>Header plus body, for re-inserting the segment when projects are reordered.</summary>
-    public List<ExplorerRowViewModel> SnapshotRows() => [Header, .. BodyRows];
-
-    private void TryChangeRegistry(Action change)
-    {
-        try
-        {
-            change();
-        }
-        catch (ProjectsConflictException ex)
-        {
-            _context.SetStatus(ex.Message);
-        }
-        catch (InvalidOperationException ex)
-        {
-            _context.SetStatus(ex.Message);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            _context.Log.Error("프로젝트 목록을 저장하지 못했습니다.", ex);
-            _context.SetStatus($"프로젝트 목록을 저장하지 못했습니다: {ex.Message}");
+            Rows.RemoveAt(i);
         }
     }
 
@@ -420,7 +469,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         _pendingSelectionKey = null;
         if (row is not null)
         {
-            SelectionRequested?.Invoke(this, row);
+            List.RequestSelection(this, row);
         }
     }
 
@@ -434,26 +483,26 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
         for (var i = end - 1; i >= start; i--)
         {
-            _rows.RemoveAt(i);
+            Rows.RemoveAt(i);
         }
 
         for (var i = 0; i < body.Count; i++)
         {
-            _rows.Insert(start + i, body[i]);
+            Rows.Insert(start + i, body[i]);
         }
     }
 
     /// <summary>[start, end) of the body rows in the shared list; start is -1 when the header is not in the list.</summary>
     private (int Start, int End) Segment()
     {
-        var header = _rows.IndexOf(Header);
+        var header = Rows.IndexOf(Header);
         if (header < 0)
         {
             return (-1, -1);
         }
 
         var end = header + 1;
-        while (end < _rows.Count && _rows[end] is not ProjectHeaderRowViewModel)
+        while (end < Rows.Count && Rows[end] is not ProjectHeaderRowViewModel)
         {
             end++;
         }

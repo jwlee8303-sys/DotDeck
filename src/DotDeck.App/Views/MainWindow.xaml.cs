@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
+        _shell.PrepareLayoutContent();
         if (_layout.TryRestore(DockManager, _shell) == LayoutRestoreResult.Failed)
         {
             _shell.StatusMessage = "레이아웃 복원 실패 — 기본 레이아웃을 사용합니다. 자세한 내용은 출력 패널을 확인하세요.";

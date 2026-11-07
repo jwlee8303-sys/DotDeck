@@ -8,7 +8,8 @@ namespace DotDeck.Core.Explorer;
 /// <summary>Saved view state of one project's explorer.</summary>
 /// <param name="Expanded">Expanded folder keys (<see cref="ExplorerTreeBuilder.KeyOf"/>).</param>
 /// <param name="Selected">Key of the selected node, if any.</param>
-public sealed record ExplorerViewState(bool IsCollapsed, IReadOnlyList<string> Expanded, string? Selected)
+/// <param name="IsDetached">Shown in its own tool pane instead of the project area.</param>
+public sealed record ExplorerViewState(bool IsCollapsed, IReadOnlyList<string> Expanded, string? Selected, bool IsDetached = false)
 {
     public static ExplorerViewState Default { get; } = new(false, [], null);
 }
@@ -25,7 +26,11 @@ public sealed class SessionStateStore
     public const int MaxExpandedPerProject = 2000;
 
     private const string ExplorersKey = "explorers";
-    private static readonly JsonSerializerOptions s_writeOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions s_writeOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All),
+    };
 
     private readonly IFileStore _store;
     private readonly string _filePath;
@@ -100,6 +105,7 @@ public sealed class SessionStateStore
                     ["collapsed"] = state.IsCollapsed,
                     ["expanded"] = expanded,
                     ["selected"] = state.Selected,
+                    ["detached"] = state.IsDetached,
                 };
             }
 
@@ -157,6 +163,7 @@ public sealed class SessionStateStore
     private static ExplorerViewState? TryReadState(JsonObject obj)
     {
         var collapsed = obj["collapsed"] is JsonValue c && c.TryGetValue<bool>(out var b) && b;
+        var detached = obj["detached"] is JsonValue d && d.TryGetValue<bool>(out var isDetached) && isDetached;
         var selected = obj["selected"] is JsonValue s && s.TryGetValue<string>(out var text) ? text : null;
         var expanded = new List<string>();
         if (obj["expanded"] is JsonArray array)
@@ -170,6 +177,6 @@ public sealed class SessionStateStore
             }
         }
 
-        return new ExplorerViewState(collapsed, expanded, selected);
+        return new ExplorerViewState(collapsed, expanded, selected, detached);
     }
 }

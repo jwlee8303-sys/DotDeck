@@ -6,14 +6,14 @@ using DotDeck.App.ViewModels.Explorer;
 namespace DotDeck.App.Views.Explorer;
 
 /// <summary>
-/// Project area view. Only view mechanics live here (keyboard routing, double-click, scrolling);
-/// behavior is in <see cref="ProjectsPaneViewModel"/>.
+/// Explorer list view (project area and detached panes). Only view mechanics live here (keyboard routing, double-click, scrolling);
+/// behavior is in <see cref="ExplorerListViewModel"/>.
 /// </summary>
-public partial class ProjectsPaneView : UserControl
+public partial class ExplorerListView : UserControl
 {
-    private ProjectsPaneViewModel? _viewModel;
+    private ExplorerListViewModel? _viewModel;
 
-    public ProjectsPaneView()
+    public ExplorerListView()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
@@ -26,7 +26,7 @@ public partial class ProjectsPaneView : UserControl
             _viewModel.ScrollIntoViewRequested -= OnScrollIntoViewRequested;
         }
 
-        _viewModel = e.NewValue as ProjectsPaneViewModel;
+        _viewModel = e.NewValue as ExplorerListViewModel;
         if (_viewModel is not null)
         {
             _viewModel.ScrollIntoViewRequested += OnScrollIntoViewRequested;

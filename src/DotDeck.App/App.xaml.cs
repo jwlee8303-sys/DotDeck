@@ -64,7 +64,8 @@ public partial class App : Application
                 registry,
                 new SessionStateStore(store, paths.SessionFile, _log),
                 new ClipboardService(),
-                new ShellLauncher());
+                new ShellLauncher(),
+                new DialogService());
             var shell = new ShellViewModel(services, version, IsAdministrator());
 
             var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log));

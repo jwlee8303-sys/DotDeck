@@ -73,8 +73,31 @@
                  BorderThickness="0" Padding="6,4" />
     </DataTemplate>
 
+    <!-- Flat button used in tool pane header bars -->
+    <Style x:Key="PaneBarButton" TargetType="Button" BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
+        <Setter Property="Margin" Value="1,0" />
+    </Style>
+
     <DataTemplate DataType="{x:Type explorer:ProjectsPaneViewModel}">
-        <explorerViews:ProjectsPaneView />
+        <DockPanel Background="{DynamicResource DD.Brush.Panel.Background}">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="2,1">
+                <Button Style="{StaticResource PaneBarButton}" Command="{Binding AddProjectCommand}" ToolTip="프로젝트 추가">
+                    <TextBlock Style="{StaticResource DD.Glyph}" FontSize="14" Text="&#xE710;" />
+                </Button>
+            </StackPanel>
+            <explorerViews:ExplorerListView DataContext="{Binding List}" />
+        </DockPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type explorer:DetachedExplorerPaneViewModel}">
+        <DockPanel Background="{DynamicResource DD.Brush.Panel.Background}">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="2,1">
+                <Button Style="{StaticResource PaneBarButton}" Command="{Binding Explorer.ReattachCommand}" ToolTip="프로젝트 영역에 다시 붙이기">
+                    <TextBlock Style="{StaticResource DD.Glyph}" FontSize="14" Text="&#xE8A0;" />
+                </Button>
+            </StackPanel>
+            <explorerViews:ExplorerListView DataContext="{Binding List}" />
+        </DockPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:PropertiesPaneViewModel}">

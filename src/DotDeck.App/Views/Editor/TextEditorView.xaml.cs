@@ -1,0 +1,204 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Threading;
+using DotDeck.App.Editor;
+using DotDeck.App.ViewModels.Documents;
+using DotDeck.App.ViewModels.Editor;
+
+namespace DotDeck.App.Views.Editor;
+
+/// <summary>
+/// AvalonEdit host for a <see cref="TextDocumentViewModel"/>. Pushes caret position to the view model and exposes the
+/// selection through <see cref="IEditorSelection"/>. AvalonDock may reuse or recreate this view, so wiring follows
+/// <see cref="FrameworkElement.DataContext"/>.
+/// </summary>
+public partial class TextEditorView : UserControl, IEditorSelection
+{
+    private TextDocumentViewModel? _viewModel;
+
+    public TextEditorView()
+    {
+        InitializeComponent();
+        ApplyEditorTheme();
+        Editor.TextArea.Caret.PositionChanged += (_, _) => UpdateCaret();
+        DataContextChanged += (_, _) => Attach(DataContext as TextDocumentViewModel);
+        Unloaded += (_, _) => Attach(null);
+        Loaded += (_, _) => Attach(DataContext as TextDocumentViewModel);
+    }
+
+    int IEditorSelection.SelectionStart => Editor.SelectionStart;
+
+    int IEditorSelection.SelectionLength => Editor.SelectionLength;
+
+    int IEditorSelection.CaretOffset => Editor.CaretOffset;
+
+    void IEditorSelection.Select(int start, int length)
+    {
+        Editor.Select(start, length);
+        Editor.TextArea.Caret.Offset = start + length;
+        Editor.TextArea.Caret.BringCaretToView();
+    }
+
+    void IEditorSelection.FocusEditor() => Editor.TextArea.Focus();
+
+    private void Attach(TextDocumentViewModel? viewModel)
+    {
+        if (ReferenceEquals(viewModel, _viewModel))
+        {
+            return;
+        }
+
+        if (_viewModel is not null)
+        {
+            _viewModel.Find.FocusRequested -= OnFindFocusRequested;
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _viewModel.GoToLineRequested -= OnGoToLineRequested;
+            if (ReferenceEquals(_viewModel.Find.Editor, this))
+            {
+                _viewModel.Find.Editor = null;
+            }
+        }
+
+        _viewModel = viewModel;
+        if (viewModel is null)
+        {
+            return;
+        }
+
+        viewModel.Find.Editor = this;
+        viewModel.Find.FocusRequested += OnFindFocusRequested;
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        viewModel.GoToLineRequested += OnGoToLineRequested;
+        UpdatePreviewColumn();
+        Editor.SyntaxHighlighting = HighlightingCatalog.ForPath(viewModel.FilePath);
+
+        // The view model keeps the caret (restored session, view recreated by docking): read it before the
+        // document binding moves the editor caret, then apply it once the editor shows that document.
+        var line = viewModel.CaretLine;
+        var column = viewModel.CaretColumn;
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            if (ReferenceEquals(_viewModel, viewModel))
+            {
+                RestoreCaret(line, column);
+            }
+        });
+
+        // Give the editor focus when its tab becomes active (opening a file, switching tabs).
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            if (IsVisible && _viewModel is { IsActive: true })
+            {
+                Editor.TextArea.Focus();
+            }
+        });
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TextDocumentViewModel.IsMarkdownPreviewOpen))
+        {
+            UpdatePreviewColumn();
+        }
+    }
+
+    // Grid column widths are not bindable to a bool; split evenly when the preview opens, collapse when it closes.
+    private void UpdatePreviewColumn() =>
+        PreviewColumn.Width = _viewModel is { IsMarkdownPreviewOpen: true }
+            ? new GridLength(1, GridUnitType.Star)
+            : new GridLength(0);
+
+    private void OnFindFocusRequested(object? sender, EventArgs e) =>
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            FindBox.Focus();
+            FindBox.SelectAll();
+        });
+
+    private void OnGoToLineRequested(object? sender, int line) =>
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            RestoreCaret(line, 1);
+            Editor.TextArea.Focus();
+        });
+
+    // Table of contents: a menu of the current headings (indented by level).
+    /// <summary>"형식 ▾": opens the button's "다음 형식으로 열기" menu below it.</summary>
+    private void OnFormatClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu } button)
+        {
+            menu.DataContext = button.DataContext;
+            menu.PlacementTarget = button;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
+    }
+
+    private void OnOutlineClick(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel is not { } vm || sender is not Button button)
+        {
+            return;
+        }
+
+        var menu = new ContextMenu { PlacementTarget = button, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        var outline = vm.GetOutline();
+        if (outline.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "머리글이 없습니다", IsEnabled = false });
+        }
+
+        foreach (var heading in outline)
+        {
+            var item = new MenuItem
+            {
+                Header = new TextBlock { Text = heading.Title, Margin = new Thickness((heading.Level - 1) * 14, 0, 0, 0) },
+                InputGestureText = heading.Line.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            };
+            item.Click += (_, _) => vm.GoToLine(heading.Line);
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    private void RestoreCaret(int line, int column)
+    {
+        if (Editor.Document is not { } document || _viewModel is null || !ReferenceEquals(document, _viewModel.Buffer.Document))
+        {
+            return;
+        }
+
+        line = Math.Clamp(line, 1, document.LineCount);
+        column = Math.Clamp(column, 1, document.GetLineByNumber(line).Length + 1);
+        Editor.TextArea.Caret.Location = new ICSharpCode.AvalonEdit.Document.TextLocation(line, column);
+        Editor.ScrollTo(line, column);
+        UpdateCaret();
+    }
+
+    private void UpdateCaret()
+    {
+        if (_viewModel is not null)
+        {
+            _viewModel.CaretLine = Editor.TextArea.Caret.Line;
+            _viewModel.CaretColumn = Editor.TextArea.Caret.Column;
+        }
+    }
+
+    private void ApplyEditorTheme()
+    {
+        var area = Editor.TextArea;
+        area.SelectionBrush = (Brush)FindResource("DD.Brush.Editor.Selection");
+        area.SelectionForeground = null;
+        area.SelectionBorder = null;
+        area.SelectionCornerRadius = 0;
+        area.Caret.CaretBrush = (Brush)FindResource("DD.Brush.Editor.Text");
+        Editor.Options.HighlightCurrentLine = true;
+        Editor.TextArea.TextView.CurrentLineBackground = (Brush)FindResource("DD.Brush.Editor.CurrentLine");
+        Editor.TextArea.TextView.CurrentLineBorder = null;
+        Editor.Options.EnableHyperlinks = false;
+        Editor.Options.EnableEmailHyperlinks = false;
+    }
+}

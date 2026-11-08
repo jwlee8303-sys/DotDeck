@@ -1,0 +1,9 @@
+<UserControl x:Class="DotDeck.App.Views.Editor.MarkdownPreviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource DD.Brush.Editor.Background}">
+    <Grid x:Name="Host">
+        <TextBlock x:Name="Message" Margin="16,12" TextWrapping="Wrap" Visibility="Collapsed"
+                   Style="{StaticResource DD.Text.Secondary}" />
+    </Grid>
+</UserControl>

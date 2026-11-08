@@ -3,6 +3,7 @@ using AvalonDock;
 using AvalonDock.Layout;
 using AvalonDock.Serializer.Xml;
 using DotDeck.App.ViewModels;
+using DotDeck.Core.Layout;
 using DotDeck.Core.Logging;
 
 namespace DotDeck.App.Docking;
@@ -22,6 +23,8 @@ public sealed class LayoutPersistence
 {
     public const string LastLayoutFileName = "last.xml";
 
+    public const string NamedFolderName = "named";
+
     private readonly string _layoutDir;
     private readonly IAppLog _log;
 
@@ -33,9 +36,55 @@ public sealed class LayoutPersistence
 
     public string LastLayoutPath => Path.Combine(_layoutDir, LastLayoutFileName);
 
-    public LayoutRestoreResult TryRestore(DockingManager manager, ShellViewModel shell)
+    public string NamedLayoutDir => Path.Combine(_layoutDir, NamedFolderName);
+
+    public LayoutRestoreResult TryRestore(DockingManager manager, ShellViewModel shell) => Load(manager, shell, LastLayoutPath);
+
+    /// <summary>Loads a named layout. Tabs it does not know stay open (AvalonDock re-inserts bound documents).</summary>
+    public LayoutRestoreResult TryLoadNamed(DockingManager manager, ShellViewModel shell, string name) =>
+        LayoutNames.Validate(name) is null
+            ? Load(manager, shell, Path.Combine(NamedLayoutDir, LayoutNames.FileName(name)))
+            : LayoutRestoreResult.NoSavedLayout;
+
+    public IReadOnlyList<string> ListNamed()
     {
-        var path = LastLayoutPath;
+        try
+        {
+            return Directory.Exists(NamedLayoutDir)
+                ? LayoutNames.FromFileNames(Directory.EnumerateFiles(NamedLayoutDir).Select(f => Path.GetFileName(f)))
+                : [];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Warning($"레이아웃 목록을 읽지 못했습니다: {NamedLayoutDir}", ex);
+            return [];
+        }
+    }
+
+    public bool SaveNamed(DockingManager manager, string name) =>
+        LayoutNames.Validate(name) is null && SaveTo(manager, NamedLayoutDir, Path.Combine(NamedLayoutDir, LayoutNames.FileName(name)));
+
+    public bool DeleteNamed(string name)
+    {
+        if (LayoutNames.Validate(name) is not null)
+        {
+            return false;
+        }
+
+        try
+        {
+            File.Delete(Path.Combine(NamedLayoutDir, LayoutNames.FileName(name)));
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Warning($"레이아웃을 삭제하지 못했습니다: {name}", ex);
+            return false;
+        }
+    }
+
+    private LayoutRestoreResult Load(DockingManager manager, ShellViewModel shell, string path)
+    {
         if (!File.Exists(path))
         {
             return LayoutRestoreResult.NoSavedLayout;
@@ -58,7 +107,7 @@ public sealed class LayoutPersistence
 
             serializer.Deserialize(path);
             SyncToolVisibility(manager.Layout, shell);
-            _log.Info("레이아웃을 복원했습니다.");
+            _log.Info($"레이아웃을 복원했습니다: {Path.GetFileName(path)}");
             return LayoutRestoreResult.Restored;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -69,20 +118,23 @@ public sealed class LayoutPersistence
         }
     }
 
-    public void Save(DockingManager manager)
+    public void Save(DockingManager manager) => SaveTo(manager, _layoutDir, LastLayoutPath);
+
+    private bool SaveTo(DockingManager manager, string directory, string path)
     {
-        var path = LastLayoutPath;
         var temp = path + ".tmp";
         try
         {
-            Directory.CreateDirectory(_layoutDir);
+            Directory.CreateDirectory(directory);
             new XmlLayoutSerializer(manager).Serialize(temp);
             File.Move(temp, path, overwrite: true);
+            return true;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _log.Warning($"레이아웃 저장 실패: {path}", ex);
             TryDelete(temp);
+            return false;
         }
     }
 

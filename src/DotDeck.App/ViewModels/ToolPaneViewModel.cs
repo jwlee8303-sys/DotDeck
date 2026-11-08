@@ -23,4 +23,11 @@ public abstract partial class ToolPaneViewModel : PaneViewModel
 
     [ObservableProperty]
     private bool _isVisible = true;
+
+    partial void OnIsVisibleChanged(bool value) => OnVisibilityChanged(value);
+
+    /// <summary>Hook for derived panes (e.g. a detached explorer reattaches when hidden).</summary>
+    protected virtual void OnVisibilityChanged(bool isVisible)
+    {
+    }
 }

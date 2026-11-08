@@ -1,3 +1,4 @@
+using DotDeck.Core.Logging;
 using DotDeck.Core.Platform;
 
 namespace DotDeck.Core.Tests.Support;
@@ -31,6 +32,21 @@ public sealed class FakeTimeProvider(DateTimeOffset start) : TimeProvider
     public override DateTimeOffset GetUtcNow() => _now;
 
     public void Advance(TimeSpan delta) => _now += delta;
+}
+
+/// <summary>Log that keeps entries in memory for assertions.</summary>
+public sealed class ListAppLog : IAppLog
+{
+    public List<AppLogEntry> Entries { get; } = [];
+
+    public event EventHandler<AppLogEntry>? EntryWritten;
+
+    public void Write(AppLogLevel level, string message, Exception? exception = null)
+    {
+        var entry = new AppLogEntry(DateTimeOffset.UnixEpoch, level, message, exception?.ToString());
+        Entries.Add(entry);
+        EntryWritten?.Invoke(this, entry);
+    }
 }
 
 /// <summary>Unique temporary directory deleted on dispose.</summary>

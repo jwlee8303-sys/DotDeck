@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SyntaxDefinition name="INI" extensions=".ini;.cfg;.conf;.properties;.editorconfig;.gitconfig;.npmrc" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+  <Color name="Section" foreground="#4EC9B0" />
+  <Color name="Key" foreground="#9CDCFE" />
+  <Color name="Comment" foreground="#6A9955" />
+  <RuleSet>
+    <Rule color="Comment">^\s*[;\#].*$</Rule>
+    <Rule color="Section">^\s*\[[^\]\r\n]*\]</Rule>
+    <Rule color="Key">^\s*[^=:\s\[;\#][^=:\r\n]*(?=[=:])</Rule>
+  </RuleSet>
+</SyntaxDefinition>

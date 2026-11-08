@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    { "url": "https://code.claude.com/docs/en/tools-reference", "checked": "2026-11-08" },
+    { "url": "https://code.claude.com/docs/en/permissions", "checked": "2026-11-08" },
+    { "url": "https://code.claude.com/docs/en/hooks", "checked": "2026-11-08" }
+  ],
+  "argumentKinds": {
+    "command": {
+      "placeholder": "예: git log *   npm run test:*",
+      "help": [
+        "비우면 모든 명령에 적용됩니다(Bash와 Bash(*)는 같음).",
+        "*는 공백을 포함한 아무 글자와 맞습니다. 하위 명령 뒤에 두세요: git log * (O), git * main (X).",
+        "끝의 :*는 ' *'와 같습니다: ls:* = ls *. 'ls *'는 ls, ls -la와 맞고 lsof와는 맞지 않습니다('ls*'는 lsof도 맞음).",
+        "&&, ||, ;, |, & 로 이은 복합 명령은 하위 명령마다 따로 판정합니다. timeout·nice·nohup 같은 래퍼는 떼고 비교합니다.",
+        "명령 규칙은 보안 경계가 아닙니다: Bash(curl *)를 막아도 /usr/bin/curl이나 sh -c 'curl ...'은 막지 못합니다."
+      ],
+      "examples": ["Bash(npm run test:*)", "Bash(git diff *)", "Bash(rm -rf *)"]
+    },
+    "path": {
+      "placeholder": "예: ./src/**   ~/.ssh/**   //c/secrets/**",
+      "help": [
+        "gitignore 형식 경로 패턴입니다. **는 하위 폴더 전체, *는 한 단계 안의 아무 이름.",
+        "//path: 파일 시스템 루트 기준 절대 경로. Windows 경로 C:\\Users\\a는 //c/Users/a로 씁니다(모든 드라이브: //**/.env).",
+        "~/path: 홈 폴더 기준.",
+        "/path: 설정 파일 기준({slashBase}). /Users/a/file은 절대 경로가 아닙니다.",
+        "path 또는 ./path: 현재 작업 폴더 기준. .env처럼 폴더 없는 이름은 모든 깊이에서 맞습니다.",
+        "같은 설정 파일 안에서는 !로 예외를 둘 수 있습니다: Read(*.env) 다음 Read(!sample.env)."
+      ],
+      "examples": ["Read(./.env)", "Read(~/.ssh/**)", "Edit(//c/work/secrets/**)"]
+    },
+    "domain": {
+      "placeholder": "예: domain:example.com   domain:*.example.com",
+      "help": [
+        "domain:example.com은 그 호스트만, domain:*.example.com은 모든 하위 도메인(example.com 자체는 제외)과 맞습니다.",
+        "domain:*는 모든 도메인입니다. deny에 WebFetch만 쓰면 도구 자체가 사라지고, WebFetch(domain:*)는 도구는 두고 가져오기를 모두 거부합니다."
+      ],
+      "examples": ["WebFetch(domain:github.com)", "WebFetch(domain:*.anthropic.com)"]
+    },
+    "agent": {
+      "placeholder": "예: Explore   Plan   my-agent",
+      "help": [
+        "서브에이전트 이름(frontmatter name)입니다. 비우면 모든 서브에이전트에 적용됩니다.",
+        "deny·ask에서는 model:opus, isolation:worktree 같은 매개변수 규칙도 쓸 수 있습니다."
+      ],
+      "examples": ["Agent(Explore)", "Agent(my-reviewer)"]
+    },
+    "none": {
+      "placeholder": "인수 없음 (도구 전체)",
+      "help": ["이 도구는 인수 없이 도구 이름만 씁니다."],
+      "examples": []
+    },
+    "unverified": {
+      "placeholder": "인수 형식 미확인 — 비우면 도구 전체",
+      "help": ["이 도구의 인수 형식은 공식 문서에서 확인하지 못했습니다. 비워 두면 도구 전체에 적용됩니다."],
+      "examples": []
+    },
+    "notMatched": {
+      "placeholder": "인수를 넣으면 일치하지 않음",
+      "help": ["이 도구는 경로 인수 규칙이 일치하지 않습니다. 쓰기는 Edit(경로), 검색은 Read(경로) 규칙이 적용됩니다."],
+      "examples": []
+    }
+  },
+  "tools": [
+    { "name": "Bash", "common": true, "permission": true, "argument": "command", "description": "셸 명령을 실행합니다(빌드, 테스트, git 등)." },
+    { "name": "PowerShell", "common": true, "permission": true, "argument": "unverified", "description": "PowerShell 명령을 실행합니다." },
+    { "name": "Read", "common": true, "permission": false, "argument": "path", "description": "파일 내용을 읽습니다. 작업 폴더 밖 경로만 확인을 요청합니다.",
+      "alsoCovers": "Read 규칙은 Grep·Glob(최선 노력), @멘션, IDE 문맥, cat·head·tail·sed 같은 Bash 파일 명령과 입력 리디렉션에도 적용됩니다. deny는 같은 경로의 Edit·Write(새 파일 만들기 포함)도 막습니다. NotebookEdit는 막지 않습니다." },
+    { "name": "Edit", "common": true, "permission": true, "argument": "path", "description": "파일의 일부를 정확한 문자열 치환으로 고칩니다.",
+      "alsoCovers": "Edit 규칙은 Write·NotebookEdit 등 모든 기본 편집 도구와 출력 리디렉션 대상에 적용됩니다. Edit를 allow하면 같은 경로 읽기도 허용됩니다." },
+    { "name": "Write", "common": true, "permission": true, "argument": "notMatched", "description": "파일을 새로 만들거나 덮어씁니다. 권한 규칙은 Edit(경로)로 씁니다." },
+    { "name": "Glob", "common": true, "permission": false, "argument": "notMatched", "description": "파일 이름 패턴으로 파일을 찾습니다. 경로 제한은 Read(경로) 규칙으로 씁니다." },
+    { "name": "Grep", "common": true, "permission": false, "argument": "notMatched", "description": "파일 내용을 검색합니다. 경로 제한은 Read(경로) 규칙으로 씁니다." },
+    { "name": "NotebookEdit", "common": true, "permission": true, "argument": "unverified", "description": "Jupyter 노트북 셀을 고칩니다. Edit(경로) 규칙이 함께 적용됩니다." },
+    { "name": "WebFetch", "common": true, "permission": true, "argument": "domain", "description": "URL의 내용을 가져옵니다." },
+    { "name": "WebSearch", "common": true, "permission": true, "argument": "none", "description": "웹을 검색합니다." },
+    { "name": "Agent", "common": true, "permission": false, "argument": "agent", "description": "서브에이전트를 실행해 작업을 맡깁니다(예전 이름 Task)." },
+    { "name": "Skill", "common": true, "permission": true, "argument": "unverified", "description": "스킬을 실행합니다." },
+    { "name": "AskUserQuestion", "permission": false, "argument": "none", "description": "사용자에게 객관식 질문을 합니다." },
+    { "name": "LSP", "permission": false, "argument": "none", "description": "언어 서버로 코드 정보를 조회합니다." },
+    { "name": "Monitor", "permission": true, "argument": "unverified", "description": "백그라운드 명령을 실행하고 출력을 지켜봅니다." },
+    { "name": "EnterPlanMode", "permission": false, "argument": "none", "description": "계획 모드로 바꿉니다." },
+    { "name": "ExitPlanMode", "permission": true, "argument": "none", "description": "계획을 보여 주고 계획 모드를 끝냅니다." },
+    { "name": "EnterWorktree", "permission": true, "argument": "none", "description": "git 워크트리를 만들거나 들어갑니다." },
+    { "name": "ExitWorktree", "permission": false, "argument": "none", "description": "워크트리 세션을 떠납니다." },
+    { "name": "TodoWrite", "permission": false, "argument": "none", "description": "세션 체크리스트를 씁니다(기본 꺼짐)." },
+    { "name": "TaskCreate", "permission": false, "argument": "none", "description": "작업 목록에 작업을 만듭니다." },
+    { "name": "TaskGet", "permission": false, "argument": "none", "description": "작업 하나를 조회합니다." },
+    { "name": "TaskList", "permission": false, "argument": "none", "description": "작업 목록을 조회합니다." },
+    { "name": "TaskUpdate", "permission": false, "argument": "none", "description": "작업 상태를 바꿉니다." },
+    { "name": "TaskStop", "permission": false, "argument": "none", "description": "백그라운드 작업을 멈춥니다." },
+    { "name": "CronCreate", "permission": false, "argument": "none", "description": "세션 안에서 예약 프롬프트를 만듭니다." },
+    { "name": "CronDelete", "permission": false, "argument": "none", "description": "예약 프롬프트를 지웁니다." },
+    { "name": "CronList", "permission": false, "argument": "none", "description": "예약 프롬프트 목록을 봅니다." },
+    { "name": "ScheduleWakeup", "permission": false, "argument": "none", "description": "/loop의 다음 실행을 예약합니다." },
+    { "name": "RemoteTrigger", "permission": false, "argument": "none", "description": "클라우드 예약 작업을 다룹니다." },
+    { "name": "PushNotification", "permission": false, "argument": "none", "description": "데스크톱·휴대폰 알림을 보냅니다." },
+    { "name": "SendMessage", "permission": false, "argument": "none", "description": "다른 에이전트나 세션에 메시지를 보냅니다." },
+    { "name": "ListAgents", "permission": false, "argument": "none", "description": "메시지를 보낼 수 있는 에이전트 목록을 봅니다." },
+    { "name": "SendUserFile", "permission": false, "argument": "none", "description": "사용자에게 파일을 보냅니다." },
+    { "name": "Artifact", "permission": true, "argument": "none", "description": "HTML·Markdown 파일을 claude.ai에 게시합니다." },
+    { "name": "Workflow", "permission": true, "argument": "none", "description": "동적 워크플로를 실행합니다." },
+    { "name": "ToolSearch", "permission": false, "argument": "none", "description": "지연 로드된 도구를 불러옵니다." },
+    { "name": "ListMcpResourcesTool", "permission": false, "argument": "none", "description": "MCP 리소스 목록을 봅니다." },
+    { "name": "ReadMcpResourceTool", "permission": false, "argument": "none", "description": "URI로 MCP 리소스를 읽습니다." },
+    { "name": "WaitForMcpServers", "permission": false, "argument": "none", "description": "MCP 서버 연결을 기다립니다." },
+    { "name": "EndConversation", "permission": false, "argument": "none", "description": "대화를 끝냅니다(드묾)." }
+  ],
+  "mcp": {
+    "permissionHelp": [
+      "mcp__서버: 그 서버의 모든 도구 (mcp__서버__*와 같음).",
+      "mcp__서버__도구: 도구 하나.",
+      "서버 이름의 . 과 공백은 _로 바뀝니다. 플러그인 서버는 mcp__plugin_<플러그인>_<서버>입니다.",
+      "allow의 glob은 mcp__서버__ 뒤에만 쓸 수 있고, allow의 \"mcp__*\"는 무시됩니다.",
+      "괄호가 붙은 mcp__ 규칙은 설정을 읽을 때 건너뜁니다."
+    ],
+    "matcherHelp": [
+      "훅 matcher에서는 mcp__서버__.* 로 서버의 모든 도구를 고릅니다(정규식). mcp__서버만 쓰면 아무것도 맞지 않습니다.",
+      "도구 하나: mcp__서버__도구."
+    ]
+  }
+}

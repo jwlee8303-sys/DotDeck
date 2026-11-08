@@ -28,6 +28,12 @@ public sealed record AppPaths(string Home, HomeSource HomeSource, string Roaming
 
     public string TemplatesDir => Path.Combine(RoamingDataDir, "templates");
 
+    /// <summary>"다음 형식으로 열기" choices per file.</summary>
+    public string EditorOverridesFile => Path.Combine(RoamingDataDir, "editor-overrides.json");
+
+    /// <summary>User copies of the built-in catalogs (<c>&lt;product&gt;\&lt;name&gt;.json</c>) that replace them.</summary>
+    public string CatalogsDir => Path.Combine(RoamingDataDir, "catalogs");
+
     public string BackupsDir => Path.Combine(LocalDataDir, "backups");
 
     public string LogsDir => Path.Combine(LocalDataDir, "logs");
@@ -35,6 +41,9 @@ public sealed record AppPaths(string Home, HomeSource HomeSource, string Roaming
     public string LayoutDir => Path.Combine(LocalDataDir, "layout");
 
     public string StateDir => Path.Combine(LocalDataDir, "state");
+
+    /// <summary>Explorer expansion/selection (and later open documents), DESIGN 4.</summary>
+    public string SessionFile => Path.Combine(StateDir, "session.json");
 
     public string WebView2DataDir => Path.Combine(LocalDataDir, "WebView2");
 }

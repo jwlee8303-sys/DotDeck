@@ -1,0 +1,40 @@
+<UserControl x:Class="DotDeck.App.Views.Tools.SearchPaneView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource DD.Brush.Panel.Background}">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+    </UserControl.Resources>
+    <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="6,4">
+            <Button DockPanel.Dock="Right" Content="중지" Margin="4,0,0,0" Command="{Binding StopCommand}"
+                    Visibility="{Binding IsSearching, Converter={StaticResource BoolToVisible}}" />
+            <Button DockPanel.Dock="Right" Content="검색" Margin="4,0,0,0" Command="{Binding SearchCommand}" IsEnabled="{Binding IsIdle}" />
+            <CheckBox DockPanel.Dock="Right" Content="정규식" Margin="8,0,0,0" VerticalAlignment="Center" IsChecked="{Binding UseRegex}" />
+            <CheckBox DockPanel.Dock="Right" Content="대/소문자" Margin="8,0,0,0" VerticalAlignment="Center" IsChecked="{Binding MatchCase}" />
+            <TextBox x:Name="QueryBox" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="전체 검색어">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
+                    <KeyBinding Key="Escape" Command="{Binding StopCommand}" />
+                </TextBox.InputBindings>
+            </TextBox>
+        </DockPanel>
+        <TextBlock DockPanel.Dock="Top" Margin="8,0,8,4" Style="{StaticResource DD.Text.Secondary}" TextWrapping="Wrap" Text="{Binding Summary}" />
+        <ListBox ItemsSource="{Binding Results}" SelectedItem="{Binding Selected}" BorderThickness="0"
+                 Background="Transparent" VirtualizingPanel.IsVirtualizing="True" AutomationProperties.Name="검색 결과"
+                 MouseDoubleClick="OnResultActivated" KeyDown="OnResultKeyDown">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock TextTrimming="CharacterEllipsis">
+                        <Run Foreground="{DynamicResource DD.Brush.Text.Secondary}" Text="{Binding ProjectName, Mode=OneWay}" />
+                        <Run Foreground="{DynamicResource DD.Brush.Text.Secondary}" Text="›" />
+                        <Run Text="{Binding RelativePath, Mode=OneWay}" />
+                        <Run Foreground="{DynamicResource DD.Brush.Accent.Hover}" Text="{Binding Line, Mode=OneWay, StringFormat=({0})}" />
+                        <Run Text="  " />
+                        <Run Foreground="{DynamicResource DD.Brush.Text.Secondary}" Text="{Binding LineText, Mode=OneWay}" />
+                    </TextBlock>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</UserControl>

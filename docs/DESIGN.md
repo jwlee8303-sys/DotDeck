@@ -131,7 +131,7 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 | 경로 | `AppPaths` / `AppPathsResolver` | 우선순위 `--home` > `DOTDECK_HOME` > `%USERPROFILE%`. Home, Roaming·Local 데이터 폴더 계산 |
 | 프로젝트 | `ProjectDefinition`, `ProjectRegistry` | projects.json 로드·저장(SafeWriter 사용), 스키마 버전 관리, 손상 시 `.corrupt-<ts>`로 보존. 기본 제공 프로젝트 삭제 거부 |
 | 소스 | `IProjectSource` → `FolderProjectSource`, `SystemProjectSource` | 노드 자식 열거. 시스템은 가상 노드 |
-| 트리 | `NodeInfo`, `ExplorerFilter`, `FileKindClassifier`, `ExcludedFolderPolicy`, `SecretFilePolicy` | 노드 모델, 표시 필터, 제외 폴더, 비밀 파일 판별 |
+| 트리 | `NodeInfo`, `ExplorerFilter`, `FileKindClassifier`, `ExcludedFolderPolicy`, `SecretFilePolicy` | 노드 모델, 표시 필터, 제외 폴더, 비밀 파일 판별 (1b-2 구현 세부: 아래) |
 | 파일 작업 | `FileOperationService`, `FileOperationHistory` | 생성·이름 변경·이동·복사·복제·휴지통 삭제. 이름 유효성 검사. Undo 스택(세션, 상한 100). Undo 전 사전조건 검사 |
 | 읽기 | `TextFileReader` → `TextFileSnapshot` | BOM → 엄격 UTF-8 → cp949 순 감지. 줄바꿈, 바이너리(앞 8KB NUL), 1MB 플래그, 해시, mtime |
 | 안전 쓰기 | `SafeWriter` | `Prepare → WritePlan(diff)` → `Commit`: 외부 변경 검사 → 백업 → 같은 폴더 임시 파일 → `File.Replace`. 원래 인코딩으로 표현 못 하는 문자 경고. 변경 없이 저장하면 바이트가 동일해야 함 |
@@ -140,6 +140,105 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 | 외부 변경 | `ExternalChangeMonitor` | FSW와 창 활성화 시 재확인. 자기 쓰기는 해시로 무시 |
 | 마스킹 | `SecretMasker` | `KEY|TOKEN|SECRET|PASSWORD|PWD|CREDENTIAL`. 로그에 파일 본문과 환경변수 값을 남기지 않음 |
 | 설정 | `AppSettings`, `SettingsStore` | `%APPDATA%\DotDeck\settings.json` |
+
+**트리 규칙 (1b-2 구현 중 확정)**
+- 제외 폴더 항목: 이름만 쓰면 모든 깊이에 적용(`node_modules`), `/`로 시작하거나 중간에 구분자를 포함하면 루트 기준 경로(`/projects`, `src/gen`). 끝에만 붙은 구분자(`debug/`)는 .gitignore처럼 이름으로 본다. 대소문자 무시.
+  - 기본값: SPEC 공통 목록. 기본 제공 프로젝트는 공통 목록에 Q5 목록을 루트 기준으로 추가해, `skills\x\debug` 같은 하위 폴더는 숨기지 않는다. `excludedFolders`를 지정하면 기본값 전체를 대체한다.
+- 비밀 판별: 파일 이름만 보고 대소문자를 무시한다. `.env*` 중 `.env.<…>.example|sample|template`은 제외(Q15). `id_rsa*` 패턴에 따라 `id_rsa.pub`도 비밀로 본다.
+- "설정·문서만" 필터: SPEC 목록, Q6 추가분, 다른 `.`이 없는 dotfile, `.env*`를 표시한다. `.env*`는 자물쇠 표시가 보이도록 남긴다. 폴더는 항상 표시한다.
+- 정렬: 폴더 먼저, 이름은 대소문자 무시.
+
+**파일 작업 규칙 (1b-5 구현 중 확정)**
+- 모든 작업을 기본 단계 세 가지(이동, 휴지통 보내기, 휴지통에서 복원)로 표현한다. 각 단계는 실행하면 역단계를 돌려준다. 실행 취소와 다시 실행은 같은 방식으로 역단계를 실행한다. 생성·복사의 역단계는 "휴지통으로 보내기"이므로, 생성을 취소한 뒤 다시 실행하면 같은 항목이 복원된다.
+- 실행 전에 모든 단계의 사전조건을 검사한다. 하나라도 실패하면 아무것도 하지 않고 이력 항목도 그대로 둔다. 실행 중 실패하면 처리된 부분만 반대쪽 스택으로 옮기고, 나머지는 원래 스택에 남긴다.
+- 덮어쓰기는 하지 않는다. 대소문자만 다른 이름 바꾸기는 허용한다. 복사·복제할 때 같은 이름이 있으면 "이름 - 복사본", "이름 - 복사본 (2)" 순으로 이름을 정한다.
+- 영구 삭제는 하지 않는다. 휴지통이 없는 위치(네트워크, 이동식 드라이브, UNC)는 삭제와 "생성 취소"를 모두 거부한다. 셸이 그래도 영구 삭제하려 하면 `FOF_WANTNUKEWARNING`으로 확인을 받는다. 휴지통에 보낸 항목의 `$I` 위치를 찾지 못하면 경고하고, 그 항목은 실행 취소할 수 없다.
+- 폴더를 다른 드라이브로 옮기는 것은 지원하지 않는다(복사 후 삭제를 안내). 파일은 옮길 수 있다.
+- 이름 검사: Windows 금지 문자와 제어 문자, 끝의 마침표·공백, 예약어(`CON`, `NUL.txt`, `COM1`~`COM9`, `LPT1`~`LPT9`, 위첨자 숫자 포함), 255자 초과.
+- 휴지통 항목 매칭: 삭제 직전에 `$I` 목록을 스냅샷하고, 삭제 후 새로 생긴 `$I` 중 원래 경로와 종류가 같은 것이 정확히 하나일 때만 복원할 수 있다고 본다.
+- 보류(후속 강화): (1) 셸의 영구 삭제 확인에 대한 자동 거부(IFileOperation 진행 싱크 필요). (2) 단계가 경로로만 항목을 식별하는 문제(파일 ID 미기록). 외부 프로그램이 같은 경로를 바꿔 놓으면 그 항목이 이동되거나 휴지통으로 가지만, 덮어쓰지 않으니 복구할 수 있다. (3) 폴더 복사에서 대상 확인과 생성 사이의 아주 짧은 경합.
+
+**안전 저장 규칙 (1c-1·1c-2 구현 중 확정)**
+- 인코딩: BOM(UTF-8, UTF-16 LE/BE, UTF-32 LE) → 엄격 UTF-8 → 엄격 CP949 → CP949 대체 디코드(`HasDecodingErrors`, 인코딩을 직접 고르기 전에는 저장 차단). UTF-32 BE는 미지원(바이너리로 거부).
+- 텍스트가 같고 인코딩이 같으면 저장은 아무것도 쓰지 않는다(디스크가 바뀌었으면 외부 변경으로 처리).
+- 외부 변경은 SHA-256으로 판단한다. 백업 후 교체 직전에 한 번 더 확인한다. 두 번째 확인과 `File.Replace` 사이의 아주 짧은 경합은 보류(File.Replace로는 배타 잠금 불가).
+- 비밀 파일 검사는 이름과 링크 최종 대상 모두에 적용한다(읽기·백업·저장·복원). 연 핸들 기준 검증은 보류.
+- 백업 정리는 보관 개수를 넘는 세트 중 1분보다 오래된 것만 지운다(진행 중인 다른 저장 보호).
+
+**편집기 탭 규칙 (1c-3 구현 중 확정)**
+- 탭 고정은 VM에서 구현했다(닫기 버튼 숨김, 핀 표시, 미리보기 대상 제외). 고정 탭을 앞으로 정렬하지는 않는다.
+- 미리보기 요청은 순번을 매겨, 늦게 끝난 이전 요청이 새 미리보기를 대체하지 않게 한다. 읽기 후 같은 파일 탭이 생겼으면 그 탭을 활성화한다.
+- 저장은 버퍼별로 직렬화한다. 저장 중 텍스트가 바뀌면(입력·Undo) Undo 원본 표시를 버리고 dirty로 둔다. 저장 중에는 마지막 탭을 닫지 않는다.
+- 종료 확인은 dirty 버퍼가 없어질 때까지 반복하고, "버리기"는 답한 시점의 변경 횟수에만 유효하다.
+- 외부 변경(1c-4): 창 활성화 시에는 크기·수정 시각이 같으면 변경 없음으로 보고, 파일 감시 이벤트 뒤에는 항상 해시를 비교한다. 다른 대화상자가 열려 있으면 확인을 미루고 다음 활성화 때 다시 한다. 편집 중 파일은 디스크 버전마다 한 번만 묻는다("나중에"/"내 내용 유지"는 그 해시를 기억). 삭제는 상태줄로만 알린다.
+- 다시 불러오기는 사용자가 비교 화면에서 본 텍스트의 변경 횟수와 현재가 같을 때만 적용한다(그 사이 입력이 있으면 취소). 백업 복원 중 입력이 있으면 디스크만 복원하고 편집 내용은 dirty로 남긴다.
+- 모두 저장은 검토한 계획(텍스트)을 그대로 커밋한다.
+- 보류: 백업 복원 대화상자의 백업 읽기·diff 계산은 UI 스레드에서 한다.
+- 보류: 찾기·바꾸기는 UI 스레드에서 실행한다(정규식 매치별 2초 제한, 큰 파일은 열기 전 경고). 편집기 색은 뷰 생성 시 리소스에서 읽으므로 런타임 테마 전환은 Phase 4에서 다룬다.
+**Markdown 미리보기 규칙 (1c-5 구현 중 확정)**
+- 페이지는 Core가 만들어 `%LOCALAPPDATA%\DotDeck\preview\<guid>.html`에 쓰고 `https://app.dotdeck.local/`(폴더 매핑, Deny)로 띄운다. 시작 시 남은 페이지를 지운다.
+- 문서 폴더는 가상 호스트로 매핑하지 않는다. `md.dotdeck.local` 요청은 `WebResourceRequested`에서 DotDeck이 직접 응답한다: 래스터 이미지 확장자, 폴더 안, 비밀 파일 이름 아님, 파일·상위 폴더가 링크 아님, 읽은 바이트의 이미지 서명 일치(교체 경합·하드 링크 방지). 그 외 요청은 모두 403.
+- 스크립트 설정은 켜 두되 페이지 CSP가 페이지 스크립트를 막는다. DotDeck의 `ExecuteScriptAsync`(스크롤 위치 저장·복원)만 실행된다. base href가 md 호스트를 가리키므로 페이지 안 앵커 링크는 탐색 차단으로 동작하지 않는다.
+- 렌더는 버전 번호로 비교해 늦게 끝난 이전 렌더가 새 페이지를 덮어쓰지 않게 하고, 파일 쓰기는 직렬화한다.
+- 기각: 문서 폴더 자체가 정션인 경우의 차단(사용자가 직접 연 문서의 폴더이므로 허용).
+- 보류: 단일 exe 배포 시 WebView2Loader 동작 확인은 Phase 4. 미리보기를 숨겨도 WebView는 탭이 언로드될 때까지 유지한다.
+**레이아웃·세션 복원 규칙 (1c-6 구현 중 확정)**
+- 시작 순서: 분리된 탐색기 패널 준비 → session.json의 편집기 탭 복원(파일 읽기는 백그라운드) → `last.xml` 복원 → 프로젝트 초기화. 복원 동안 탐색기가 비어 있으므로 사용자가 같은 파일을 여는 경합은 없다(Codex 지적 기각 사유).
+- 탭은 저장된 보기 번호로 만든다(ContentId `doc:<경로>#<n>` 일치). 이후 새 보기는 가장 큰 번호 다음부터. 보기 번호 상한 9999.
+- 종료 시 저장 전 diff 확인을 마쳤으므로 복원 대상은 모두 저장된 상태다. 미리보기 탭은 하나만 복원한다.
+- 복원이 끝나기 전에 창을 닫으면 레이아웃·세션을 저장하지 않는다(다음 시작에 그대로 복원). 복원 중에는 레이아웃 메뉴 명령을 무시한다.
+- 이름 붙인 레이아웃은 도킹 배치만 담는다. 불러올 때 열려 있지 않은 탭은 건너뛰고, 레이아웃에 없는 열린 탭은 AvalonDock이 다시 넣는다.
+
+## Phase 2 편집기 규칙
+- 폼은 파싱 모델을 고친 뒤 전체 텍스트를 버퍼에 한 번에 반영한다(버퍼가 단일 원본 → 저장·diff·undo 동일). settings.json은 폼 편집 시 2칸 들여쓰기로 다시 직렬화된다.
+- settings 폼은 permissions·hooks·env만 다루고 나머지 키·모르는 필드·표시 불가 훅 데이터는 보존한다. 섹션이 객체가 아니면 폼을 열지 않는다.
+- 훅 테스트는 사용자 확인 후 `cmd /d /s /c`로 실행, 제한 시간은 프로세스 시작부터 stdin 쓰기까지 포함, 취소·초과 시 프로세스 트리 종료.
+
+## Phase 3 시스템 프로젝트 규칙
+- 환경변수 저장소 `IEnvironmentStore`: 실제 실행은 레지스트리(`RegistryEnvironmentStore`, REG_EXPAND_SZ 유지, 적용 후 WM_SETTINGCHANGE), 샌드박스(`--home`)와 테스트는 `<home>\.dotdeck-environment.json`(`FileEnvironmentStore`). 샌드박스에서는 hosts 등 중요 파일 기본값도 홈 아래 경로를 쓴다.
+- 적용 흐름: 연 시점 값 기준으로 변경 계산 → diff 확인 → 현재 값과 충돌 검사(다르면 중단) → 변경 기록(`backups\env-*.json`)을 먼저 저장 → 쓰기. 중간 실패 시 기록을 실제 적용분으로 줄인다.
+- 이름에 KEY/TOKEN/SECRET/PASSWORD/PWD/CREDENTIAL이 있으면 화면·diff·기록 모두 마스킹. 따라서 비밀 변수는 되돌리기 대상에서 빠진다.
+- 중요 파일 목록: `%APPDATA%\DotDeck\important-files.json`(추가/제거 목록). ACL은 보기만 하고 수정 기능은 없다.
+
+## Phase 4 규칙
+- 테마: `Themes/Dark.xaml`·`Light.xaml`은 같은 키를 정의하고 `ThemeManager.Apply`가 팔레트 사전([0])만 바꾼다. AvalonDock은 VS2022 Dark/Light 테마, 제목 표시줄은 DWM 다크 모드 플래그를 테마에 맞춘다. 편집기 글꼴 크기는 앱 리소스 `DD.FontSize.Editor`를 덮어쓴다.
+- 전체 검색: `GlobalSearch`가 프로젝트 루트를 순회(링크·제외 폴더·비밀·NUL 포함·2MB 초과 파일 제외), 최대 2000건.
+- 배포: `PublishSingleFile=true`일 때 자체 포함 + 네이티브 라이브러리 포함 + 임베디드 PDB로 `DotDeck.exe` 하나만 만든다.
+
+## 사용자 요청 반영(Phase 4 이후)
+- 단일 클릭 미리보기 제거: 파일은 더블클릭·Enter로만 연다.
+- 보이는 항목: 아래 "탐색기 보이는 항목·보기 방식"으로 대체(`VisibleItems`·`filter`는 v1 마이그레이션에서만 읽음).
+- 백업 폴더: `settings.json`의 `BackupDirectory`(없으면 기본 경로). 바꾸면 이후 백업부터 새 폴더에 저장하고 기존 백업은 옮기지 않는다. 환경변수 변경 기록도 같은 폴더를 쓴다.
+- 프로젝트 백업: `ProjectBackup.CreateZip`이 선택한 프로젝트를 `DotDeck-projects-<시각>.zip` 하나로 저장(비밀 파일·링크·제외 폴더·출력 zip 자신 제외).
+
+## 탐색기 보이는 항목·보기 방식 (SPEC 2.3)
+- Core `Explorer/Visibility/`: `VisibilitySettings`(Rules: 상대 키 → Include/Exclude, `DefaultExtensions`(null = 전역 기본값), `ShowAllFiles`, 모르는 키 `Extra`), `ProjectViewSettings`(Mode 기본 Compact, FlatSort, FlatOrder, Pins). 메모리 키는 `\` 구분·루트 `""`·대소문자 무시(`RelativeKey`), 저장은 `/`.
+- `VisibilityEvaluator`: 파일 ① 자기 규칙 ② 확장자(ShowAllFiles 아니면) ③ 가장 가까운 조상 폴더 규칙 ④ 보임. 폴더 상태 = 자기/조상 규칙(없으면 Include). 체크 상태: 자기 상태 + 아래에 반대 규칙이 있으면 Partial. 확장자 때문에만 숨는 파일은 Partial을 만들지 않는다. 생성 시 규칙 아래 플래그를 미리 계산해 판정은 사전 조회와 부모 따라가기만 한다.
+- `VisibilityEditor`: 폴더 토글 = 아래 규칙 삭제 후 상속값과 다르면 자기 규칙, 파일 토글 = 상속값과 다르면 규칙. `PreviewFolder`가 지워질 "직접 체크한 파일" 수를 센다.
+- 보기 방식은 `VisibleProjectSource`(IProjectSource 래퍼)로 구현해 `ExplorerTreeBuilder`·확장 키를 그대로 쓴다. 압축 행의 키는 사슬 마지막 폴더(`NodeInfo.Chain`), 평면 행은 `FlatDirectory`, 고정은 `IsPinned`. "보일 것이 있는 폴더" 판정은 첫 발견에서 멈추고, 아래에 Include가 없는 Exclude 폴더(`IsSubtreeDead`)는 열지 않으며, 항목 예산(20만)을 넘으면 내용이 있다고 보고 상태줄에 알린다. 인스턴스는 한 번의 빌드에만 쓴다(캐시).
+- 편집 모드는 원본 `FolderProjectSource`(제외 폴더만 빠짐)를 쓰고 체크 상태만 계산한다. 펼친 폴더 목록에서 사라진 키를 지우는 일은 원본 목록을 볼 때만 한다(필터된 목록에서 숨은 폴더의 펼침 상태를 잃지 않도록).
+- 파일 작업 결과 `FileOperationResult.Changes`(`PathChange` Moved/Removed/Created, 실행 취소·다시 실행 포함)를 `ExplorerPathRewriter`가 규칙·고정·평면 순서에 반영하고, `VisibilityAutoInclude`가 새 항목을 보이게 한다. App은 모든 폴더 프로젝트에 `ProjectRegistry.UpdateAll` 한 번으로 저장하고 열린 편집 세션에도 같은 변경을 적용한다.
+- 붙여넣기: `PasteTargetResolver`(선택 → 대상 폴더) → `FileOperationService.PlanPaste`(자기·하위 폴더 금지, 다른 드라이브 폴더 이동 금지, 충돌 분류) → 충돌마다 덮어쓰기/둘 다 유지/건너뛰기 → `Paste`(실행 직전 재검증, 덮어쓰기는 파일만: 백업 → 휴지통 → 복사/이동, 기록 1건).
+- `projects.json` schemaVersion 2. v1은 읽을 때 `.v1-<시각>.bak`으로 보존 후 변환(쓰기는 다음 변경 때). 보존하지 못하면 읽기 전용으로 연다. 편집 모드 종료 저장이 실패하면 편집 모드를 유지하고, 앱 종료 때는 레지스트리 게이트(`TryRunNow`, 5초)를 거쳐 저장한다. 잘못된 `visibility`·`view` 값을 가진 항목은 원문 그대로 보존하고 불러오지 않는다.
+- 결정(설계 질문 기본값): 시스템 프로젝트·기타 파일 제외 / 기본 제공 Claude·Codex 포함(v1 `all` → ShowAllFiles) / 제외 폴더 우선 / 자기 Include 폴더는 비어 있어도 표시, 압축 사슬은 그 폴더에서 끝 / 고정 항목은 원래 자리에서 빠지고 고정 파일은 규칙 무시 / 폴더 충돌은 덮어쓰기 불가 / 편집 모드는 끝낼 때·앱 종료 때 저장 / 삭제하면 규칙도 지우고 실행 취소는 항목만 자동 포함(아래 규칙은 복원 안 함) / 다른 프로젝트로 이동하면 원본 프로젝트 규칙은 지우고 대상은 자동 포함 / 앱 밖에서 바꾼 이름의 고아 규칙은 자동 정리하지 않음.
+- 평면 보기 사용자 순서: 같은 프로젝트의 평면 파일을 다른 평면 파일 위에 끌어 놓으면 이동이 아니라 순서 변경(Ctrl을 누르면 복사). 이름순일 때는 기존처럼 그 파일의 폴더로 이동.
+
+## Claude 파일 역할 판별 (SPEC 7.0, Phase 4 이후)
+- `Core/Roles/FileRoleResolver`: 입력은 절대경로, 출력은 `FileRole`(역할·범위·`.claude` 폴더·기준 루트·편집기·규칙 id·안내). 판별 순서: 관리형 폴더(샌드박스에서는 끔) → 가장 가까운 `.claude`(그 폴더의 규칙만 적용, 부모가 홈이면 전역) → 홈 바로 아래 파일 → 앵커 폴더(`.claude`·`.git`이 있거나 등록된 폴더 프로젝트 루트) 파일 → 모든 폴더 규칙. 파일 시스템은 앵커 확인(`DirectoryExists`)에만 쓴다.
+- 규칙 데이터 `Core/Catalogs/<제품>/file-roles.json`(EmbeddedResource). 규칙 = `{id, base(configDir|home|anchorDir|anyDir|managedDir), pattern(* ** /), role, editor, scope(auto|global|project|local|subdirectory|managed), onlyIn, notes}`. 제품 단위로 카탈로그를 추가하면 Codex도 같은 방식으로 판별한다. `CatalogResources.Load`는 `%APPDATA%\DotDeck\catalogs\<제품>\<이름>.json`이 있고 올바르면 그것을, 아니면 내장본과 경고를 돌려준다.
+- 범위별 키 경고 `settings-keys.json`(그룹 = 키 목록 + `ignoredIn`/`appliesIn` + 선택 `values` + 메시지). 검증 패널과 settings 폼 상단에 표시.
+- 수동 지정 `EditorOverrideStore`(`%APPDATA%\DotDeck\editor-overrides.json`, 경로 → `text|markdown|settingsForm|agentForm|skillForm`, 모르는 값은 보존). 문서의 `Kind`는 바꿀 수 있고, 바꾸면 폼을 다시 만든다. 수동 지정 후 폼 해석에 실패하면 `FormError`에 이유를 표시하고 텍스트로 남는다.
+- 훅 스크립트 검증 `HookScriptResolver`: 프로젝트·로컬은 `$CLAUDE_PROJECT_DIR`·상대 경로를 프로젝트 루트로(상대 경로는 "추정"), `~`·`$HOME`·`%USERPROFILE%`는 홈, Git Bash `/c/..` 변환. 전역의 `$CLAUDE_PROJECT_DIR`·상대 경로와 모르는 변수는 "확인 불가"(Info).
+- 제한: 경로 이름만 비교(링크·정션 대상은 따라가지 않음), `CLAUDE_CONFIG_DIR`로 옮긴 설정 폴더는 인식하지 않음, 플러그인 폴더(`~/.claude/plugins/**`) 안 파일은 판별하지 않음, 수동 지정은 파일 이름 바꾸기·이동을 따라가지 않음.
+
+### settings.json 권한·훅 폼 (Part B)
+- 카탈로그 `Catalogs/Claude/tools.json`(도구 이름·한국어 설명·인수 종류 `command|path|domain|agent|none|unverified|notMatched`·인수 도움말(placeholder, 설명, 예시 2~3개, `{slashBase}` 치환)·함께 적용되는 도구 `alsoCovers`, MCP 도움말)과 `hook-events.json`(33개 이벤트: 실행 시점·matcher 종류 `tools|values|none`·대상·값 목록·`pipeOnly`·할 수 있는 것·예시). 둘 다 `CatalogResources.Load`로 덮어쓰기 가능.
+- `PermissionRule`: `^(도구)(\((인수)\))?$`로 나눈다. 폼 행은 원문(`Raw`)을 들고 있다가 도구·인수를 고치지 않으면 원문 그대로 저장한다. 형식이 맞지 않으면 한 칸 텍스트로 보여 주고 그대로 저장한다. 검사: 괄호가 붙은 `mcp__`, allow의 `mcp__*`·도구 이름 `*`, 일치하지 않는 `Write/Glob/Grep(...)`, Read/Edit의 Windows 경로, 목록에 없는 도구(정보).
+- `HookMatcher`: 비움·`*` = 전체, 영문·숫자·`_-`·공백·`,|`만 있으면 이름 목록, 그 밖은 정규식(앞뒤 고정 없음). 정규식 항목(`mcp__서버__.*`)이 섞인 목록은 `^(A|B|mcp__서버__.*)$`로 써서 다른 도구가 함께 걸리지 않게 하고, 읽을 때 같은 형식을 다시 체크 상태로 되돌린다. 정규식 검사는 .NET 문법(경고만).
+- 이벤트가 matcher를 쓰지 않으면 ☰ 버튼을 끄고 입력칸을 흐리게 표시하되 값은 지우지 않는다(검증 패널에 정보).
+- `McpServerDiscovery`: `~/.claude.json`(최상위 `mcpServers` = 사용자, `projects[루트].mcpServers` = 로컬), `<루트>/.mcp.json`(프로젝트), `~/.claude/plugins/cache/<마켓>/<플러그인>/<버전>/`의 `.mcp.json`·`.claude-plugin/plugin.json`(이름 `plugin_<플러그인>_<서버>`), 관리형 `managed-mcp.json`(샌드박스 홈에서는 읽지 않음). `JsonDocument`로 `mcpServers`의 속성 이름만 읽고 값은 보지 않는다. 문제는 경로만 보고(내용 인용 없음). 서버는 실행·연결하지 않는다. 폼이 열릴 때와 새로고침 버튼으로 스레드 풀에서 읽는다.
+- 선택한 행(키보드 포커스)의 도움말은 속성 창 상단 "도움말"에 표시(`ITextDocumentHost.ShowFormHelp`).
+- 저장 시 `type`이 command가 아닌 훅에는 `command` 키를 새로 만들지 않는다.
 
 **projects.json 초안**
 ```json

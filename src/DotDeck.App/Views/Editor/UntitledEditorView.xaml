@@ -1,0 +1,17 @@
+<UserControl x:Class="DotDeck.App.Views.Editor.UntitledEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ae="http://icsharpcode.net/sharpdevelop/avalonedit"
+             Background="{DynamicResource DD.Brush.Editor.Background}">
+    <ae:TextEditor x:Name="Editor"
+                   Document="{Binding Document}"
+                   FontFamily="{DynamicResource DD.Font.Editor}"
+                   FontSize="{DynamicResource DD.FontSize.Editor}"
+                   Background="{DynamicResource DD.Brush.Editor.Background}"
+                   Foreground="{DynamicResource DD.Brush.Editor.Text}"
+                   LineNumbersForeground="{DynamicResource DD.Brush.Editor.LineNumber}"
+                   ShowLineNumbers="True"
+                   HorizontalScrollBarVisibility="Auto"
+                   VerticalScrollBarVisibility="Auto"
+                   Padding="4,0,0,0" />
+</UserControl>

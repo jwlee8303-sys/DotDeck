@@ -1,0 +1,138 @@
+﻿<!--
+  DotDeck light palette (Visual Studio 2022 light reference). Same keys as Dark.xaml.
+  Every theme dictionary must define the same keys. Controls reference them only via DynamicResource
+  so the theme can be swapped at runtime (Light.xaml arrives in Phase 4).
+  Key scheme: DD.Color.<Area>.<Role>[.<State>] and DD.Brush.<Area>.<Role>[.<State>].
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Surfaces -->
+    <Color x:Key="DD.Color.Editor.Background">#FFFFFFFF</Color>
+    <Color x:Key="DD.Color.Editor.Text">#FF1E1E1E</Color>
+    <Color x:Key="DD.Color.Editor.LineNumber">#FF2B91AF</Color>
+    <Color x:Key="DD.Color.Editor.Selection">#FFADD6FF</Color>
+    <Color x:Key="DD.Color.Editor.CurrentLine">#FFF3F3F3</Color>
+    <Color x:Key="DD.Color.Diff.Inserted">#FFDDF5DD</Color>
+    <Color x:Key="DD.Color.Diff.Deleted">#FFF9DADA</Color>
+    <Color x:Key="DD.Color.Diff.Gap">#FFEEEEF2</Color>
+    <Color x:Key="DD.Color.Panel.Background">#FFF5F5F5</Color>
+    <Color x:Key="DD.Color.Chrome.Background">#FFEEEEF2</Color>
+    <Color x:Key="DD.Color.Border">#FFCCCEDB</Color>
+
+    <!-- Accents -->
+    <Color x:Key="DD.Color.Accent">#FF0078D4</Color>
+    <Color x:Key="DD.Color.Accent.Hover">#FF005A9E</Color>
+    <Color x:Key="DD.Color.Accent.Secondary">#FF68217A</Color>
+
+    <!-- Text -->
+    <Color x:Key="DD.Color.Text">#FF1E1E1E</Color>
+    <Color x:Key="DD.Color.Text.Secondary">#FF5E5E5E</Color>
+    <Color x:Key="DD.Color.Text.Disabled">#FFA2A4A5</Color>
+    <Color x:Key="DD.Color.Text.OnAccent">#FFFFFFFF</Color>
+
+    <!-- Interaction -->
+    <Color x:Key="DD.Color.Hover">#FFE0E3E6</Color>
+    <Color x:Key="DD.Color.Pressed">#FF007ACC</Color>
+    <Color x:Key="DD.Color.Selection.Active">#FF0078D4</Color>
+    <Color x:Key="DD.Color.Selection.Inactive">#FFCCCEDB</Color>
+    <Color x:Key="DD.Color.Focus">#FF0078D4</Color>
+
+    <!-- Popups (menus, tooltips) -->
+    <Color x:Key="DD.Color.Popup.Background">#FFF9F9F9</Color>
+    <Color x:Key="DD.Color.Popup.Border">#FFCCCEDB</Color>
+    <Color x:Key="DD.Color.ToolTip.Background">#FFF6F6F6</Color>
+    <Color x:Key="DD.Color.ToolTip.Border">#FFCCCEDB</Color>
+
+    <!-- Inputs -->
+    <Color x:Key="DD.Color.Input.Background">#FFFFFFFF</Color>
+    <Color x:Key="DD.Color.Input.Border">#FFCCCEDB</Color>
+    <Color x:Key="DD.Color.Input.Border.Hover">#FF007ACC</Color>
+
+    <!-- Scroll bars -->
+    <Color x:Key="DD.Color.ScrollBar.Track">#FFF0F0F0</Color>
+    <Color x:Key="DD.Color.ScrollBar.Thumb">#FFC2C3C9</Color>
+    <Color x:Key="DD.Color.ScrollBar.Thumb.Hover">#FF959697</Color>
+    <Color x:Key="DD.Color.ScrollBar.Thumb.Pressed">#FF686868</Color>
+
+    <!-- Status bar -->
+    <Color x:Key="DD.Color.StatusBar.Background">#FF68217A</Color>
+    <Color x:Key="DD.Color.StatusBar.Sandbox">#FFCA5100</Color>
+
+    <!-- Semantic -->
+    <Color x:Key="DD.Color.Error">#FFC50F1F</Color>
+    <Color x:Key="DD.Color.Warning">#FF9A6700</Color>
+    <Color x:Key="DD.Color.Info">#FF0063B1</Color>
+
+    <!-- File kinds (explorer icons) -->
+    <Color x:Key="DD.Color.FileKind.Folder">#FFC09553</Color>
+    <Color x:Key="DD.Color.FileKind.Markdown">#FF2F7BA6</Color>
+    <Color x:Key="DD.Color.FileKind.Json">#FF8A8A00</Color>
+    <Color x:Key="DD.Color.FileKind.Toml">#FF6E6E6E</Color>
+    <Color x:Key="DD.Color.FileKind.Yaml">#FF7A4FA8</Color>
+    <Color x:Key="DD.Color.FileKind.Script">#FF1E8C7A</Color>
+    <Color x:Key="DD.Color.FileKind.CSharp">#FF68217A</Color>
+    <Color x:Key="DD.Color.FileKind.Xml">#FFC25E12</Color>
+    <Color x:Key="DD.Color.FileKind.Text">#FF5E5E5E</Color>
+    <Color x:Key="DD.Color.FileKind.Secret">#FFC50F1F</Color>
+
+    <!-- Brushes -->
+    <SolidColorBrush x:Key="DD.Brush.Editor.Background" Color="{StaticResource DD.Color.Editor.Background}" />
+    <SolidColorBrush x:Key="DD.Brush.Editor.Text" Color="{StaticResource DD.Color.Editor.Text}" />
+    <SolidColorBrush x:Key="DD.Brush.Editor.LineNumber" Color="{StaticResource DD.Color.Editor.LineNumber}" />
+    <SolidColorBrush x:Key="DD.Brush.Editor.Selection" Color="{StaticResource DD.Color.Editor.Selection}" />
+    <SolidColorBrush x:Key="DD.Brush.Editor.CurrentLine" Color="{StaticResource DD.Color.Editor.CurrentLine}" />
+    <SolidColorBrush x:Key="DD.Brush.Diff.Inserted" Color="{StaticResource DD.Color.Diff.Inserted}" />
+    <SolidColorBrush x:Key="DD.Brush.Diff.Deleted" Color="{StaticResource DD.Color.Diff.Deleted}" />
+    <SolidColorBrush x:Key="DD.Brush.Diff.Gap" Color="{StaticResource DD.Color.Diff.Gap}" />
+    <SolidColorBrush x:Key="DD.Brush.Panel.Background" Color="{StaticResource DD.Color.Panel.Background}" />
+    <SolidColorBrush x:Key="DD.Brush.Chrome.Background" Color="{StaticResource DD.Color.Chrome.Background}" />
+    <SolidColorBrush x:Key="DD.Brush.Border" Color="{StaticResource DD.Color.Border}" />
+
+    <SolidColorBrush x:Key="DD.Brush.Accent" Color="{StaticResource DD.Color.Accent}" />
+    <SolidColorBrush x:Key="DD.Brush.Accent.Hover" Color="{StaticResource DD.Color.Accent.Hover}" />
+    <SolidColorBrush x:Key="DD.Brush.Accent.Secondary" Color="{StaticResource DD.Color.Accent.Secondary}" />
+
+    <SolidColorBrush x:Key="DD.Brush.Text" Color="{StaticResource DD.Color.Text}" />
+    <SolidColorBrush x:Key="DD.Brush.Text.Secondary" Color="{StaticResource DD.Color.Text.Secondary}" />
+    <SolidColorBrush x:Key="DD.Brush.Text.Disabled" Color="{StaticResource DD.Color.Text.Disabled}" />
+    <SolidColorBrush x:Key="DD.Brush.Text.OnAccent" Color="{StaticResource DD.Color.Text.OnAccent}" />
+
+    <SolidColorBrush x:Key="DD.Brush.Hover" Color="{StaticResource DD.Color.Hover}" />
+    <SolidColorBrush x:Key="DD.Brush.Pressed" Color="{StaticResource DD.Color.Pressed}" />
+    <SolidColorBrush x:Key="DD.Brush.Selection.Active" Color="{StaticResource DD.Color.Selection.Active}" />
+    <SolidColorBrush x:Key="DD.Brush.Selection.Inactive" Color="{StaticResource DD.Color.Selection.Inactive}" />
+    <SolidColorBrush x:Key="DD.Brush.Focus" Color="{StaticResource DD.Color.Focus}" />
+
+    <SolidColorBrush x:Key="DD.Brush.Popup.Background" Color="{StaticResource DD.Color.Popup.Background}" />
+    <SolidColorBrush x:Key="DD.Brush.Popup.Border" Color="{StaticResource DD.Color.Popup.Border}" />
+    <SolidColorBrush x:Key="DD.Brush.ToolTip.Background" Color="{StaticResource DD.Color.ToolTip.Background}" />
+    <SolidColorBrush x:Key="DD.Brush.ToolTip.Border" Color="{StaticResource DD.Color.ToolTip.Border}" />
+
+    <SolidColorBrush x:Key="DD.Brush.Input.Background" Color="{StaticResource DD.Color.Input.Background}" />
+    <SolidColorBrush x:Key="DD.Brush.Input.Border" Color="{StaticResource DD.Color.Input.Border}" />
+    <SolidColorBrush x:Key="DD.Brush.Input.Border.Hover" Color="{StaticResource DD.Color.Input.Border.Hover}" />
+
+    <SolidColorBrush x:Key="DD.Brush.ScrollBar.Track" Color="{StaticResource DD.Color.ScrollBar.Track}" />
+    <SolidColorBrush x:Key="DD.Brush.ScrollBar.Thumb" Color="{StaticResource DD.Color.ScrollBar.Thumb}" />
+    <SolidColorBrush x:Key="DD.Brush.ScrollBar.Thumb.Hover" Color="{StaticResource DD.Color.ScrollBar.Thumb.Hover}" />
+    <SolidColorBrush x:Key="DD.Brush.ScrollBar.Thumb.Pressed" Color="{StaticResource DD.Color.ScrollBar.Thumb.Pressed}" />
+
+    <SolidColorBrush x:Key="DD.Brush.StatusBar.Background" Color="{StaticResource DD.Color.StatusBar.Background}" />
+    <SolidColorBrush x:Key="DD.Brush.StatusBar.Sandbox" Color="{StaticResource DD.Color.StatusBar.Sandbox}" />
+
+    <SolidColorBrush x:Key="DD.Brush.Error" Color="{StaticResource DD.Color.Error}" />
+    <SolidColorBrush x:Key="DD.Brush.Warning" Color="{StaticResource DD.Color.Warning}" />
+    <SolidColorBrush x:Key="DD.Brush.Info" Color="{StaticResource DD.Color.Info}" />
+
+    <SolidColorBrush x:Key="DD.Brush.FileKind.Folder" Color="{StaticResource DD.Color.FileKind.Folder}" />
+    <SolidColorBrush x:Key="DD.Brush.FileKind.Markdown" Color="{StaticResource DD.Color.FileKind.Markdown}" />
+    <SolidColorBrush x:Key="DD.Brush.FileKind.Json" Color="{StaticResource DD.Color.FileKind.Json}" />
+    <SolidColorBrush x:Key="DD.Brush.FileKind.Toml" Color="{StaticResource DD.Color.FileKind.Toml}" />
+    <SolidColorBrush x:Key="DD.Brush.FileKind.Yaml" Color="{StaticResource DD.Color.FileKind.Yaml}" />
+    <SolidColorBrush x:Key="DD.Brush.FileKind.Script" Color="{StaticResource DD.Color.FileKind.Script}" />
+    <SolidColorBrush x:Key="DD.Brush.FileKind.CSharp" Color="{StaticResource DD.Color.FileKind.CSharp}" />
+    <SolidColorBrush x:Key="DD.Brush.FileKind.Xml" Color="{StaticResource DD.Color.FileKind.Xml}" />
+    <SolidColorBrush x:Key="DD.Brush.FileKind.Text" Color="{StaticResource DD.Color.FileKind.Text}" />
+    <SolidColorBrush x:Key="DD.Brush.FileKind.Secret" Color="{StaticResource DD.Color.FileKind.Secret}" />
+</ResourceDictionary>

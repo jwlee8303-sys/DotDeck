@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SyntaxDefinition name="XML" extensions=".xml;.xaml;.csproj;.props;.targets;.slnx;.config;.manifest;.xshd" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+  <Color name="Comment" foreground="#6A9955" />
+  <Color name="Tag" foreground="#569CD6" />
+  <Color name="Attribute" foreground="#9CDCFE" />
+  <Color name="Value" foreground="#CE9178" />
+  <Color name="Entity" foreground="#D7BA7D" />
+  <RuleSet>
+    <Span color="Comment" multiline="true" begin="&lt;!--" end="--&gt;" />
+    <Span color="Value" multiline="true" begin="&lt;!\[CDATA\[" end="\]\]&gt;" />
+    <Span color="Tag" multiline="true" begin="&lt;" end="&gt;">
+      <RuleSet>
+        <Span color="Value" multiline="true" begin="&quot;" end="&quot;" />
+        <Span color="Value" multiline="true" begin="'" end="'" />
+        <Rule color="Attribute">[\w:.\-]+(?=\s*=)</Rule>
+      </RuleSet>
+    </Span>
+    <Rule color="Entity">&amp;\w+;</Rule>
+  </RuleSet>
+</SyntaxDefinition>

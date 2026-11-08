@@ -35,11 +35,8 @@ public sealed class ClaudeSettingsDocument
 {
     public static readonly IReadOnlyList<string> PermissionKinds = ["allow", "ask", "deny"];
 
-    public static readonly IReadOnlyList<string> HookEvents =
-    [
-        "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Notification", "Stop", "SubagentStop",
-        "PreCompact", "SessionEnd",
-    ];
+    /// <summary>Hook event names of the built-in catalog (<c>Catalogs/Claude/hook-events.json</c>).</summary>
+    public static IReadOnlyList<string> HookEvents => [.. HookEventCatalog.BuiltIn.Events.Select(e => e.Name)];
 
     private static readonly JsonSerializerOptions s_write = new()
     {
@@ -185,13 +182,13 @@ public sealed class ClaudeSettingsDocument
             var firstGroup = new Dictionary<string, (string Key, JsonObject? Extra)>(StringComparer.Ordinal);
             foreach (var r in byEvent.Where(r => r.GroupKey is not null))
             {
-                firstGroup.TryAdd(r.Matcher.Trim(), (r.GroupKey!, r.GroupExtra));
+                firstGroup.TryAdd(r.Matcher, (r.GroupKey!, r.GroupExtra));
             }
 
-            var resolved = byEvent.Select(r => r.GroupKey is null && firstGroup.TryGetValue(r.Matcher.Trim(), out var g)
+            var resolved = byEvent.Select(r => r.GroupKey is null && firstGroup.TryGetValue(r.Matcher, out var g)
                 ? r with { GroupKey = g.Key, GroupExtra = g.Extra }
                 : r);
-            foreach (var byMatcher in resolved.GroupBy(r => (Group: r.GroupKey ?? string.Empty, Matcher: r.Matcher.Trim())))
+            foreach (var byMatcher in resolved.GroupBy(r => (Group: r.GroupKey ?? string.Empty, Matcher: r.Matcher)))
             {
                 var byMatcherKey = byMatcher.Key.Matcher;
                 var source = byMatcher.First().GroupExtra;
@@ -211,7 +208,13 @@ public sealed class ClaudeSettingsDocument
                 {
                     var command = (JsonObject?)rule.CommandExtra?.DeepClone() ?? [];
                     command["type"] ??= "command";
-                    command["command"] = rule.Command;
+
+                    // http, prompt, agent and mcp_tool handlers have no command line: do not add one.
+                    if (command["type"] is JsonValue type && type.TryGetValue<string>(out var typeName) && typeName == "command"
+                        || command.ContainsKey("command") || rule.Command.Length > 0)
+                    {
+                        command["command"] = rule.Command;
+                    }
                     if (rule.Timeout is { } timeout)
                     {
                         command["timeout"] = timeout;
@@ -313,7 +316,8 @@ public sealed class ClaudeSettingsDocument
     /// hook script paths are resolved from the settings file's location, and with <paramref name="keys"/> keys that
     /// do not apply at the file's level are reported.
     /// </summary>
-    public IReadOnlyList<ValidationIssue> Validate(Func<string, bool>? fileExists = null, SettingsContext? context = null, SettingsKeyCatalog? keys = null)
+    public IReadOnlyList<ValidationIssue> Validate(Func<string, bool>? fileExists = null, SettingsContext? context = null, SettingsKeyCatalog? keys = null,
+        ClaudeToolCatalog? tools = null, HookEventCatalog? events = null)
     {
         var issues = new List<ValidationIssue>();
         if (context is not null && keys is not null)
@@ -339,11 +343,32 @@ public sealed class ClaudeSettingsDocument
             }
         }
 
+        foreach (var kind in PermissionKinds)
+        {
+            foreach (var rule in GetPermissions(kind))
+            {
+                issues.AddRange(PermissionRule.Lint(kind, rule, tools));
+            }
+        }
+
+        events ??= HookEventCatalog.BuiltIn;
         foreach (var hook in GetHooks())
         {
-            if (!HookEvents.Contains(hook.Event, StringComparer.Ordinal))
+            var info = events.Find(hook.Event);
+            if (info is null)
             {
-                issues.Add(new ValidationIssue(IssueSeverity.Warning, $"알려지지 않은 훅 이벤트입니다: {hook.Event}"));
+                issues.Add(new ValidationIssue(IssueSeverity.Warning, $"알려지지 않은 훅 이벤트입니다(값은 그대로 보존): {hook.Event}"));
+            }
+            else if (hook.Matcher.Trim() is { Length: > 0 } matcher && matcher != "*")
+            {
+                if (!info.UsesMatcher)
+                {
+                    issues.Add(new ValidationIssue(IssueSeverity.Info, $"{hook.Event} 이벤트는 matcher를 사용하지 않습니다(값 '{matcher}'은 무시됨, 보존)."));
+                }
+                else if (HookMatcher.Parse(matcher, HookMatcher.SyntaxOf(info)).RegexError() is { } regexError)
+                {
+                    issues.Add(new ValidationIssue(IssueSeverity.Warning, $"{hook.Event}: {regexError}"));
+                }
             }
 
             // http, prompt, agent and mcp_tool hooks have no command line to check.

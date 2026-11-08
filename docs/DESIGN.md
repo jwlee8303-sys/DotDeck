@@ -219,6 +219,15 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - 훅 스크립트 검증 `HookScriptResolver`: 프로젝트·로컬은 `$CLAUDE_PROJECT_DIR`·상대 경로를 프로젝트 루트로(상대 경로는 "추정"), `~`·`$HOME`·`%USERPROFILE%`는 홈, Git Bash `/c/..` 변환. 전역의 `$CLAUDE_PROJECT_DIR`·상대 경로와 모르는 변수는 "확인 불가"(Info).
 - 제한: 경로 이름만 비교(링크·정션 대상은 따라가지 않음), `CLAUDE_CONFIG_DIR`로 옮긴 설정 폴더는 인식하지 않음, 플러그인 폴더(`~/.claude/plugins/**`) 안 파일은 판별하지 않음, 수동 지정은 파일 이름 바꾸기·이동을 따라가지 않음.
 
+### settings.json 권한·훅 폼 (Part B)
+- 카탈로그 `Catalogs/Claude/tools.json`(도구 이름·한국어 설명·인수 종류 `command|path|domain|agent|none|unverified|notMatched`·인수 도움말(placeholder, 설명, 예시 2~3개, `{slashBase}` 치환)·함께 적용되는 도구 `alsoCovers`, MCP 도움말)과 `hook-events.json`(33개 이벤트: 실행 시점·matcher 종류 `tools|values|none`·대상·값 목록·`pipeOnly`·할 수 있는 것·예시). 둘 다 `CatalogResources.Load`로 덮어쓰기 가능.
+- `PermissionRule`: `^(도구)(\((인수)\))?$`로 나눈다. 폼 행은 원문(`Raw`)을 들고 있다가 도구·인수를 고치지 않으면 원문 그대로 저장한다. 형식이 맞지 않으면 한 칸 텍스트로 보여 주고 그대로 저장한다. 검사: 괄호가 붙은 `mcp__`, allow의 `mcp__*`·도구 이름 `*`, 일치하지 않는 `Write/Glob/Grep(...)`, Read/Edit의 Windows 경로, 목록에 없는 도구(정보).
+- `HookMatcher`: 비움·`*` = 전체, 영문·숫자·`_-`·공백·`,|`만 있으면 이름 목록, 그 밖은 정규식(앞뒤 고정 없음). 정규식 항목(`mcp__서버__.*`)이 섞인 목록은 `^(A|B|mcp__서버__.*)$`로 써서 다른 도구가 함께 걸리지 않게 하고, 읽을 때 같은 형식을 다시 체크 상태로 되돌린다. 정규식 검사는 .NET 문법(경고만).
+- 이벤트가 matcher를 쓰지 않으면 ☰ 버튼을 끄고 입력칸을 흐리게 표시하되 값은 지우지 않는다(검증 패널에 정보).
+- `McpServerDiscovery`: `~/.claude.json`(최상위 `mcpServers` = 사용자, `projects[루트].mcpServers` = 로컬), `<루트>/.mcp.json`(프로젝트), `~/.claude/plugins/cache/<마켓>/<플러그인>/<버전>/`의 `.mcp.json`·`.claude-plugin/plugin.json`(이름 `plugin_<플러그인>_<서버>`), 관리형 `managed-mcp.json`(샌드박스 홈에서는 읽지 않음). `JsonDocument`로 `mcpServers`의 속성 이름만 읽고 값은 보지 않는다. 문제는 경로만 보고(내용 인용 없음). 서버는 실행·연결하지 않는다. 폼이 열릴 때와 새로고침 버튼으로 스레드 풀에서 읽는다.
+- 선택한 행(키보드 포커스)의 도움말은 속성 창 상단 "도움말"에 표시(`ITextDocumentHost.ShowFormHelp`).
+- 저장 시 `type`이 command가 아닌 훅에는 `command` 키를 새로 만들지 않는다.
+
 **projects.json 초안**
 ```json
 {

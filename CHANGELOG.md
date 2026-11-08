@@ -6,8 +6,13 @@
 - 편집기 종류를 파일 이름 대신 역할 판별기로 결정(`docs/agents/*.md`, `.claude` 밖 `SKILL.md`는 더 이상 폼으로 열지 않고, `.claude/agents/` 하위 폴더는 에이전트로 인식)
 - 에이전트·스킬 검증을 공식 문서에 맞춤: 에이전트 name이 파일명과 달라도 정보, name 형식 오류 검사, model에 fable 추가 / 스킬 name은 선택(폴더명 기본), 폴더명과 다르면 경고, description+when_to_use 1536자 초과 경고
 ### Fixed
+- 설정 폼에서 저장할 때 http·prompt 등 command가 아닌 훅에 빈 `command` 키가 추가되던 문제
 - `type`이 command가 아닌 훅(http·prompt·agent·mcp_tool)에 "command가 비어 있습니다" 오류가 잘못 표시되던 문제
 ### Added
+- settings 폼 권한 행을 `[allow|ask|deny] [도구 ▾] [인수]`로 분리: 도구 목록(공식 문서 기준 내장 도구 + 찾은 MCP 서버)과 한국어 설명, 도구별 인수 안내(placeholder, 속성 창 도움말에 예시·`/path` 기준 폴더·함께 적용되는 도구). 해석할 수 없는 규칙과 고치지 않은 규칙은 원문 그대로 저장. 괄호 붙은 mcp__ 규칙, allow `mcp__*`, 일치하지 않는 `Write(...)`·`Glob(...)`·`Grep(...)`, Windows 경로 형식 경고
+- 훅 이벤트 ▾ 목록(33개, 실행 시점·matcher 사용 여부·할 수 있는 것·예시를 툴팁과 속성 창에 표시, 목록에 없는 값 보존), matcher ☰ 다중 선택(도구·MCP 서버·이벤트별 값, `|`로 결합, 기존 값을 체크 상태로 복원, 정규식 오류 경고), matcher를 쓰지 않는 이벤트는 비활성 표시(값은 보존)
+- MCP 서버 찾기(읽기 전용, 서버 실행·연결 없음): `~/.claude.json`(사용자·로컬), 프로젝트 `.mcp.json`, 설치된 플러그인, 관리형 `managed-mcp.json`. 서버 이름과 출처만 표시하고 새로고침 버튼 제공
+- 도구·훅 이벤트 카탈로그(`tools.json`, `hook-events.json`, 공식 문서 주소·확인 날짜 포함)
 - Claude 설정 파일 역할 판별기(`FileRoleResolver`): 파일 이름이 아니라 가장 가까운 `.claude` 폴더 기준 위치로 설정·서브에이전트·스킬·명령·규칙·CLAUDE.md·.mcp.json 등을 판별하고 범위(전역/프로젝트/로컬(Git 제외)/하위 폴더/관리형)를 정함. 규칙은 `Catalogs/Claude/file-roles.json` 데이터(공식 문서 주소·확인 날짜 포함), `%APPDATA%\DotDeck\catalogs\`의 같은 이름 파일로 덮어쓰기 가능
 - 탭 툴팁·속성 패널에 `역할 · 범위`와 기준 루트 표시, settings 폼 상단에 범위 안내와 "이 범위에서 적용되지 않는 키" 경고(`settings-keys.json`)
 - "다음 형식으로 열기"(탐색기 우클릭, 문서 보기 막대): 텍스트/Markdown/설정 폼/에이전트 폼/스킬 폼, 파일별로 `editor-overrides.json`에 기억, 자동 판별로 되돌리기. 해석할 수 없으면 이유를 표시하고 텍스트로 표시

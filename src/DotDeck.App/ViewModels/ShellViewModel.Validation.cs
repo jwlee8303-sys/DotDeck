@@ -63,7 +63,9 @@ public sealed partial class ShellViewModel
         var store = _store;
         var context = Core.Editors.SettingsContext.From(doc.Role, Paths.Home);
         var keys = SettingsKeys;
-        var issues = await Task.Run(() => Validate(kind, path, text, store, context, keys)).ConfigureAwait(true);
+        var tools = ToolCatalog;
+        var events = HookEvents;
+        var issues = await Task.Run(() => Validate(kind, path, text, store, context, keys, tools, events)).ConfigureAwait(true);
         if (version == _validationVersion && _validated == doc)
         {
             Validation.Show(doc.Buffer.FileName, issues);
@@ -71,12 +73,12 @@ public sealed partial class ShellViewModel
     }
 
     private static IReadOnlyList<ValidationIssue> Validate(EditorKind kind, string path, string text, Core.Files.IFileStore store,
-        SettingsContext? context, SettingsKeyCatalog? keys) => kind switch
+        SettingsContext? context, SettingsKeyCatalog? keys, ClaudeToolCatalog? tools, HookEventCatalog? events) => kind switch
     {
         EditorKind.Agent => MarkdownAgentValidator.ValidateAgent(path, text),
         EditorKind.Skill => MarkdownAgentValidator.ValidateSkill(path, text),
         EditorKind.ClaudeSettings => ClaudeSettingsDocument.TryParse(text, out var error) is { } settings
-            ? settings.Validate(store.FileExists, context, keys)
+            ? settings.Validate(store.FileExists, context, keys, tools, events)
             : [new ValidationIssue(IssueSeverity.Error, error ?? "JSON 오류")],
         _ => [],
     };

@@ -15,7 +15,18 @@ public sealed partial class ShellViewModel
     // Roles resolved off the UI thread before a tab is created (resolution may check folders on slow drives).
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, FileRole?> _roleCache = new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly Core.Mcp.McpServerDiscovery _mcp;
+
     public SettingsKeyCatalog? SettingsKeys { get; }
+
+    public ClaudeToolCatalog? ToolCatalog { get; }
+
+    public HookEventCatalog? HookEvents { get; }
+
+    /// <summary>Configured MCP server names for the settings form, read on the thread pool (servers are never run).</summary>
+    public Task<Core.Mcp.McpDiscoveryResult> DiscoverMcpAsync(string? projectRoot) => Task.Run(() => _mcp.Discover(projectRoot));
+
+    public void ShowFormHelp(Tools.RoleDescription? help) => Properties.Help = help;
 
     /// <summary>The role of <paramref name="path"/> and the editor to use (the user's choice wins).</summary>
     /// <remarks>UI thread only when <paramref name="refreshRoots"/> (it reads the explorers).</remarks>

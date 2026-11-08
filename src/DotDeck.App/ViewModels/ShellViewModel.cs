@@ -68,12 +68,22 @@ public sealed partial class ShellViewModel : ObservableObject
         // Claude Code file roles (SPEC 7.0): user copies in %APPDATA%\DotDeck\catalogs replace the built-in data.
         var roleCatalog = Core.Catalogs.CatalogResources.Load(FileRoleCatalog.ClaudeResource, FileRoleCatalog.Parse, services.Store, services.Paths.CatalogsDir);
         var keyCatalog = Core.Catalogs.CatalogResources.Load(Core.Editors.SettingsKeyCatalog.ClaudeResource, Core.Editors.SettingsKeyCatalog.Parse, services.Store, services.Paths.CatalogsDir);
-        foreach (var warning in new[] { roleCatalog.Warning, keyCatalog.Warning }.OfType<string>())
+        var toolCatalog = Core.Catalogs.CatalogResources.Load(Core.Editors.ClaudeToolCatalog.ClaudeResource, Core.Editors.ClaudeToolCatalog.Parse, services.Store, services.Paths.CatalogsDir);
+        var eventCatalog = Core.Catalogs.CatalogResources.Load(Core.Editors.HookEventCatalog.ClaudeResource, Core.Editors.HookEventCatalog.Parse, services.Store, services.Paths.CatalogsDir);
+        foreach (var warning in new[] { roleCatalog.Warning, keyCatalog.Warning, toolCatalog.Warning, eventCatalog.Warning }.OfType<string>())
         {
             _log.Warning(warning);
         }
 
         SettingsKeys = keyCatalog.Value;
+        ToolCatalog = toolCatalog.Value;
+        HookEvents = eventCatalog.Value;
+
+        // Managed MCP servers only for the real home: a sandbox home (--home) never reads machine-wide files.
+        var managedMcp = !services.Paths.IsHomeOverridden && roleCatalog.Value.ManagedDir is { } managedDir
+            ? System.IO.Path.Combine(managedDir, "managed-mcp.json")
+            : null;
+        _mcp = new Core.Mcp.McpServerDiscovery(services.Store, services.Paths.Home, managedMcp);
         _roles = new FileRoleResolver([roleCatalog.Value], services.Store, services.Paths.Home, ProjectRoots,
             includeManaged: !services.Paths.IsHomeOverridden);
         _editorOverrides = new EditorOverrideStore(services.Store, services.Paths.EditorOverridesFile);

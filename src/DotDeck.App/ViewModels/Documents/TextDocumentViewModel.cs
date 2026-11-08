@@ -22,6 +22,18 @@ public interface ITextDocumentHost
 
     /// <summary>Settings keys that apply only at some levels (for the settings form's scope notes).</summary>
     SettingsKeyCatalog? SettingsKeys { get; }
+
+    /// <summary>Claude Code tools with permission argument help.</summary>
+    ClaudeToolCatalog? ToolCatalog { get; }
+
+    /// <summary>Hook events with their matcher rules.</summary>
+    HookEventCatalog? HookEvents { get; }
+
+    /// <summary>Reads configured MCP server names (never starts or contacts servers). Null root: user settings.</summary>
+    Task<DotDeck.Core.Mcp.McpDiscoveryResult> DiscoverMcpAsync(string? projectRoot);
+
+    /// <summary>Shows help for the selected form row in the properties pane (null clears it).</summary>
+    void ShowFormHelp(Tools.RoleDescription? help);
 }
 
 /// <summary>
@@ -231,8 +243,18 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     private void ShowForm()
     {
         Form ??= Kind == EditorKind.ClaudeSettings
-            ? new SettingsFormViewModel(ApplyFormText) { RunHook = _host.RunHook, Role = Role, FilePath = FilePath, SettingsKeys = _host.SettingsKeys }
-            : new FrontmatterFormViewModel(Kind, ApplyFormText);
+            ? new SettingsFormViewModel(ApplyFormText)
+            {
+                RunHook = _host.RunHook,
+                Role = Role,
+                FilePath = FilePath,
+                SettingsKeys = _host.SettingsKeys,
+                Tools = _host.ToolCatalog,
+                Events = _host.HookEvents,
+                DiscoverMcp = _host.DiscoverMcpAsync,
+                ShowHelp = _host.ShowFormHelp,
+            }
+            : new FrontmatterFormViewModel(Kind, ApplyFormText, _host.ToolCatalog?.Ordered.Where(t => t.Common).Select(t => t.Name).ToList());
         FormError = Form.Load(Buffer.Document.Text);
         IsFormView = FormError is null;
     }

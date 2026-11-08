@@ -41,6 +41,10 @@ public sealed partial class PropertiesPaneViewModel() : ToolPaneViewModel("tool.
     [ObservableProperty]
     private RoleDescription? _role;
 
+    /// <summary>Help for the row selected in a settings form (permission rule syntax, hook event).</summary>
+    [ObservableProperty]
+    private RoleDescription? _help;
+
     /// <summary>Re-reads the role of the shown item (after "다음 형식으로 열기").</summary>
     public async void Refresh()
     {

@@ -108,6 +108,23 @@
 
     <DataTemplate DataType="{x:Type tools:PropertiesPaneViewModel}">
         <Border Background="{DynamicResource DD.Brush.Panel.Background}">
+            <DockPanel>
+            <!-- Help for the selected settings form row (shown whether or not an item is selected) -->
+            <Border DockPanel.Dock="Top" Margin="10,8,10,0" Padding="0,0,0,8" BorderThickness="0,0,0,1"
+                    BorderBrush="{DynamicResource DD.Brush.Border}" Visibility="{Binding Help, Converter={StaticResource SysNullToCollapsed}}">
+                <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding Help.Title}" />
+                        <ItemsControl ItemsSource="{Binding Help.Lines}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBox Style="{StaticResource ValueText}" Margin="0,2,0,0" TextWrapping="Wrap" Text="{Binding Mode=OneWay}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
             <Grid>
                 <TextBlock Style="{StaticResource PlaceholderText}" Text="선택한 항목이 없습니다."
                            Visibility="{Binding HasItem, Converter={StaticResource SysFalseToVisible}}" />
@@ -144,6 +161,7 @@
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
+            </DockPanel>
         </Border>
     </DataTemplate>
 

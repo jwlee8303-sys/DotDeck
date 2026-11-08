@@ -36,6 +36,7 @@ public static class FormRegistry
             [EditorKind.ClaudeSettings] = CreateSettings,
             [EditorKind.Agent] = c => CreateFrontmatter(EditorKind.Agent, c),
             [EditorKind.Skill] = c => CreateFrontmatter(EditorKind.Skill, c),
+            [EditorKind.CodexConfig] = c => new TomlFormViewModel(c.Apply),
         };
 
     public static bool HasForm(EditorKind kind) => EditorRegistry.Get(kind).HasForm && s_factories.ContainsKey(kind);

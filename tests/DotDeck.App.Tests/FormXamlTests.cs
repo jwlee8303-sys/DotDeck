@@ -54,6 +54,17 @@ public sealed class FormXamlTests
                 settingsView.Arrange(new Rect(0, 0, 1000, 800));
                 settingsView.UpdateLayout();
                 Assert.Same(settings.HookTable, Descendants(settingsView).OfType<HookTable>().Single().DataContext);
+                var toml = new TomlFormViewModel(_ => { });
+                Assert.Null(toml.Load("inline = { x = 1 }\n"));
+                toml.Selected = toml.Rows.Single(r => r.Label == "inline.x");
+                var tomlTemplate = Assert.IsType<DataTemplate>(templates[new DataTemplateKey(typeof(TomlFormViewModel))]);
+                var tomlView = Assert.IsType<ScrollViewer>(tomlTemplate.LoadContent());
+                tomlView.DataContext = toml;
+                tomlView.Measure(new Size(1000, 800));
+                tomlView.Arrange(new Rect(0, 0, 1000, 800));
+                tomlView.UpdateLayout();
+                Assert.False(Descendants(tomlView).OfType<Button>().Single(b => b.Command == toml.DeleteKeyCommand).IsEnabled);
+                Assert.False(Descendants(tomlView).OfType<Button>().Single(b => b.Command == toml.AddKeyCommand).IsEnabled);
                 var original = "name = '한글'";
                 var snapshot = TextFileReader.Decode(@"C:\fake\config.toml", TextEncodings.Encode(original, TextEncodingKind.Cp949), DateTime.UtcNow);
                 var buffer = new DocumentBuffer(snapshot);

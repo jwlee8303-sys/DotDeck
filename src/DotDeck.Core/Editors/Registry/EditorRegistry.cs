@@ -13,7 +13,8 @@ public static class EditorRegistry
             Validate: c => FrontmatterProfiles.ClaudeAgent.Validate(c.Path, c.Text), FormError: FrontmatterError),
         new(EditorKind.Skill, "skillForm", "스킬 폼", "claude", HasForm: true, HasOutline: true,
             Validate: c => FrontmatterProfiles.ClaudeSkill.Validate(c.Path, c.Text), FormError: FrontmatterError),
-        new(EditorKind.CodexConfig, "codexConfigForm", "Codex 설정 폼", "codex"),
+        new(EditorKind.CodexConfig, "codexConfigForm", "TOML 구조 폼 (Codex 설정)", "codex", HasForm: true,
+            FormError: text => TomlError(text)),
         new(EditorKind.CodexHooks, "codexHooksForm", "Codex 훅 폼", "codex"),
         new(EditorKind.CodexAgent, "codexAgentForm", "Codex 에이전트 폼", "codex"),
         new(EditorKind.CodexSkillMetadata, "openaiYamlForm", "Codex 스킬 메타데이터 폼", "codex"),
@@ -29,6 +30,12 @@ public static class EditorRegistry
 
     private static string? FrontmatterError(string text) =>
         FrontmatterDocument.Parse(text).ParseIssues.FirstOrDefault(i => i.Severity == IssueSeverity.Error)?.Message;
+
+    private static string? TomlError(string text)
+    {
+        try { _ = Toml.TomlEditDocument.Parse(System.Text.Encoding.UTF8.GetBytes(text)); return null; }
+        catch (Toml.TomlEditException ex) { return $"TOML 오류: {ex.Line}행 {ex.Column}열"; }
+    }
 
     private static string? SettingsError(string text)
     {

@@ -17,7 +17,7 @@ public sealed class FormRegistryTests
         string? chosen = null;
         var command = new RelayCommand<string>(name => chosen = name);
         var choices = FormRegistry.Choices(command);
-        Assert.Equal(["text", "markdown", "settingsForm", "agentForm", "skillForm", "auto"], choices.Select(c => c.Name));
+        Assert.Equal(["text", "markdown", "settingsForm", "agentForm", "skillForm", "codexConfigForm", "auto"], choices.Select(c => c.Name));
         foreach (var choice in choices)
         {
             choice.Command.Execute(choice.Name);
@@ -73,7 +73,7 @@ public sealed class FormRegistryTests
     [Fact]
     public void Unimplemented_forms_do_not_fall_back_to_a_claude_form()
     {
-        Assert.Null(FormRegistry.Create(EditorKind.CodexConfig,
+        Assert.Null(FormRegistry.Create(EditorKind.CodexHooks,
             new FormContext(_ => Assert.Fail("Must not edit"), @"C:\fake\config.toml", null, new FakeHost())));
     }
 

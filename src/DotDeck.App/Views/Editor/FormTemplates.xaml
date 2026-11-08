@@ -10,6 +10,29 @@
     </ResourceDictionary.MergedDictionaries>
 
     <!-- agents/*.md, skills/*/SKILL.md -->
+    <DataTemplate DataType="{x:Type vm:TomlFormViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="16">
+                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                <ListBox ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" DisplayMemberPath="Label" MaxHeight="300" />
+                <TextBlock Text="값 (TOML 형식)" Margin="0,8,0,4" />
+                <TextBox Text="{Binding Literal, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="60" IsEnabled="{Binding CanEdit}" />
+                <WrapPanel>
+                    <Button Content="선택한 값 적용" Command="{Binding ApplyValueCommand}" Margin="0,4,8,4" />
+                    <Button Content="선택한 키 삭제" Command="{Binding DeleteKeyCommand}" Margin="0,4,8,4"
+                            ToolTip="독립된 주석·빈 줄은 보존합니다. 인라인 항목과 배열 원소 삭제는 아직 지원하지 않습니다." />
+                </WrapPanel>
+                <TextBlock Text="새 키 또는 테이블 경로 (예: features 또는 projects.'D:\project')" TextWrapping="Wrap" />
+                <TextBox Text="{Binding Path, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEdit}" />
+                <WrapPanel>
+                    <Button Content="키 추가" Command="{Binding AddKeyCommand}" Margin="0,4,8,4" ToolTip="루트 또는 기존 명시적 테이블에 추가합니다. 인라인 테이블 추가는 미지원입니다." />
+                    <Button Content="테이블 생성" Command="{Binding CreateTableCommand}" Margin="0,4,8,4" />
+                    <Button Content="빈 테이블 정리" Command="{Binding CleanupCommand}" Margin="0,4,8,4" />
+                </WrapPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type vm:FrontmatterFormViewModel}">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="16,4,16,16" MaxWidth="900" HorizontalAlignment="Left" MinWidth="420">

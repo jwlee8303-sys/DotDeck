@@ -47,7 +47,7 @@ public sealed class EditorRegistryTests
         Assert.True(agent.CanShowForm("plain markdown", out _));
         var context = new EditorValidationContext(@"C:\fake\agent.md", "plain markdown", PhysicalFileStore.Instance);
         Assert.Contains(agent.Validate!(context), i => i.Severity == IssueSeverity.Error);
-        Assert.False(EditorRegistry.Get(EditorKind.CodexConfig).CanShowForm("", out _));
+        Assert.False(EditorRegistry.Get(EditorKind.CodexHooks).CanShowForm("", out _));
     }
 
     [Fact]

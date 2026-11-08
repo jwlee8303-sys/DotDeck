@@ -14,6 +14,18 @@ public sealed class TomlEditException(string message, int line = 1, int column =
 /// <summary>UTF-8 TOML source with surgical value patches. Tomlyn parses; it never serializes the document.</summary>
 public sealed class TomlEditDocument
 {
+    public sealed record Entry(IReadOnlyList<string> Path, string Literal, bool CanDelete);
+    public IReadOnlyList<Entry> Entries => [.. _values.Select(pair => new Entry(
+        JsonSerializer.Deserialize<string[]>(pair.Key)!, Slice(pair.Value), _assignments.ContainsKey(pair.Key)))];
+    public static string FormatPath(IEnumerable<string> path) => string.Join(".", path.Select(QuoteKey));
+    public static IReadOnlyList<string> ParsePath(string path)
+    {
+        var syntax = ParseSyntax(path + " = 0");
+        if (syntax.KeyValues.Count() != 1 || syntax.Tables.Any()) throw new TomlEditException("키 경로를 확인하세요.");
+        return Segments(syntax.KeyValues.First().Key!);
+    }
+    public bool CanSetValue(IReadOnlyList<string> path) => path.Count > 0
+        && (_values.ContainsKey(Key(path)) || _sections.ContainsKey(Key(path.Take(path.Count - 1))));
     private static readonly UTF8Encoding s_utf8 = new(false, true);
     private readonly bool _bom;
     private string _text;

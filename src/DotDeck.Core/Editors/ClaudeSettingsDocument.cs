@@ -325,31 +325,8 @@ public sealed class ClaudeSettingsDocument
             issues.AddRange(SettingsScopeLint.Check(_root, context.Scope, keys));
         }
 
-        var seen = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var kind in PermissionKinds)
-        {
-            foreach (var rule in GetPermissions(kind))
-            {
-                if (seen.TryGetValue(rule, out var other))
-                {
-                    issues.Add(other == kind
-                        ? new ValidationIssue(IssueSeverity.Warning, $"권한 규칙이 {kind}에 중복됩니다: {rule}")
-                        : new ValidationIssue(IssueSeverity.Error, $"권한 규칙이 {other}와 {kind}에 모두 있습니다: {rule}"));
-                }
-                else
-                {
-                    seen[rule] = kind;
-                }
-            }
-        }
-
-        foreach (var kind in PermissionKinds)
-        {
-            foreach (var rule in GetPermissions(kind))
-            {
-                issues.AddRange(PermissionRule.Lint(kind, rule, tools));
-            }
-        }
+        var rules = PermissionKinds.SelectMany(kind => GetPermissions(kind).Select(rule => new PermissionEntry(kind, rule))).ToList();
+        issues.AddRange(PermissionLint.Check(rules, tools).Select(i => i.Issue));
 
         events ??= HookEventCatalog.BuiltIn;
         foreach (var hook in GetHooks())

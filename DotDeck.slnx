@@ -4,6 +4,7 @@
     <Project Path="src/DotDeck.Core/DotDeck.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/DotDeck.App.Tests/DotDeck.App.Tests.csproj" />
     <Project Path="tests/DotDeck.Core.Tests/DotDeck.Core.Tests.csproj" />
   </Folder>
 </Solution>

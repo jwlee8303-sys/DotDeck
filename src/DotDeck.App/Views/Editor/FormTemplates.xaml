@@ -136,14 +136,54 @@
                             Command="{Binding RefreshMcpCommand}" ToolTip="MCP 설정 파일을 다시 읽습니다(서버는 실행하지 않음)">
                         <TextBlock Style="{StaticResource DD.Glyph}" FontSize="10" Text="&#xE72C;" />
                     </Button>
-                    <TextBlock Style="{StaticResource DD.Text.Secondary}" VerticalAlignment="Center" Text="{Binding McpStatus}"
-                               ToolTip="{Binding McpDetails}" />
+                    <Button Style="{StaticResource RowButton}" Command="{Binding ToggleMcpListCommand}" Padding="4,1"
+                            ToolTip="찾은 MCP 서버 이름과 출처를 봅니다(서버를 실행하거나 연결하지 않음)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="9" Margin="0,0,4,0" VerticalAlignment="Center" Text="&#xE76C;" />
+                            <TextBlock Text="{Binding McpStatus}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                 </DockPanel>
+                <Border Visibility="{Binding IsMcpListOpen, Converter={StaticResource FormBoolToVisible}}" Margin="0,0,0,6" Padding="8,4"
+                        BorderThickness="1" BorderBrush="{DynamicResource DD.Brush.Popup.Border}">
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding McpServers}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock TextWrapping="Wrap" Margin="0,1" ToolTip="{Binding SourcePath}">
+                                        <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                        <Run Text=" — " />
+                                        <Run Text="{Binding Source, Mode=OneWay}" Foreground="{DynamicResource DD.Brush.Text.Secondary}" />
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding McpProblems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock TextWrapping="Wrap" Margin="0,1" Foreground="{DynamicResource DD.Brush.Warning}" Text="{Binding}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Style="{StaticResource DD.Text.Secondary}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                   Text="설정 파일에서 이름과 출처만 읽습니다. 서버를 실행하거나 연결하지 않으며, claude.ai 커넥터는 찾을 수 없습니다." />
+                    </StackPanel>
+                </Border>
                 <ItemsControl ItemsSource="{Binding Permissions}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <DockPanel Margin="0,0,0,3" PreviewGotKeyboardFocus="OnRowFocus">
                                 <ContentPresenter DockPanel.Dock="Right" ContentTemplate="{StaticResource RowTools}" Content="{Binding}" />
+                                <!-- Warnings (also in the validation pane); saving is not blocked -->
+                                <Grid DockPanel.Dock="Right" Width="18" Margin="4,0,0,0" Background="Transparent" ToolTip="{Binding IssueText}"
+                                      ToolTipService.ShowDuration="60000">
+                                    <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource DD.Brush.Warning}" Text="&#xE7BA;"
+                                               Visibility="{Binding HasWarnings, Converter={StaticResource FormBoolToVisible}}" />
+                                    <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource DD.Brush.Info}" Text="&#xE946;"
+                                               Visibility="{Binding HasNotesOnly, Converter={StaticResource FormBoolToVisible}}" />
+                                </Grid>
                                 <DockPanel DockPanel.Dock="Left" Width="80" Margin="0,0,6,0">
                                     <Button DockPanel.Dock="Right" Style="{StaticResource DropButton}" ToolTip="종류 (deny &gt; ask &gt; allow 순으로 우선)"
                                             Tag="{Binding DataContext.PermissionKinds, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -151,7 +191,7 @@
                                     <TextBox Text="{Binding Kind, UpdateSourceTrigger=PropertyChanged}" />
                                 </DockPanel>
                                 <Grid>
-                                    <!-- Parsed rule: tool + argument -->
+                                    <!-- Parsed rule: tool + argument (shaped by the tool's argument kind) -->
                                     <DockPanel Visibility="{Binding IsParsed, Converter={StaticResource FormBoolToVisible}}">
                                         <DockPanel DockPanel.Dock="Left" Width="220" Margin="0,0,6,0">
                                             <Button DockPanel.Dock="Right" Style="{StaticResource DropButton}" ToolTip="도구 선택"
@@ -163,11 +203,39 @@
                                                            Visibility="{Binding Tool, Converter={StaticResource FormEmptyToVisible}}" />
                                             </Grid>
                                         </DockPanel>
-                                        <Grid>
-                                            <TextBox Text="{Binding Argument, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding ToolDescription}"
-                                                     FontFamily="{DynamicResource DD.Font.Editor}" />
-                                            <TextBlock Style="{StaticResource FormPlaceholder}" Text="{Binding ArgumentPlaceholder}"
-                                                       Visibility="{Binding Argument, Converter={StaticResource FormEmptyToVisible}}" />
+                                        <!-- MCP: scope instead of an argument -->
+                                        <DockPanel DockPanel.Dock="Left" Margin="0,0,6,0" Visibility="{Binding ShowMcpScope, Converter={StaticResource FormBoolToVisible}}">
+                                            <Button DockPanel.Dock="Left" Style="{StaticResource RowButton}" Padding="4,1" Margin="0,0,4,0"
+                                                    Tag="{Binding McpScopeChoices}" CommandParameter="{Binding SetMcpScopeCommand}" Click="OnDropButtonClick"
+                                                    ToolTip="서버 전체 / 모든 도구(__*) / 특정 도구">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding McpScopeLabel}" VerticalAlignment="Center" />
+                                                    <TextBlock Style="{StaticResource DD.Glyph}" FontSize="9" Margin="4,0,0,0" VerticalAlignment="Center" Text="&#xE70D;" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Grid Width="180">
+                                                <TextBox Text="{Binding McpToolName, UpdateSourceTrigger=PropertyChanged}" FontFamily="{DynamicResource DD.Font.Editor}"
+                                                         ToolTip="특정 도구의 이름 (입력하면 특정 도구 범위로 바뀜)" />
+                                                <TextBlock Style="{StaticResource FormPlaceholder}" Text="도구 이름"
+                                                           Visibility="{Binding McpToolName, Converter={StaticResource FormEmptyToVisible}}" />
+                                            </Grid>
+                                        </DockPanel>
+                                        <Grid Visibility="{Binding ShowArgumentBox, Converter={StaticResource FormBoolToVisible}}">
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,4,0" Text="{Binding Prefix}"
+                                                           FontFamily="{DynamicResource DD.Font.Editor}" Foreground="{DynamicResource DD.Brush.Text.Secondary}"
+                                                           Visibility="{Binding UsesPrefix, Converter={StaticResource FormBoolToVisible}}" />
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource DropButton}" ToolTip="에이전트 선택"
+                                                        Visibility="{Binding HasArgumentChoices, Converter={StaticResource FormBoolToVisible}}"
+                                                        Tag="{Binding DataContext.AgentChoices, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding SetArgumentCommand}" />
+                                                <Grid>
+                                                    <TextBox Text="{Binding ArgumentValue, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding ToolDescription}"
+                                                             IsEnabled="{Binding IsArgumentEnabled}" FontFamily="{DynamicResource DD.Font.Editor}" />
+                                                    <TextBlock Style="{StaticResource FormPlaceholder}" Text="{Binding ArgumentPlaceholder}"
+                                                               Visibility="{Binding Argument, Converter={StaticResource FormEmptyToVisible}}" />
+                                                </Grid>
+                                            </DockPanel>
                                         </Grid>
                                     </DockPanel>
                                     <!-- Rule the form cannot split: one text, saved as it is -->

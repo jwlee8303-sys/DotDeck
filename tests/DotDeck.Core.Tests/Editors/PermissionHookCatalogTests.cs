@@ -58,7 +58,7 @@ public sealed class PermissionRuleTests
         var tools = ClaudeToolCatalog.LoadClaude();
         Assert.Contains(PermissionRule.Lint("allow", "Write(src/**)", tools), i => i.Message.Contains("Edit(경로)", StringComparison.Ordinal));
         Assert.Contains(PermissionRule.Lint("allow", "mcp__github(x)", tools), i => i.Message.Contains("건너뜁", StringComparison.Ordinal));
-        Assert.Contains(PermissionRule.Lint("allow", "mcp__*", tools), i => i.Message.Contains("무시", StringComparison.Ordinal));
+        Assert.Contains(PermissionRule.Lint("allow", "mcp__*", tools), i => i.Message.Contains("건너뜁", StringComparison.Ordinal));
         Assert.Contains(PermissionRule.Lint("deny", @"Read(C:\secrets\**)", tools), i => i.Message.Contains("//c/", StringComparison.Ordinal));
         Assert.Contains(PermissionRule.Lint("allow", "Bash(foo", tools), i => i.Severity == IssueSeverity.Info);
         Assert.Contains(PermissionRule.Lint("allow", "FutureTool", tools), i => i.Message.Contains("FutureTool", StringComparison.Ordinal));

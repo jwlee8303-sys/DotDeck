@@ -3,6 +3,9 @@
 
 ## [Unreleased]
 ### Changed
+- 권한 규칙 인수 칸이 도구의 인수 형식(공식 문서 기준)을 따름: WebFetch는 `domain:` 접두어 표시, 인수 없는 도구는 칸 비활성, Agent는 기본 에이전트(Explore·Plan)와 이 범위의 agents/*.md 이름 선택, MCP 규칙은 인수 대신 서버 전체·모든 도구(`__*`)·특정 도구 선택. PowerShell은 명령, Skill은 스킬 이름, NotebookEdit는 Edit 규칙 사용으로 분류
+- 도구·matcher 메뉴의 MCP 그룹 이름을 "MCP 도구"로 바꾸고 툴팁에 출처 파일 표시. "MCP 서버 N개"를 누르면 서버 이름·출처·읽지 못한 파일 목록 표시
+- `tools.json` 카탈로그 schemaVersion 2(인수 입력 방식·접두어·선택지·복합 명령 구분자·매개변수 목록·경고 문구). v1 사용자 카탈로그는 내장본으로 대체
 - 시스템 프로젝트 "기타 파일"을 "사용자 지정 파일"로 이름 변경
 - 탐색기 "표시 필터(모든 파일/설정·문서만)"와 "보이는 항목 편집"을 새 보이는 항목 방식으로 대체(SPEC 2.3): ✎ 편집 모드의 3상태 체크박스(체크/해제/일부), 일반 모드는 체크된 항목만 표시, 보일 것이 없는 폴더는 숨김
 - `projects.json` 형식을 schemaVersion 2로 올림(`visibility`·`view`). v1 파일은 처음 읽을 때 `projects.json.v1-<시각>.bak`으로 보존하고 한 번 변환한다(`filter: all` → 모든 파일 보기, `configDocs` → 이전 확장자 20개 + `.gitignore`·`.editorconfig`, `visibleItems` → 루트 해제 + 항목 체크). 이전 DotDeck은 v2 파일을 읽기 전용으로 연다
@@ -12,9 +15,13 @@
 - 편집기 종류를 파일 이름 대신 역할 판별기로 결정(`docs/agents/*.md`, `.claude` 밖 `SKILL.md`는 더 이상 폼으로 열지 않고, `.claude/agents/` 하위 폴더는 에이전트로 인식)
 - 에이전트·스킬 검증을 공식 문서에 맞춤: 에이전트 name이 파일명과 달라도 정보, name 형식 오류 검사, model에 fable 추가 / 스킬 name은 선택(폴더명 기본), 폴더명과 다르면 경고, description+when_to_use 1536자 초과 경고
 ### Fixed
+- 도구 드롭다운과 훅 matcher 메뉴에 MCP 서버가 보이지 않던 문제(메뉴에 스크롤이 없어 목록 끝이 잘림)
 - 설정 폼에서 저장할 때 http·prompt 등 command가 아닌 훅에 빈 `command` 키가 추가되던 문제
 - `type`이 command가 아닌 훅(http·prompt·agent·mcp_tool)에 "command가 비어 있습니다" 오류가 잘못 표시되던 문제
 ### Added
+- 권한 규칙 경고(저장은 막지 않음, 행 옆 ⚠/ⓘ와 검증 결과 패널): 괄호 붙은 MCP 규칙, 인수 없는 도구에 인수, `domain:` 없는 WebFetch, 복합 명령, 가운데의 `:*`, Edit deny만 있고 Read deny 없음, allow의 매개변수 규칙, 쓸 수 없는 매개변수
+- 매개변수 규칙 `도구(매개변수:값)`(deny·ask) 인식·보존과 속성 패널 설명
+- App ViewModel 테스트 프로젝트 `tests/DotDeck.App.Tests`
 - 모든 폴더 프로젝트(기본 제공 Claude·Codex 포함)에 "사용자 지정 파일" 노드: 프로젝트 루트 밖 파일도 경로 입력·찾아보기로 등록, 목록에서 빼기, 편집 모드에서 체크 해제로 노드 숨기기, 이름 바꾸기·이동을 따라 경로 갱신(`projects.json`의 `customFiles`·`visibility.hideCustomFiles`)
 - 탐색기 보기 방식(프로젝트별): 트리 / 압축 트리(하위 폴더 하나뿐인 폴더를 한 줄로, 마디 클릭으로 폴더 선택) / 평면(보이는 파일만, 이름순 또는 끌어서 정렬)
 - 최상위에 고정/해제, 트리에서 위치 보기(편집 모드 전체 트리로 이동해 선택)

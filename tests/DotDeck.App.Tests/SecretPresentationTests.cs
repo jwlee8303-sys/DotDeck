@@ -77,6 +77,14 @@ public sealed class SecretPresentationTests : IDisposable
     }
 
     [Fact]
+    public void Env_double_quoted_value_with_escaped_quote_registers_raw_and_unescaped_forms()
+    {
+        SecretPresentation.CollectSecrets(".env", "export SESSION=\"ab\\\"fake-sensitive-9038\" # note\n");
+        Assert.DoesNotContain("fake-sensitive-9038", SecretMasker.MaskText("output: ab\\\"fake-sensitive-9038"), StringComparison.Ordinal);
+        Assert.DoesNotContain("fake-sensitive-9038", SecretMasker.MaskText("output: ab\"fake-sensitive-9038"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Json_root_scalar_of_a_secret_file_is_collected_and_masked()
     {
         const string value = "fake-root-scalar-7781";

@@ -88,22 +88,69 @@ public static class SecretPresentation
             var line = raw.Trim();
             if (line.Length == 0 || line.StartsWith('#') || line.StartsWith("-----", StringComparison.Ordinal)) continue;
             var assignment = s_assignment.Match(line);
-            Register(assignment.Success ? EnvValue(assignment.Groups["value"].Value) : line);
+            if (!assignment.Success)
+            {
+                Register(line);
+                continue;
+            }
+
+            foreach (var value in EnvValues(assignment.Groups["value"].Value)) Register(value);
         }
     }
 
-    /// <summary>dotenv value: a quoted value ends at its closing quote; an unquoted one at " #" (inline comment).</summary>
-    private static string EnvValue(string raw)
+    /// <summary>
+    /// dotenv value: a quoted value ends at its closing quote (in double quotes a backslash escapes the next character);
+    /// an unquoted one at " #" (inline comment). Double-quoted values yield both the raw and the unescaped form.
+    /// </summary>
+    private static IEnumerable<string> EnvValues(string raw)
     {
         var value = raw.Trim();
         if (value.Length > 0 && value[0] is '"' or '\'')
         {
-            var close = value.IndexOf(value[0], 1);
-            return close > 0 ? value[1..close] : value[1..];
+            var quote = value[0];
+            var close = -1;
+            for (var i = 1; i < value.Length; i++)
+            {
+                if (quote == '"' && value[i] == '\\')
+                {
+                    i++;
+                    continue;
+                }
+
+                if (value[i] == quote)
+                {
+                    close = i;
+                    break;
+                }
+            }
+
+            var inner = close > 0 ? value[1..close] : value[1..];
+            yield return inner;
+            if (quote == '"' && inner.Contains('\\', StringComparison.Ordinal)) yield return Unescape(inner);
+            yield break;
         }
 
         var comment = value.IndexOf(" #", StringComparison.Ordinal);
-        return (comment >= 0 ? value[..comment] : value).TrimEnd();
+        yield return (comment >= 0 ? value[..comment] : value).TrimEnd();
+    }
+
+    private static string Unescape(string value)
+    {
+        var builder = new System.Text.StringBuilder(value.Length);
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (value[i] == '\\' && i + 1 < value.Length)
+            {
+                i++;
+                builder.Append(value[i] switch { 'n' => '\n', 'r' => '\r', 't' => '\t', var c => c });
+            }
+            else
+            {
+                builder.Append(value[i]);
+            }
+        }
+
+        return builder.ToString();
     }
 
     // NAME=value / export NAME=value / name: value. Key material lines (base64, may end with '=') do not match.

@@ -2,6 +2,8 @@
 이 프로젝트의 주요 변경사항을 기록합니다. 형식: Keep a Changelog, 버전: SemVer.
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-11-08
 ### Documentation
 - Codex 전용 편집기 사양(SPEC 7.5)과 확장 설계 추가: 편집기 공통화, TOML 무손실 편집, 경로·런타임 파일 보호, 설정·훅·에이전트·스킬·문서·rules 폼, 비밀값 마스킹·DPAPI 백업의 승인된 구현 계획
 ### Changed

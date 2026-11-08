@@ -9,12 +9,13 @@ namespace DotDeck.App.ViewModels.Dialogs;
 public sealed record DialogChoice(string Id, string Label, bool IsDefault = false, bool IsCancel = false);
 
 /// <summary>One file in a review dialog: its name, path, change summary and compacted diff.</summary>
-public sealed class DiffReviewItem
+public sealed partial class DiffReviewItem : ObservableObject
 {
+    private readonly IReadOnlyList<DiffLine> _raw;
     public DiffReviewItem(string path, TextDiff diff, string? note = null)
     {
         Path = path;
-        Lines = diff.Compact();
+        _raw = diff.Compact();
         Summary = $"+{diff.InsertedCount} −{diff.DeletedCount}" + (note is null ? string.Empty : $" · {note}");
     }
 
@@ -24,7 +25,15 @@ public sealed class DiffReviewItem
 
     public string Summary { get; }
 
-    public IReadOnlyList<DiffLine> Lines { get; }
+    /// <summary>Screen share mode hides the whole diff body until the eye button is pressed.</summary>
+    public bool CanReveal { get; } = DotDeck.Core.Security.SecretPresentation.ScreenShareMode;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Lines))]
+    private bool _isRevealed = !DotDeck.Core.Security.SecretPresentation.ScreenShareMode;
+    public IReadOnlyList<DiffLine> Lines => IsRevealed ? _raw : [.. _raw.Select(l => l.Kind == DiffLineKind.Gap ? l : l with { Text = DotDeck.Core.Security.SecretMasker.Mask })];
+    [RelayCommand]
+    private void Reveal() => IsRevealed = !IsRevealed;
 }
 
 /// <summary>

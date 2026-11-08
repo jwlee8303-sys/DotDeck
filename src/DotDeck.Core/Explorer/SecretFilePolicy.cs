@@ -16,7 +16,8 @@ public static class SecretFilePolicy
     public static bool IsSecret(string fileName)
     {
         var name = Normalize(fileName);
-        return (IsEnvName(name) && !IsEnvTemplate(name)) || IsKeyMaterialName(name);
+        return name.Equals("auth.json", StringComparison.OrdinalIgnoreCase)
+            || (IsEnvName(name) && !IsEnvTemplate(name)) || IsKeyMaterialName(name);
     }
 
     /// <summary>".env", ".env.local", ".envrc", … (the ".env*" pattern), including templates.</summary>

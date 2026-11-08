@@ -11,7 +11,7 @@ using DotDeck.Core.Logging;
 namespace DotDeck.App.ViewModels;
 
 /// <summary>Editor tabs: open (preview / normal), save, extra views, close with unsaved-change prompts.</summary>
-public sealed partial class ShellViewModel : ITextDocumentHost
+public sealed partial class ShellViewModel : ITextDocumentHost, IClaudeFormServices, ICodexFormServices
 {
     private readonly Dictionary<string, int> _viewCounters = new(StringComparer.OrdinalIgnoreCase);
     private int _openRequest;
@@ -103,6 +103,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost
             }
 
             var document = CreateTextDocument(buffer, preview);
+            if (document.Kind == Core.Editors.EditorKind.CodexConfig) document.TryShowForm();
             if (buffer.Snapshot.HasDecodingErrors)
             {
                 StatusMessage = $"일부 바이트를 해석하지 못했습니다({buffer.EncodingText}). 저장하려면 인코딩을 지정해야 합니다.";

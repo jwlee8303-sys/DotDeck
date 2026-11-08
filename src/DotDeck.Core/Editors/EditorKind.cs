@@ -8,6 +8,11 @@ public enum EditorKind
     Agent,
     Skill,
     ClaudeSettings,
+    CodexConfig,
+    CodexHooks,
+    CodexAgent,
+    CodexSkillMetadata,
+    CodexRules,
 }
 
 public enum IssueSeverity

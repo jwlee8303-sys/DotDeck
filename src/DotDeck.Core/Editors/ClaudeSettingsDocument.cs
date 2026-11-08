@@ -1,31 +1,10 @@
-﻿using System.Text.Encodings.Web;
+﻿using DotDeck.Core.Hooks;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Unicode;
 
 namespace DotDeck.Core.Editors;
-
-/// <summary>One flattened hook command: <c>hooks.&lt;Event&gt;[i].hooks[j]</c>.</summary>
-/// <param name="CommandExtra">The original command object (unknown fields are written back).</param>
-/// <param name="GroupExtra">The original matcher group object (unknown fields are written back).</param>
-/// <param name="GroupKey">Original group ("Event#index"); rows of one group stay in one group when written back.</param>
-public sealed record HookRule(
-    string Event,
-    string Matcher,
-    string Command,
-    int? Timeout = null,
-    JsonObject? CommandExtra = null,
-    JsonObject? GroupExtra = null,
-    string? GroupKey = null)
-{
-    /// <summary>Handler type (<c>command</c>, <c>http</c>, <c>prompt</c>, <c>agent</c>, <c>mcp_tool</c>); missing means command.</summary>
-    public string Type => CommandExtra?["type"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : "command";
-
-    /// <summary>Exec-form arguments (<c>args</c>), when present.</summary>
-    public IReadOnlyList<string>? Args => CommandExtra?["args"] is JsonArray a
-        ? a.Select(n => n is JsonValue v && v.TryGetValue<string>(out var s) ? s : string.Empty).ToList()
-        : null;
-}
 
 /// <summary>
 /// Claude Code settings.json as a JSON tree. The form reads and replaces only <c>permissions.allow|ask|deny</c>,
@@ -124,9 +103,9 @@ public sealed class ClaudeSettingsDocument
         permissions[kind] = new JsonArray(rules.Select(r => (JsonNode?)JsonValue.Create(r)).ToArray());
     }
 
-    public IReadOnlyList<HookRule> GetHooks()
+    public IReadOnlyList<HookHandlerModel> GetHooks()
     {
-        var result = new List<HookRule>();
+        var result = new List<HookHandlerModel>();
         if (_root["hooks"] is not JsonObject hooks)
         {
             return result;
@@ -158,7 +137,7 @@ public sealed class ClaudeSettingsDocument
                 {
                     var text = command["command"] is JsonValue c && c.TryGetValue<string>(out var cs) ? cs : string.Empty;
                     int? timeout = command["timeout"] is JsonValue t && t.TryGetValue<int>(out var ti) ? ti : null;
-                    result.Add(new HookRule(evt, matcher, text, timeout, (JsonObject)command.DeepClone(), (JsonObject)group.DeepClone(), $"{evt}#{index}"));
+                    result.Add(new HookHandlerModel(evt, matcher, text, timeout, (JsonObject)command.DeepClone(), (JsonObject)group.DeepClone(), $"{evt}#{index}"));
                 }
             }
         }
@@ -171,7 +150,7 @@ public sealed class ClaudeSettingsDocument
     /// share a new group); unknown fields of groups and commands are kept, and so is everything the form cannot
     /// show (empty event arrays, non-object items, groups without a <c>hooks</c> array, non-object commands).
     /// </summary>
-    public void SetHooks(IReadOnlyList<HookRule> rules)
+    public void SetHooks(IReadOnlyList<HookHandlerModel> rules)
     {
         var old = _root["hooks"] as JsonObject;
         var hooks = new JsonObject();
@@ -285,15 +264,22 @@ public sealed class ClaudeSettingsDocument
 
     public IReadOnlyList<KeyValuePair<string, string>> GetEnv() =>
         _root["env"] is JsonObject env
-            ? env.Select(p => new KeyValuePair<string, string>(p.Key, p.Value is JsonValue v && v.TryGetValue<string>(out var s) ? s : p.Value?.ToJsonString() ?? string.Empty)).ToList()
+            ? env.Select(p => new KeyValuePair<string, string>(p.Key, EnvText(p.Value))).ToList()
             : [];
+
+    private static string EnvText(JsonNode? value) =>
+        value is JsonValue v && v.TryGetValue<string>(out var text) ? text : value?.ToJsonString() ?? string.Empty;
 
     public void SetEnv(IReadOnlyList<KeyValuePair<string, string>> values)
     {
+        var original = _root["env"] as JsonObject;
         var env = new JsonObject();
         foreach (var (key, value) in values.Where(p => p.Key.Trim().Length > 0))
         {
-            env[key.Trim()] = value;
+            // The table displays unsupported JSON values as text. An unrelated edit must not change their type.
+            env[key.Trim()] = original is not null && original.TryGetPropertyValue(key, out var previous) && EnvText(previous) == value
+                ? previous?.DeepClone()
+                : JsonValue.Create(value);
         }
 
         if (env.Count == 0)

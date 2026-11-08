@@ -3,7 +3,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.ViewModels.Editor;
 using DotDeck.Core.Editors;
+using DotDeck.Core.Editors.Registry;
 using DotDeck.Core.Roles;
+using DotDeck.Core.Security;
 
 namespace DotDeck.App.ViewModels.Documents;
 
@@ -14,26 +16,8 @@ public interface ITextDocumentHost
 
     void OpenNewView(TextDocumentViewModel document);
 
-    /// <summary>Runs a hook row of a settings form in the hook test pane.</summary>
-    void RunHook(HookRow row);
-
     /// <summary>"다음 형식으로 열기": remembers <paramref name="kind"/> for the file (null: automatic) and applies it.</summary>
     void SetEditorKind(TextDocumentViewModel document, EditorKind? kind);
-
-    /// <summary>Settings keys that apply only at some levels (for the settings form's scope notes).</summary>
-    SettingsKeyCatalog? SettingsKeys { get; }
-
-    /// <summary>Claude Code tools with permission argument help.</summary>
-    ClaudeToolCatalog? ToolCatalog { get; }
-
-    /// <summary>Hook events with their matcher rules.</summary>
-    HookEventCatalog? HookEvents { get; }
-
-    /// <summary>Reads configured MCP server names (never starts or contacts servers). Null root: user settings.</summary>
-    Task<DotDeck.Core.Mcp.McpDiscoveryResult> DiscoverMcpAsync(string? projectRoot);
-
-    /// <summary>Subagent names from agents/*.md for a settings scope (null root: user agents only).</summary>
-    Task<IReadOnlyList<AgentNameInfo>> DiscoverAgentsAsync(string? projectRoot);
 
     /// <summary>Shows help for the selected form row in the properties pane (null clears it).</summary>
     void ShowFormHelp(Tools.RoleDescription? help);
@@ -55,14 +39,53 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
         ViewNumber = viewNumber;
         _host = host;
         _isPreview = isPreview;
-        Find = new FindReplaceViewModel(buffer.Document);
+        Find = new FindReplaceViewModel(buffer.Document) { CanEdit = () => !buffer.IsReadOnly };
         Role = role;
         _kind = kind ?? (FileRoleResolver.IsMarkdown(buffer.Path) ? EditorKind.Markdown : EditorKind.Text);
         _isKindOverridden = isKindOverridden;
         Buffer.PropertyChanged += OnBufferPropertyChanged;
         Buffer.TextChanged += OnBufferTextChanged;
         UpdateTitle();
+        CollectSecrets();
     }
+
+    private string? _maskedText;
+
+    /// <summary>Screen share mode only: the user revealed this view's secret values.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsMaskedDisplay))]
+    private bool _isSecretsRevealed;
+
+    /// <summary>Masked copy for screen share mode (empty when the mode is off). Never written back.</summary>
+    public string MaskedText => !SecretPresentation.ScreenShareMode
+        ? string.Empty
+        : _maskedText ??= SecretPresentation.MaskDocument(FilePath, Buffer.Document.Text, Buffer.IsSecretFile);
+
+    /// <summary>Screen share mode is on and the document has something to mask.</summary>
+    public bool HasSecrets => SecretPresentation.ScreenShareMode && MaskedText != Buffer.Document.Text;
+
+    public bool IsMaskedDisplay => HasSecrets && !IsSecretsRevealed;
+
+    [RelayCommand]
+    private void RevealSecrets() => IsSecretsRevealed = !IsSecretsRevealed;
+
+    /// <summary>Screen share mode was switched: revealed views are hidden again and the masked copy is rebuilt.</summary>
+    public void OnScreenShareModeChanged()
+    {
+        IsSecretsRevealed = false;
+        RefreshMask();
+    }
+
+    private void RefreshMask()
+    {
+        _maskedText = null;
+        OnPropertyChanged(nameof(MaskedText));
+        OnPropertyChanged(nameof(HasSecrets));
+        OnPropertyChanged(nameof(IsMaskedDisplay));
+    }
+
+    // Only disk versions (open, reload, save) are collected: collecting while typing would register every prefix.
+    private void CollectSecrets() => SecretPresentation.CollectSecrets(FilePath, Buffer.Snapshot.Text, Buffer.IsSecretFile);
 
     public static string CreateContentId(string path, int viewNumber) => $"doc:{path}#{viewNumber}";
 
@@ -106,19 +129,14 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     private bool _isKindOverridden;
 
     /// <summary>Markdown-based documents get a table of contents.</summary>
-    public bool HasOutline => Kind is EditorKind.Markdown or EditorKind.Agent or EditorKind.Skill;
+    public bool HasOutline => EditorRegistry.Get(Kind).HasOutline;
 
     /// <summary>The view bar (format menu, text/form switch, table of contents).</summary>
     public bool HasViewBar => true;
 
-    public static string KindLabel(EditorKind kind) => kind switch
-    {
-        EditorKind.ClaudeSettings => "설정 폼",
-        EditorKind.Agent => "에이전트 폼",
-        EditorKind.Skill => "스킬 폼",
-        EditorKind.Markdown => "Markdown",
-        _ => "텍스트",
-    };
+    public static string KindLabel(EditorKind kind) => EditorRegistry.Get(kind).Label;
+
+    public IReadOnlyList<EditorChoice> EditorChoices => FormRegistry.Choices(OpenAsCommand);
 
     /// <summary>e.g. "형식: 설정 폼 (수동 지정)".</summary>
     public string KindText => $"형식: {KindLabel(Kind)}{(IsKindOverridden ? " (수동 지정)" : string.Empty)}";
@@ -163,7 +181,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     }
 
     /// <summary>Agents, skills and Claude settings have a form view besides the text.</summary>
-    public bool HasForm => Kind is EditorKind.Agent or EditorKind.Skill or EditorKind.ClaudeSettings;
+    public bool HasForm => !Buffer.IsReadOnly && FormRegistry.HasForm(Kind);
 
     [ObservableProperty]
     private bool _isFormView;
@@ -245,20 +263,15 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     [RelayCommand(CanExecute = nameof(HasForm))]
     private void ShowForm()
     {
-        Form ??= Kind == EditorKind.ClaudeSettings
-            ? new SettingsFormViewModel(ApplyFormText)
-            {
-                RunHook = _host.RunHook,
-                Role = Role,
-                FilePath = FilePath,
-                SettingsKeys = _host.SettingsKeys,
-                Tools = _host.ToolCatalog,
-                Events = _host.HookEvents,
-                DiscoverMcp = _host.DiscoverMcpAsync,
-                DiscoverAgents = _host.DiscoverAgentsAsync,
-                ShowHelp = _host.ShowFormHelp,
-            }
-            : new FrontmatterFormViewModel(Kind, ApplyFormText, _host.ToolCatalog?.Ordered.Where(t => t.Common).Select(t => t.Name).ToList());
+        if (Buffer.IsReadOnly) return;
+        Form ??= FormRegistry.Create(Kind, new FormContext(ApplyFormText, FilePath, Role, _host));
+        if (Form is null)
+        {
+            FormError = "이 형식의 폼은 아직 지원하지 않습니다.";
+            IsFormView = false;
+            return;
+        }
+
         FormError = Form.Load(Buffer.Document.Text);
         IsFormView = FormError is null;
     }
@@ -266,6 +279,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     // The form writes whole text; one Replace keeps it a single undo step in the editor.
     private void ApplyFormText(string text)
     {
+        if (Buffer.IsReadOnly) return;
         var document = Buffer.Document;
         if (document.Text == text)
         {
@@ -298,6 +312,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 
     private void OnBufferTextChanged(object? sender, EventArgs e)
     {
+        RefreshMask();
         Promote();
 
         // Text changed outside the form (reload, undo, restore): refresh the form, or fall back to text.
@@ -310,9 +325,21 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 
     private void OnBufferPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(DocumentBuffer.IsReadOnly))
+        {
+            OnPropertyChanged(nameof(HasForm));
+            ShowFormCommand.NotifyCanExecuteChanged();
+            if (Buffer.IsReadOnly) IsFormView = false;
+        }
         if (e.PropertyName == nameof(DocumentBuffer.IsDirty))
         {
             UpdateTitle();
+        }
+        if (e.PropertyName == nameof(DocumentBuffer.Snapshot))
+        {
+            // Reload replaces the text before the snapshot, so the secret-file flag may have changed after masking.
+            CollectSecrets();
+            RefreshMask();
         }
     }
 

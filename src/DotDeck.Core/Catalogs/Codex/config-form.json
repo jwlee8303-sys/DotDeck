@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "sources": [{ "url": "https://learn.chatgpt.com/docs/config-file/config-reference", "checked": "2026-11-08" }],
+  "fields": [
+    { "key": "model", "label": "모델", "description": "사용할 모델 이름입니다. 계정에서 사용할 수 있는 모델을 입력하세요.", "default": "클라이언트 기본값", "choices": [ { "value": "gpt-6.1-sol", "description": "공식 문서의 예시 모델입니다. 계정별 이용 가능 여부는 다를 수 있습니다." } ] },
+    { "key": "model_reasoning_effort", "label": "추론 수준", "description": "일반 작업에서 사용할 추론 수준입니다. 지원 수준은 모델마다 다릅니다.", "default": "모델·클라이언트 기본값", "choices": [ { "value": "low", "description": "낮은 추론 수준" }, { "value": "medium", "description": "중간 추론 수준" }, { "value": "high", "description": "높은 추론 수준" }, { "value": "xhigh", "description": "더 높은 추론 수준" }, { "value": "max", "description": "모델이 제공하는 최대 수준" }, { "value": "ultra", "description": "모델이 제공하는 ultra 수준" } ] },
+    { "key": "plan_mode_reasoning_effort", "label": "계획 모드 추론 수준", "description": "계획 모드에 적용할 추론 수준입니다.", "default": "계획 모드 기본값", "choices": [ { "value": "low", "description": "낮음" }, { "value": "medium", "description": "중간" }, { "value": "high", "description": "높음" }, { "value": "xhigh", "description": "더 높음" }, { "value": "max", "description": "최대" }, { "value": "ultra", "description": "ultra" } ] },
+    { "key": "approval_policy", "label": "승인 정책", "description": "명령 실행에 필요한 승인을 언제 요청할지 정합니다.", "default": "클라이언트 기본값", "choices": [ { "value": "on-request", "description": "필요한 작업에 대해 승인을 요청합니다." }, { "value": "never", "description": "승인 요청 없이 실행합니다. 샌드박스 제한은 별도로 적용됩니다." } ] },
+    { "key": "sandbox_mode", "label": "샌드박스", "description": "Codex 명령의 파일·네트워크 접근 경계를 정합니다.", "default": "클라이언트 기본값", "choices": [ { "value": "read-only", "description": "파일 조회 중심이며 수정·명령 실행에 승인이 필요할 수 있습니다." }, { "value": "workspace-write", "description": "작업 공간 수정·일반 명령 실행을 허용합니다. 네트워크는 별도 설정입니다." }, { "value": "danger-full-access", "description": "샌드박스의 파일·네트워크 경계를 해제합니다." } ] },
+    { "key": "trust_level", "label": "프로젝트 신뢰", "description": "프로젝트별 Codex 설정의 로드 여부에 영향을 줍니다.", "default": "미설정", "choices": [ { "value": "trusted", "description": "프로젝트를 신뢰합니다." }, { "value": "untrusted", "description": "프로젝트별 .codex 설정은 로드되지 않을 수 있습니다." } ] }
+  ]
+}

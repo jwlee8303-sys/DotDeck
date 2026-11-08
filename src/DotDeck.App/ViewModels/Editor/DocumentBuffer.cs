@@ -14,6 +14,7 @@ public sealed partial class DocumentBuffer : ObservableObject
     internal DocumentBuffer(TextFileSnapshot snapshot)
     {
         _snapshot = snapshot;
+        IsSecretFile = snapshot.IsSecretFile;
         Path = snapshot.Path;
         Document = new TextDocument(snapshot.Text) { FileName = snapshot.Path };
         Document.UndoStack.PropertyChanged += OnUndoStackChanged;
@@ -26,6 +27,11 @@ public sealed partial class DocumentBuffer : ObservableObject
 
     public string Path { get; }
 
+    /// <summary>The file, or the final target of its links, is a secret file. Only grows (saved snapshots lack it).</summary>
+    public bool IsSecretFile { get; private set; }
+
+    partial void OnSnapshotChanged(TextFileSnapshot value) => IsSecretFile |= value.IsSecretFile;
+
     public string FileName => System.IO.Path.GetFileName(Path);
 
     public TextDocument Document { get; }
@@ -33,7 +39,11 @@ public sealed partial class DocumentBuffer : ObservableObject
     /// <summary>What is on disk as far as DotDeck knows: the baseline for diffs and external change checks.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EncodingText), nameof(LineEndingText))]
+    [NotifyPropertyChangedFor(nameof(IsReadOnly), nameof(ReadOnlyReason))]
     private TextFileSnapshot _snapshot;
+
+    public bool IsReadOnly => Snapshot.IsReadOnly;
+    public string? ReadOnlyReason => Snapshot.ReadOnlyReason;
 
     [ObservableProperty]
     private bool _isDirty;

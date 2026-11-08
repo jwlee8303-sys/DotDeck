@@ -11,6 +11,9 @@ public sealed record AppSettings
 
     public string Theme { get; init; } = "Dark";
 
+    /// <summary>"화면 공유 모드": mask secret values on screen. Off by default (users see their own values).</summary>
+    public bool ScreenShareMode { get; init; }
+
     public double EditorFontSize { get; init; } = 13.333;
 
     public int BackupRetention { get; init; } = 50;

@@ -1,3 +1,4 @@
+using DotDeck.Core.Hooks;
 using System.Text.Json;
 using DotDeck.Core.Editors;
 using DotDeck.Core.Files;
@@ -200,7 +201,7 @@ public sealed class ClaudeCatalogTests : IDisposable
         doc.SetPermissions("allow", [.. doc.GetPermissions("allow"), PermissionRule.Compose("Bash", "git status:*")]);
         doc.SetPermissions("ask", [PermissionRule.Compose("WebFetch", "domain:example.com")]);
         var hooks = doc.GetHooks().ToList();
-        hooks.Add(new HookRule("PreToolUse", HookMatcher.Compose(["Read", "Write"]), "python g.py", 5));
+        hooks.Add(new HookHandlerModel("PreToolUse", HookMatcher.Compose(["Read", "Write"]), "python g.py", 5));
         doc.SetHooks(hooks);
 
         var saved = JsonDocument.Parse(doc.ToJson()).RootElement;

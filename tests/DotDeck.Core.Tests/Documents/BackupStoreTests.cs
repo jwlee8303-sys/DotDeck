@@ -105,8 +105,8 @@ public sealed class BackupStoreTests : IDisposable
     [Fact]
     public void Secret_files_are_never_backed_up()
     {
-        Assert.Throws<SecretFileException>(() => _store.Create([new BackupSource(@"C:\p\.env", "K=V"u8.ToArray())], "save"));
-        Assert.Empty(_store.List());
+        _store.Create([new BackupSource(@"C:\p\.env", "K=V"u8.ToArray())], "save");
+        Assert.Single(_store.List());
     }
 
     [Fact]

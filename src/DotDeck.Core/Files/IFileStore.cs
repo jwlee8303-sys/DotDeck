@@ -51,6 +51,12 @@ public interface IFileStore
     /// <summary>Final target of a symbolic link or junction, or null when <paramref name="path"/> is not a link or does not exist.</summary>
     string? ResolveLinkTarget(string path);
 
+    /// <summary>
+    /// Immediate (one hop) target of a symbolic link or junction as a full path, or null when <paramref name="path"/>
+    /// is not a link. Stores without link support fall back to <see cref="ResolveLinkTarget"/>.
+    /// </summary>
+    string? GetLinkTarget(string path) => ResolveLinkTarget(path);
+
     /// <summary>Reads at most <paramref name="maxBytes"/> bytes from the start of a file.</summary>
     byte[] ReadHead(string path, int maxBytes);
 

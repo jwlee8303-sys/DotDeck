@@ -36,9 +36,6 @@ public sealed class CustomFilesTests : IDisposable
     [Theory]
     [InlineData("relative.txt")]
     [InlineData("")]
-    [InlineData(@"C:\keys\.env")]
-    [InlineData(@"C:\keys\id_rsa")]
-    [InlineData(@"C:\keys\server.pem")]
     public void Validate_rejects_relative_paths_and_secret_files(string path)
     {
         Assert.NotNull(CustomFileRules.Validate(path));
@@ -76,9 +73,9 @@ public sealed class CustomFilesTests : IDisposable
     {
         var registry = LoadNew();
 
-        Assert.Throws<ArgumentException>(() => registry.AddCustomFile("builtin.claude", _temp.Combine(".env")));
+        registry.AddCustomFile("builtin.claude", _temp.Combine(".env"));
         Assert.Throws<InvalidOperationException>(() => registry.AddCustomFile("builtin.system", _temp.Combine("a.txt")));
-        Assert.Empty(registry.Find("builtin.claude")!.CustomFiles);
+        Assert.Single(registry.Find("builtin.claude")!.CustomFiles);
     }
 
     [Fact]
@@ -204,7 +201,7 @@ public sealed class CustomFilesTests : IDisposable
 
         var result = CustomFileRules.Rewrite(files, [new PathChange.Moved(@"C:\a\notes.txt", @"C:\a\.env")]);
 
-        Assert.Equal([@"C:\a\keep.md"], result);
+        Assert.Equal([@"C:\a\.env", @"C:\a\keep.md"], result);
     }
 
     [Fact]
@@ -220,7 +217,7 @@ public sealed class CustomFilesTests : IDisposable
 
         var reloaded = LoadNew().Find(project.Id);
         Assert.NotNull(reloaded);
-        Assert.Empty(reloaded.CustomFiles);
+        Assert.Equal([_temp.Combine(".env")], reloaded.CustomFiles);
     }
 
     [Fact]

@@ -1,0 +1,46 @@
+<UserControl x:Class="DotDeck.App.Views.Editor.AdvancedTomlView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:vm="clr-namespace:DotDeck.App.ViewModels.Editor" xmlns:local="clr-namespace:DotDeck.App.Views.Editor">
+ <UserControl.Resources>
+  <BooleanToVisibilityConverter x:Key="Visible" />
+  <HierarchicalDataTemplate DataType="{x:Type vm:AdvancedTomlNode}" ItemsSource="{Binding Children}"><TextBlock Text="{Binding Label}" /></HierarchicalDataTemplate>
+ </UserControl.Resources>
+ <DockPanel Margin="8">
+  <TreeView DockPanel.Dock="Left" Width="260" ItemsSource="{Binding Roots}" SelectedItemChanged="OnSelection" Margin="0,0,12,0">
+   <TreeView.ItemContainerStyle><Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}"><Setter Property="IsExpanded" Value="True" /></Style></TreeView.ItemContainerStyle>
+  </TreeView>
+  <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+   <TextBlock Text="전용 탭에서 다루지 않는 값을 편집합니다. 배열과 인라인 테이블은 한 항목으로 표시합니다." TextWrapping="Wrap" />
+   <TextBlock Text="{Binding TypeLabel}" FontWeight="SemiBold" Margin="0,10" />
+   <local:SecretValueEditor Value="{Binding Scalar, UpdateSourceTrigger=PropertyChanged}" IsSecret="{Binding IsSecret}" Visibility="{Binding IsString, Converter={StaticResource Visible}}" />
+   <local:SecretValueEditor Value="{Binding Scalar, UpdateSourceTrigger=PropertyChanged}" IsSecret="{Binding IsSecret}" Visibility="{Binding IsRaw, Converter={StaticResource Visible}}" />
+   <CheckBox Content="켜짐 (true)" IsChecked="{Binding Boolean}" Visibility="{Binding IsBoolean, Converter={StaticResource Visible}}" />
+   <StackPanel Visibility="{Binding IsArray, Converter={StaticResource Visible}}">
+    <ItemsControl ItemsSource="{Binding Array.Rows}"><ItemsControl.ItemTemplate><DataTemplate>
+     <DockPanel Margin="0,3"><WrapPanel DockPanel.Dock="Right">
+      <Button Content="↑" Command="{Binding DataContext.Array.MoveUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+      <Button Content="↓" Command="{Binding DataContext.Array.MoveDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+      <Button Content="삭제" Command="{Binding DataContext.Array.RemoveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+     </WrapPanel><local:SecretValueEditor Value="{Binding Value}" IsSecret="{Binding DataContext.IsSecret, RelativeSource={RelativeSource AncestorType=UserControl}}" /></DockPanel>
+    </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+    <Button Content="배열 항목 추가" Command="{Binding Array.AddCommand}" HorizontalAlignment="Left" />
+   </StackPanel>
+   <StackPanel Visibility="{Binding IsInline, Converter={StaticResource Visible}}">
+    <ItemsControl ItemsSource="{Binding Inline.Rows}"><ItemsControl.ItemTemplate><DataTemplate>
+     <DockPanel Margin="0,3"><Button DockPanel.Dock="Right" Content="삭제" Command="{Binding DataContext.Inline.RemoveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+      <TextBox DockPanel.Dock="Left" Width="150" Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
+      <local:SecretValueEditor Value="{Binding Value}" IsSecret="{Binding IsSecret}" />
+     </DockPanel>
+    </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+    <Button Content="키 추가" Command="{Binding Inline.AddCommand}" HorizontalAlignment="Left" />
+   </StackPanel>
+   <WrapPanel Margin="0,8"><Button Content="변경 적용" Command="{Binding ApplyCommand}" /><Button Content="선택한 키 삭제" Command="{Binding DeleteCommand}" Margin="8,0" /></WrapPanel>
+   <Expander Header="직접 경로로 편집" Margin="0,16">
+    <StackPanel><TextBlock Text="키 또는 테이블 경로" /><TextBox Text="{Binding DirectPath, UpdateSourceTrigger=PropertyChanged}" />
+     <TextBlock Text="TOML 값" /><local:SecretValueEditor Value="{Binding DirectLiteral}" IsSecret="True" />
+     <WrapPanel><Button Content="키 추가/변경" Command="{Binding DirectAddCommand}" /><Button Content="테이블 생성" Command="{Binding DirectTableCommand}" /></WrapPanel>
+    </StackPanel>
+   </Expander>
+  </StackPanel></ScrollViewer>
+ </DockPanel>
+</UserControl>

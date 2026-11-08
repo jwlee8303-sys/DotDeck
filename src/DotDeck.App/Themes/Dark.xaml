@@ -58,6 +58,7 @@
     <!-- Status bar -->
     <Color x:Key="DD.Color.StatusBar.Background">#FF68217A</Color>
     <Color x:Key="DD.Color.StatusBar.Sandbox">#FFCA5100</Color>
+    <Color x:Key="DD.Color.StatusBar.Separator">#40FFFFFF</Color>
 
     <!-- Semantic -->
     <Color x:Key="DD.Color.Error">#FFF14C4C</Color>
@@ -120,6 +121,7 @@
 
     <SolidColorBrush x:Key="DD.Brush.StatusBar.Background" Color="{StaticResource DD.Color.StatusBar.Background}" />
     <SolidColorBrush x:Key="DD.Brush.StatusBar.Sandbox" Color="{StaticResource DD.Color.StatusBar.Sandbox}" />
+    <SolidColorBrush x:Key="DD.Brush.StatusBar.Separator" Color="{StaticResource DD.Color.StatusBar.Separator}" />
 
     <SolidColorBrush x:Key="DD.Brush.Error" Color="{StaticResource DD.Color.Error}" />
     <SolidColorBrush x:Key="DD.Brush.Warning" Color="{StaticResource DD.Color.Warning}" />

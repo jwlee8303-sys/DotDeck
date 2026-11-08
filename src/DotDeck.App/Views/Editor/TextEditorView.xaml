@@ -50,17 +50,19 @@
                 BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="0,0,0,1" Padding="4,2"
                 Visibility="{Binding HasViewBar, Converter={StaticResource BoolToVisible}}">
             <DockPanel>
+                <Button DockPanel.Dock="Right" Content="👁" Command="{Binding RevealSecretsCommand}" ToolTip="비밀값 표시 / 가리기"
+                        Visibility="{Binding HasSecrets, Converter={StaticResource BoolToVisible}}" />
                 <Button DockPanel.Dock="Right" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Padding="8,2" Focusable="False"
                         Click="OnFormatClick" ToolTip="다음 형식으로 열기">
                     <Button.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="텍스트" Command="{Binding OpenAsCommand}" CommandParameter="text" />
-                            <MenuItem Header="Markdown" Command="{Binding OpenAsCommand}" CommandParameter="markdown" />
-                            <MenuItem Header="설정 폼 (settings.json)" Command="{Binding OpenAsCommand}" CommandParameter="settingsForm" />
-                            <MenuItem Header="에이전트 폼" Command="{Binding OpenAsCommand}" CommandParameter="agentForm" />
-                            <MenuItem Header="스킬 폼" Command="{Binding OpenAsCommand}" CommandParameter="skillForm" />
-                            <Separator />
-                            <MenuItem Header="자동 판별로 되돌리기" Command="{Binding OpenAsCommand}" CommandParameter="auto" />
+                        <ContextMenu ItemsSource="{Binding EditorChoices}">
+                            <ContextMenu.ItemContainerStyle>
+                                <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Label}" />
+                                    <Setter Property="Command" Value="{Binding Command}" />
+                                    <Setter Property="CommandParameter" Value="{Binding Name}" />
+                                </Style>
+                            </ContextMenu.ItemContainerStyle>
                         </ContextMenu>
                     </Button.ContextMenu>
                     <StackPanel Orientation="Horizontal">
@@ -84,6 +86,7 @@
                 </StackPanel>
                 <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource DD.Brush.Error}" Text="{Binding FormError}" ToolTip="{Binding FormError}" />
+                <TextBlock Text="{Binding Buffer.ReadOnlyReason}" TextWrapping="Wrap" Foreground="{DynamicResource DD.Brush.Warning}" />
             </DockPanel>
         </Border>
 
@@ -157,7 +160,9 @@
                 <ColumnDefinition x:Name="PreviewColumn" Width="0" />
             </Grid.ColumnDefinitions>
         <ae:TextEditor x:Name="Editor" Grid.Column="0"
+                       Visibility="{Binding IsMaskedDisplay, Converter={StaticResource FalseToVisible}}"
                        Document="{Binding Buffer.Document}"
+                       IsReadOnly="{Binding Buffer.IsReadOnly}"
                        FontFamily="{DynamicResource DD.Font.Editor}"
                        FontSize="{DynamicResource DD.FontSize.Editor}"
                        Background="{DynamicResource DD.Brush.Editor.Background}"
@@ -167,6 +172,9 @@
                        HorizontalScrollBarVisibility="Auto"
                        VerticalScrollBarVisibility="Auto"
                        Padding="4,0,0,0" />
+            <TextBox Grid.Column="0" Text="{Binding MaskedText, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
+                     VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource DD.Font.Editor}"
+                     Visibility="{Binding IsMaskedDisplay, Converter={StaticResource BoolToVisible}}" />
             <GridSplitter x:Name="PreviewSplitter" Grid.Column="1" Width="4" HorizontalAlignment="Stretch" ResizeBehavior="PreviousAndNext"
                           Background="{DynamicResource DD.Brush.Border}"
                           Visibility="{Binding IsMarkdownPreviewOpen, Converter={StaticResource BoolToVisible}}" />

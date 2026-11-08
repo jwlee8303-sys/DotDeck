@@ -69,7 +69,8 @@ public partial class App : Application
             var settings = new DotDeck.Core.Settings.AppSettingsStore(store, paths.SettingsFile).Load();
             Themes.ThemeManager.ApplyEditorFontSize(settings.EditorFontSize);
             Themes.ThemeManager.Apply(settings.Theme == "Light" ? Themes.ThemeKind.Light : Themes.ThemeKind.Dark);
-            var backups = new BackupStore(store, settings.BackupDirectory ?? paths.BackupsDir, TimeProvider.System, settings.BackupRetention);
+            Core.Security.SecretPresentation.ScreenShareMode = settings.ScreenShareMode;
+            var backups = new BackupStore(store, settings.BackupDirectory ?? paths.BackupsDir, TimeProvider.System, settings.BackupRetention, new DpapiBackupProtector());
             var services = new ShellServices(
                 paths,
                 _log,

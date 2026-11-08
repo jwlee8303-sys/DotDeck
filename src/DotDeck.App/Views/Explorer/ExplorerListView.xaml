@@ -472,14 +472,14 @@
             <ListBox.ContextMenu>
                 <ContextMenu Opened="OnContextMenuOpened">
                     <MenuItem Header="열기(_O)" Command="{Binding OpenSelectedCommand}" InputGestureText="Enter" />
-                    <MenuItem Header="다음 형식으로 열기(_K)">
-                        <MenuItem Header="텍스트" Command="{Binding OpenAsCommand}" CommandParameter="text" />
-                        <MenuItem Header="Markdown" Command="{Binding OpenAsCommand}" CommandParameter="markdown" />
-                        <MenuItem Header="설정 폼 (settings.json)" Command="{Binding OpenAsCommand}" CommandParameter="settingsForm" />
-                        <MenuItem Header="에이전트 폼" Command="{Binding OpenAsCommand}" CommandParameter="agentForm" />
-                        <MenuItem Header="스킬 폼" Command="{Binding OpenAsCommand}" CommandParameter="skillForm" />
-                        <Separator />
-                        <MenuItem Header="자동 판별로 되돌리기" Command="{Binding OpenAsCommand}" CommandParameter="auto" />
+                    <MenuItem Header="다음 형식으로 열기(_K)" ItemsSource="{Binding EditorChoices}">
+                        <MenuItem.ItemContainerStyle>
+                            <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                <Setter Property="Header" Value="{Binding Label}" />
+                                <Setter Property="Command" Value="{Binding Command}" />
+                                <Setter Property="CommandParameter" Value="{Binding Name}" />
+                            </Style>
+                        </MenuItem.ItemContainerStyle>
                     </MenuItem>
                     <MenuItem Header="사용자 지정 파일 등록(경로 입력)(_G)..." Command="{Binding RegisterOtherFileCommand}"
                               Visibility="{Binding IsOtherFilesTarget, Converter={StaticResource TrueToVisible}}" />

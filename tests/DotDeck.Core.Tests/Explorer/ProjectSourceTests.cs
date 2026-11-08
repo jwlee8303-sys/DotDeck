@@ -125,7 +125,7 @@ public sealed class ProjectSourceTests : IDisposable
 
         var env = children.Single(n => n.Name == ".env");
         Assert.True(env.IsSecret);
-        Assert.False(env.CanOpen);
+        Assert.True(env.CanOpen);
         Assert.Equal(Path.Combine("sub", ".env"), env.RelativePath);
         var json = children.Single(n => n.Name == "settings.json");
         Assert.Equal(FileKind.Json, json.FileKind);

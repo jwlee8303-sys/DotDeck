@@ -26,6 +26,8 @@ public sealed partial class FindReplaceViewModel : ObservableObject
 
     public FindReplaceViewModel(TextDocument document) => _document = document;
 
+    public Func<bool> CanEdit { get; init; } = () => true;
+
     /// <summary>Set by the view while it is loaded.</summary>
     public IEditorSelection? Editor { get; set; }
 
@@ -87,10 +89,10 @@ public sealed partial class FindReplaceViewModel : ObservableObject
     private void FindPrevious() => Guard(() => Find(backward: true));
 
     [RelayCommand]
-    private void ReplaceOne() => Guard(ReplaceOneCore);
+    private void ReplaceOne() { if (CanEdit()) Guard(ReplaceOneCore); }
 
     [RelayCommand]
-    private void ReplaceAll() => Guard(ReplaceAllCore);
+    private void ReplaceAll() { if (CanEdit()) Guard(ReplaceAllCore); }
 
     // Regex evaluation has a timeout (catastrophic backtracking); report it instead of crashing.
     private void Guard(Action action)

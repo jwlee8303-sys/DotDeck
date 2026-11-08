@@ -301,7 +301,7 @@ public sealed class VisibleProjectSource : IProjectSource
                 continue;
             }
 
-            var node = NodeInfo.FromEntry(entry, key);
+            var node = NodeInfo.FromEntry(entry, key, _store);
             if (node.Kind == NodeKind.Folder && _view.Mode == ExplorerViewMode.Compact)
             {
                 node = Compact(node);

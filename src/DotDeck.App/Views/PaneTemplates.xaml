@@ -301,7 +301,7 @@
                                          Visibility="{Binding IsMasked, Converter={StaticResource SysBoolToVisible}}" />
                                 <ToggleButton Grid.Column="2" Content="👁" Margin="4,0,0,0" IsChecked="{Binding IsRevealed}"
                                               ToolTip="비밀 값 보기/숨기기"
-                                              Visibility="{Binding IsSecret, Converter={StaticResource SysBoolToVisible}}" />
+                                              Visibility="{Binding ShowsEye, Converter={StaticResource SysBoolToVisible}}" />
                                 <Button Grid.Column="3" Content="✕" Margin="4,0,0,0" ToolTip="삭제"
                                         Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                         CommandParameter="{Binding}" />

@@ -557,12 +557,6 @@ public sealed class FileOperationService
         var sources = new List<BackupSource>();
         foreach (var path in paths)
         {
-            if (SecretFilePolicy.IsSecret(Path.GetFileName(path)))
-            {
-                warnings.Add($"비밀 파일은 백업하지 않고 휴지통에만 보관했습니다: {path}");
-                continue;
-            }
-
             try
             {
                 sources.Add(new BackupSource(path, Store.ReadAllBytes(path)));

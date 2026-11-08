@@ -211,7 +211,7 @@ public sealed partial class ShellViewModel
             return "폴더가 아닌 파일 경로를 입력하세요.";
         }
 
-        return SecretFilePolicy.IsSecret(Path.GetFileName(raw)) ? "비밀 파일은 등록할 수 없습니다." : null;
+        return null;
     }
 
     /// <summary>Main menu: takes the current file off every "사용자 지정 파일" list that has it.</summary>
@@ -269,6 +269,50 @@ public sealed partial class ShellViewModel
         StatusMessage = $"사용자 지정 파일 목록에서 뺐습니다(파일은 그대로 둡니다): {Path.GetFileName(path)}";
     }
 
+    /// <summary>"화면 공유 모드": secret values are masked on screen only while this is on (status bar, 보기 menu).</summary>
+    public bool IsScreenShareMode => Core.Security.SecretPresentation.ScreenShareMode;
+
+    public string ScreenShareStatusText => IsScreenShareMode ? "화면 공유 모드: 켬" : "화면 공유 모드: 끔";
+
+    /// <summary>Switches screen share mode, applies it to open documents and remembers it in the settings.</summary>
+    [RelayCommand]
+    private void ToggleScreenShareMode()
+    {
+        var on = !IsScreenShareMode;
+        ApplyScreenShareMode(on);
+        var store = new DotDeck.Core.Settings.AppSettingsStore(_store, Paths.SettingsFile);
+        try
+        {
+            store.Save(store.Load() with { ScreenShareMode = on });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Warning($"화면 공유 모드 설정을 저장하지 못했습니다: {ex.Message}");
+        }
+
+        StatusMessage = on ? "화면 공유 모드를 켰습니다. 비밀값을 가립니다." : "화면 공유 모드를 껐습니다.";
+    }
+
+    internal void ApplyScreenShareMode(bool on)
+    {
+        Core.Security.SecretPresentation.ScreenShareMode = on;
+        foreach (var document in Documents)
+        {
+            switch (document)
+            {
+                case Documents.TextDocumentViewModel text:
+                    text.OnScreenShareModeChanged();
+                    break;
+                case Documents.EnvironmentDocumentViewModel environment:
+                    environment.OnScreenShareModeChanged();
+                    break;
+            }
+        }
+
+        OnPropertyChanged(nameof(IsScreenShareMode));
+        OnPropertyChanged(nameof(ScreenShareStatusText));
+    }
+
     /// <summary>Raised after the settings changed; the view applies theme and font size.</summary>
     public event EventHandler<DotDeck.Core.Settings.AppSettings>? SettingsChanged;
 
@@ -291,6 +335,7 @@ public sealed partial class ShellViewModel
         }
 
         _backups.Retention = settings.BackupRetention;
+        ApplyScreenShareMode(settings.ScreenShareMode);
         _backups.BackupsDirectory = settings.BackupDirectory ?? Paths.BackupsDir;
         ExplorerPreferences.SetGlobalExtensions(settings.DefaultExtensions);
         SettingsChanged?.Invoke(this, settings);

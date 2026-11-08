@@ -61,7 +61,7 @@ public sealed class FolderProjectSource : IProjectSource
                 continue;
             }
 
-            nodes.Add(NodeInfo.FromEntry(entry, relative));
+            nodes.Add(NodeInfo.FromEntry(entry, relative, _store));
         }
 
         nodes.Sort(CompareForDisplay);

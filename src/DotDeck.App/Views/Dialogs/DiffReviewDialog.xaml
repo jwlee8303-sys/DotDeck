@@ -59,6 +59,8 @@
             </ListBox>
             <Border Grid.Column="1" BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="1">
                 <DockPanel>
+                    <Button DockPanel.Dock="Top" Content="👁 비밀값 포함 diff 표시 / 가리기" Command="{Binding SelectedItem.RevealCommand}" HorizontalAlignment="Right"
+                            Visibility="{Binding SelectedItem.CanReveal, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}" />
                     <TextBlock DockPanel.Dock="Top" Margin="6,4" Style="{StaticResource DD.Text.Secondary}"
                                Text="{Binding SelectedItem.Path}" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedItem.Path}" />
                     <controls:DiffView Lines="{Binding SelectedItem.Lines}" />

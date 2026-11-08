@@ -10,6 +10,9 @@
         Foreground="{DynamicResource DD.Brush.Text}"
         FontFamily="{DynamicResource DD.Font.Ui}"
         FontSize="{DynamicResource DD.FontSize.Ui}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+    </Window.Resources>
     <DockPanel Margin="12">
         <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" TextWrapping="Wrap" Style="{StaticResource DD.Text.Secondary}"
                    Text="복원하면 현재 디스크 내용을 먼저 백업한 뒤 선택한 백업으로 바꿉니다. (−: 현재 편집 내용, +: 백업)" />
@@ -38,6 +41,8 @@
             </ListBox>
             <Border Grid.Column="1" BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="1">
                 <DockPanel>
+                    <Button DockPanel.Dock="Top" Content="👁 diff 표시 / 가리기" Command="{Binding RevealCommand}" HorizontalAlignment="Right"
+                            Visibility="{Binding CanReveal, Converter={StaticResource BoolToVisible}}" />
                     <TextBlock DockPanel.Dock="Top" Margin="6,4" Text="{Binding Message}" TextWrapping="Wrap" />
                     <controls:DiffView Lines="{Binding Lines}" />
                 </DockPanel>

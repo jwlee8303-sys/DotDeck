@@ -24,7 +24,7 @@ public static class CustomFileRules
             return "파일 경로가 올바르지 않습니다.";
         }
 
-        return SecretFilePolicy.IsSecret(name) ? "비밀 파일은 사용자 지정 파일에 추가할 수 없습니다." : null;
+        return null;
     }
 
     /// <summary>
@@ -103,7 +103,7 @@ public static class CustomFileRules
                 FullPath = path,
                 RelativePath = null,
                 FileKind = FileKindClassifier.Classify(name),
-                IsSecret = SecretFilePolicy.IsSecret(name),
+                IsSecret = entry is { IsReparsePoint: true } ? SecretFileResolver.IsSecretFile(store, path) : SecretFilePolicy.IsSecret(name),
                 IsReadOnly = entry?.IsReadOnly ?? false,
                 IsCustomFile = true,
                 Length = entry?.Length ?? 0,

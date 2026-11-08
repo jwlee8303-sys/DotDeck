@@ -11,6 +11,11 @@ namespace DotDeck.Core.Security;
 /// </summary>
 public static partial class SecretMasker
 {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> s_known = new(StringComparer.Ordinal);
+    public static void RegisterSecret(string value)
+    {
+        if (!string.IsNullOrEmpty(value) && value != Mask) s_known.TryAdd(value, 0);
+    }
     /// <summary>Fixed-length placeholder so the original value length is not leaked.</summary>
     public const string Mask = "••••••••";
 
@@ -69,7 +74,9 @@ public static partial class SecretMasker
         var budget = Stopwatch.StartNew();
         try
         {
-            var result = MaskAssignments(QuotedAssignmentRegex(), text, requireSecretName: true, budget);
+            var result = text;
+            foreach (var value in s_known.Keys.OrderByDescending(v => v.Length)) result = result.Replace(value, Mask, StringComparison.Ordinal);
+            result = MaskAssignments(QuotedAssignmentRegex(), result, requireSecretName: true, budget);
             result = MaskAssignments(BareAssignmentRegex(), result, requireSecretName: true, budget);
             return MaskAssignments(AuthSchemeRegex(), result, requireSecretName: false, budget);
         }

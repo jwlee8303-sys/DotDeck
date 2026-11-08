@@ -37,4 +37,7 @@
     <ProjectReference Include="..\DotDeck.Core\DotDeck.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotDeck.App.Tests" />
+  </ItemGroup>
 </Project>

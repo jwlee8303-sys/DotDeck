@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.Services;
 using DotDeck.Core.Editors;
+using DotDeck.Core.Hooks;
 
 namespace DotDeck.App.ViewModels.Tools;
 
@@ -26,7 +27,11 @@ public sealed partial class HookTestPaneViewModel : ToolPaneViewModel
 
     public string WorkingDirectory { get; set; } = Environment.CurrentDirectory;
 
-    public IReadOnlyList<string> Events => ClaudeSettingsDocument.HookEvents;
+    public IReadOnlyList<string> Events => Profile.Events;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Events))]
+    private HookTestProfile _profile = ClaudeHookProfile.Default;
 
     [ObservableProperty]
     private string _event = "PreToolUse";
@@ -52,8 +57,9 @@ public sealed partial class HookTestPaneViewModel : ToolPaneViewModel
     private bool _isRunning;
 
     /// <summary>Loads a hook (from a settings form row) with a fresh sample input; does not run it.</summary>
-    public void Load(string evt, string matcher, string command)
+    public void Load(string evt, string matcher, string command, HookTestProfile? profile = null)
     {
+        Profile = profile ?? ClaudeHookProfile.Default;
         Event = evt;
         Matcher = matcher;
         Command = command;
@@ -63,7 +69,7 @@ public sealed partial class HookTestPaneViewModel : ToolPaneViewModel
     }
 
     [RelayCommand]
-    private void ResetSample() => Input = HookSamples.For(Event, Matcher, WorkingDirectory);
+    private void ResetSample() => Input = Profile.Sample(Event, Matcher, WorkingDirectory);
 
     private bool CanRun() => !IsRunning && Command.Trim().Length > 0;
 
@@ -82,10 +88,10 @@ public sealed partial class HookTestPaneViewModel : ToolPaneViewModel
         _run = new CancellationTokenSource();
         try
         {
-            var env = new Dictionary<string, string> { ["CLAUDE_PROJECT_DIR"] = WorkingDirectory };
+            var env = Profile.Environment(WorkingDirectory);
             var result = await HookRunner.RunAsync(Command, Input, WorkingDirectory, HookRunner.DefaultTimeout, env, _run.Token).ConfigureAwait(true);
             ResultText = $"{result.Meaning} · 종료 코드 {result.ExitCode?.ToString(CultureInfo.InvariantCulture) ?? "-"} · {result.Elapsed.TotalMilliseconds:0} ms";
-            Output = $"[stdout]\n{result.StandardOutput}\n[stderr]\n{result.StandardError}";
+            Output = Core.Security.SecretMasker.MaskText($"[stdout]\n{result.StandardOutput}\n[stderr]\n{result.StandardError}");
         }
         catch (OperationCanceledException)
         {

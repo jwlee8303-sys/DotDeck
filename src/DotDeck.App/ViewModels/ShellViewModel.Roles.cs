@@ -24,6 +24,8 @@ public sealed partial class ShellViewModel
     public ClaudeToolCatalog? ToolCatalog { get; }
 
     public HookEventCatalog? HookEvents { get; }
+    public Core.Codex.ConfigFormCatalog CodexCatalog { get; private set; } = Core.Codex.ConfigFormCatalog.BuiltIn;
+    public string? PickProjectFolder() => _dialogs.PickFolder("프로젝트 경로", Paths.Home);
 
     /// <summary>Configured MCP server names for the settings form, read on the thread pool (servers are never run).</summary>
     public Task<Core.Mcp.McpDiscoveryResult> DiscoverMcpAsync(string? projectRoot) => Task.Run(() => _mcp.Discover(projectRoot));

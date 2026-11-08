@@ -118,14 +118,7 @@ public sealed class FileRoleCatalog
 
     public string RoleLabel(string role) => Roles.TryGetValue(role, out var label) ? label : role;
 
-    public static EditorKind EditorOf(string? name) => name switch
-    {
-        "settingsForm" => EditorKind.ClaudeSettings,
-        "agentForm" => EditorKind.Agent,
-        "skillForm" => EditorKind.Skill,
-        "markdown" => EditorKind.Markdown,
-        _ => EditorKind.Text,
-    };
+    public static EditorKind EditorOf(string? name) => Editors.Registry.EditorRegistry.FindKind(name) ?? EditorKind.Text;
 
     /// <summary>Glob to an anchored, case-insensitive regex over a <c>/</c>-separated relative path.</summary>
     internal static Regex CompilePattern(string pattern)

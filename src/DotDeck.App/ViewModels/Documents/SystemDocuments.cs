@@ -41,13 +41,27 @@ public sealed partial class EnvironmentRow : ObservableObject
 
     public bool IsSecret => SecretMasker.IsSecretName(Name);
 
-    public bool IsMasked => IsSecret && !IsRevealed;
+    /// <summary>Masked only in screen share mode until the row's eye button reveals it.</summary>
+    public bool IsMasked => IsSecret && Core.Security.SecretPresentation.ScreenShareMode && !IsRevealed;
+
+    /// <summary>The eye toggle is offered only for secret rows in screen share mode.</summary>
+    public bool ShowsEye => IsSecret && Core.Security.SecretPresentation.ScreenShareMode;
+
+    /// <summary>Screen share mode changed: hide revealed rows again and refresh the display.</summary>
+    public void OnScreenShareModeChanged()
+    {
+        IsRevealed = false;
+        OnPropertyChanged(nameof(ShowsEye));
+        OnPropertyChanged(nameof(IsMasked));
+        OnPropertyChanged(nameof(DisplayValue));
+    }
 
     public string DisplayValue => IsMasked ? SecretMasker.Mask : Value;
 
     partial void OnNameChanged(string value)
     {
         OnPropertyChanged(nameof(IsSecret));
+        OnPropertyChanged(nameof(ShowsEye));
         OnPropertyChanged(nameof(IsMasked));
         OnPropertyChanged(nameof(DisplayValue));
     }
@@ -304,10 +318,16 @@ public sealed partial class EnvironmentDocumentViewModel : SystemDocumentViewMod
 
     public static string IdFor(EnvironmentScope scope) => scope == EnvironmentScope.User ? "doc:env-user" : "doc:env-machine";
 
+    public void OnScreenShareModeChanged()
+    {
+        foreach (var row in Rows) row.OnScreenShareModeChanged();
+        OnPropertyChanged(nameof(VisibleRows));
+    }
+
     public IEnumerable<EnvironmentRow> VisibleRows => Filter.Trim().Length == 0
         ? Rows
         : Rows.Where(r => r.Name.Contains(Filter.Trim(), StringComparison.OrdinalIgnoreCase)
-            || (!r.IsSecret && r.Value.Contains(Filter.Trim(), StringComparison.OrdinalIgnoreCase)));
+            || (!r.IsMasked && r.Value.Contains(Filter.Trim(), StringComparison.OrdinalIgnoreCase)));
 
     protected override IEnumerable<EnvironmentRow> LoadRows(IReadOnlyDictionary<string, string> values) =>
         values.Select(p => new EnvironmentRow { Name = p.Key, Value = p.Value });

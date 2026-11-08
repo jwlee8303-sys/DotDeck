@@ -1,0 +1,169 @@
+using System.Text;
+using DotDeck.Core.Toml;
+
+namespace DotDeck.Core.Tests.Editors;
+
+public sealed class TomlEditDocumentTests
+{
+    [Fact]
+    public void Inline_structural_edits_preserve_unedited_keys_and_spacing()
+    {
+        var doc = TomlEditDocument.Parse(Encode("inline = { x  = 1, 'quoted key' = 'keep' } # end\r\n", true));
+        doc.SetInlineValues(["inline"], [KeyValuePair.Create("x", "2"), KeyValuePair.Create("'quoted key'", "'keep'"), KeyValuePair.Create("added", "true")]);
+        var text = Encoding.UTF8.GetString(doc.ToBytes());
+        Assert.Contains("x  = 2, 'quoted key' = 'keep'", text, StringComparison.Ordinal);
+        Assert.EndsWith("} # end\r\n", text, StringComparison.Ordinal);
+        doc.SetInlineValues(["inline"], [KeyValuePair.Create("'quoted key'", "'keep'")]);
+        Assert.Contains("'quoted key' = 'keep'", Encoding.UTF8.GetString(doc.ToBytes()), StringComparison.Ordinal);
+    }
+    [Fact]
+    public void String_list_structural_edits_keep_comments_and_unrelated_bytes()
+    {
+        var doc = TomlEditDocument.Parse(Encode("# keep\r\nargs = [\r\n'a', # first\r\n'b' # last\r\n]\r\nother = 42\r\n", true));
+        doc.SetStringList(["args"], ["a", "b", "c"]);
+        doc.SetStringList(["args"], ["renamed"]);
+        var text = Encoding.UTF8.GetString(doc.ToBytes());
+        Assert.Contains("# first\r\n", text, StringComparison.Ordinal);
+        Assert.Contains("# last\r\n", text, StringComparison.Ordinal);
+        Assert.Contains("other = 42\r\n", text, StringComparison.Ordinal);
+    }
+    [Theory]
+    [InlineData("\n", false)]
+    [InlineData("\r\n", true)]
+    public void New_dotted_table_and_key_delete_preserve_comments_and_bytes(string newline, bool bom)
+    {
+        var original = "# document\nroot = 1\n\n# keep this note\n[old]\n# key note stays\nvalue = 2 # inline removed\n\n[next]\nkeep = 3\n".Replace("\n", newline, StringComparison.Ordinal);
+        var doc = TomlEditDocument.Parse(Encode(original, bom));
+        doc.CreateTable(["a", "b"]);
+        doc.SetValue(["a", "b", "x"], "4");
+        doc.DeleteKey(["old", "value"]);
+        // Leading standalone comments and blank lines stay; the assignment and its inline comment/newline go.
+        var expected = original.Replace("value = 2 # inline removed" + newline, "", StringComparison.Ordinal)
+            + "[a.b]" + newline + "x = 4" + newline;
+        Assert.Equal(Encode(expected, bom), doc.ToBytes());
+        doc.RemoveEmptyTables();
+        Assert.Equal(Encode(expected.Replace("[old]" + newline, "", StringComparison.Ordinal), bom), doc.ToBytes());
+    }
+
+    [Fact]
+    public void Delete_multiline_and_eof_keys_and_keep_nonempty_parent_tables()
+    {
+        var doc = TomlEditDocument.Parse(Encode("[a]\n[a.b]\n# note\nx = [\n 1, 2\n] # inline\ny = 3", false));
+        doc.DeleteKey(["a", "b", "x"]);
+        Assert.Equal("[a]\n[a.b]\n# note\ny = 3", Encoding.UTF8.GetString(doc.ToBytes()));
+        doc.RemoveEmptyTables();
+        Assert.Contains("[a]", Encoding.UTF8.GetString(doc.ToBytes()), StringComparison.Ordinal);
+        doc.DeleteKey(["a", "b", "y"]);
+        doc.RemoveEmptyTables();
+        Assert.Equal("# note\n", Encoding.UTF8.GetString(doc.ToBytes()));
+    }
+
+    [Fact]
+    public void Unsupported_inline_delete_and_conflicting_table_are_atomic()
+    {
+        var bytes = Encode("a = { b = 1 }\n", true);
+        var doc = TomlEditDocument.Parse(bytes);
+        Assert.False(doc.CanDeleteKey(["a", "b"]));
+        Assert.Throws<TomlEditException>(() => doc.DeleteKey(["a", "b"]));
+        Assert.Throws<TomlEditException>(() => doc.CreateTable(["a"]));
+        Assert.Equal(bytes, doc.ToBytes());
+    }
+
+    [Theory]
+    [InlineData(false, "\n")]
+    [InlineData(true, "\r\n")]
+    [InlineData(true, "\n")]
+    [InlineData(false, "\r\n")]
+    public void No_edit_round_trip_is_byte_identical(bool bom, string newline)
+    {
+        var text = "# 한국어\nmodel = \"example\" # keep\n[projects.'d:\\project\\dotdeck']\ntrust_level = 'trusted'\n[features]\na.b = true\ninline = { x = 1, y = 'two' }\n[[agents]]\nname = 'first'\n[[agents]]\nname = 'second'\n".Replace("\n", newline, StringComparison.Ordinal);
+        var bytes = Encode(text, bom);
+        Assert.Equal(bytes, TomlEditDocument.Parse(bytes).ToBytes());
+    }
+
+    [Fact]
+    public void Value_patch_preserves_every_other_byte_and_literal_quotes()
+    {
+        const string text = "# comment\r\n[projects.'d:\\project\\dotdeck']\r\ntrust_level  = 'untrusted' # keep\r\n";
+        var document = TomlEditDocument.Parse(Encode(text, true));
+        document.SetString(["projects", @"d:\project\dotdeck", "trust_level"], "trusted");
+        Assert.Equal(Encode(text.Replace("'untrusted'", "'trusted'", StringComparison.Ordinal), true), document.ToBytes());
+    }
+
+    [Fact]
+    public void Dotted_inline_and_array_table_values_are_addressable()
+    {
+        var doc = TomlEditDocument.Parse(Encode("a.b = true\ninline = { x = 1, y = 'two' }\n[[agents]]\nname = 'first'\n[[agents]]\nname = 'second'\n", false));
+        doc.SetValue(["a", "b"], "false");
+        doc.SetValue(["inline", "x"], "2");
+        doc.SetString(["agents", "1", "name"], "changed");
+        Assert.Equal("a.b = false\ninline = { x = 2, y = 'two' }\n[[agents]]\nname = 'first'\n[[agents]]\nname = 'changed'\n", Encoding.UTF8.GetString(doc.ToBytes()));
+    }
+
+    [Fact]
+    public void Root_insertion_precedes_tables_and_table_insertion_stays_in_its_section()
+    {
+        var doc = TomlEditDocument.Parse(Encode("# keep\r\n[first]\r\na = 1\r\n[second]\r\nb = 2", false));
+        doc.SetString(["path"], @"C:\new\folder");
+        doc.SetValue(["first", "enabled"], "true");
+        var text = Encoding.UTF8.GetString(doc.ToBytes());
+        Assert.Equal("# keep\r\npath = 'C:\\new\\folder'\r\n[first]\r\na = 1\r\nenabled = true\r\n[second]\r\nb = 2", text);
+    }
+
+    [Theory]
+    [InlineData("a = [")]
+    [InlineData("a = 1\na = 2")]
+    public void Parse_errors_have_line_and_column(string text)
+    {
+        var error = Assert.Throws<TomlEditException>(() => TomlEditDocument.Parse(Encode(text, false)));
+        Assert.True(error.Line > 0);
+        Assert.True(error.Column > 0);
+    }
+
+    [Fact]
+    public void Invalid_or_injecting_patch_does_not_change_original()
+    {
+        var original = Encode("a = 1\n", true);
+        var doc = TomlEditDocument.Parse(original);
+        Assert.Throws<TomlEditException>(() => doc.SetValue(["a"], "2\nevil = true"));
+        Assert.Equal(original, doc.ToBytes());
+    }
+
+    [Theory]
+    [InlineData("line one\nline two")]
+    [InlineData("quote ' and \" and \\")]
+    [InlineData("한글 😀")]
+    public void Strings_are_decoded_back_to_the_requested_value(string value)
+    {
+        var doc = TomlEditDocument.Parse(Encode("name = 'old' # keep\n", false));
+        doc.SetString(["name"], value);
+        var syntax = Tomlyn.Parsing.SyntaxParser.Parse(Encoding.UTF8.GetString(doc.ToBytes()));
+        Assert.Equal(value, Assert.IsType<Tomlyn.Syntax.StringValueSyntax>(syntax.KeyValues.First().Value).Value);
+    }
+
+    [Fact]
+    public void Nested_array_tables_and_arrays_patch_only_the_selected_element()
+    {
+        const string input = "[[items]]\nname='a'\n[items.options]\nvalues=[1, 2]\n[[items.children]]\nname='child'\n[[items]]\nname='b'\n";
+        var doc = TomlEditDocument.Parse(Encode(input, false));
+        doc.SetValue(["items", "0", "options", "values", "1"], "3");
+        doc.SetString(["items", "0", "children", "0", "name"], "updated");
+        Assert.Equal(input.Replace("[1, 2]", "[1, 3]", StringComparison.Ordinal).Replace("'child'", "'updated'", StringComparison.Ordinal), Encoding.UTF8.GetString(doc.ToBytes()));
+    }
+
+    [Fact]
+    public void Equal_string_edit_preserves_escapes_and_multiline_styles_survive_edits()
+    {
+        var bytes = Encode("a = \"\\u0061\"\nb = '''first\nsecond'''\nc = \"\"\"old\"\"\"\n", true);
+        var doc = TomlEditDocument.Parse(bytes);
+        doc.SetString(["a"], "a");
+        Assert.Equal(bytes, doc.ToBytes());
+        doc.SetString(["b"], "next\nvalue");
+        doc.SetString(["c"], "new");
+        var text = Encoding.UTF8.GetString(doc.ToBytes());
+        Assert.Contains("b = '''next\nvalue'''", text, StringComparison.Ordinal);
+        Assert.Contains("c = \"\"\"new\"\"\"", text, StringComparison.Ordinal);
+    }
+
+    private static byte[] Encode(string text, bool bom) => [.. bom ? Encoding.UTF8.GetPreamble() : [], .. Encoding.UTF8.GetBytes(text)];
+}

@@ -349,5 +349,5 @@ public partial class MarkdownPreviewView : UserControl
         TryFindResource(key) is FontFamily f ? f.Source : "sans-serif";
 
     private System.Drawing.Color ToDrawingColor(string key) =>
-        TryFindResource(key) is Color c ? System.Drawing.Color.FromArgb(c.A, c.R, c.G, c.B) : System.Drawing.Color.Black;
+        TryFindResource(key) is Color c ? System.Drawing.Color.FromArgb(c.A, c.R, c.G, c.B) : System.Drawing.Color.Black; // theme-color-ok: converts a theme resource color for WebView2
 }

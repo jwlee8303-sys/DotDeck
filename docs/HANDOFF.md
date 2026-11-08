@@ -105,6 +105,7 @@
 - 제품 앱을 직접 실행한 시각적 수동 확인은 아직 하지 않았음. 사용자 확인 후 2b-0(Tomlyn 무손실 TOML 시험 구현)로 진행한다.
 
 ## 12. 2b-0 진행 기록 (2026-11-08)
+- 후속 항목 2: 테스트 선작성·미구현 API 빌드 실패 확인 후 `CreateTable`(점 표기·인용 키), `DeleteKey`, `RemoveEmptyTables` 추가. 삭제는 대입문의 전체 물리 줄·인라인 주석·종료 개행을 제거하고 앞의 독립 주석·빈 줄은 보존. 빈 일반 테이블은 헤더 줄만 제거, 배열 테이블 및 하위 테이블이 남은 부모는 보존. 인라인/배열 원소 삭제는 미지원이며 `CanDeleteKey`로 조회 가능. 후보 재파싱·비대상 값 비교 후 적용. Debug 빌드 경고 0·오류 0, 전체 724 / 성공 722 / 건너뜀 2 / 실패 0.
 - 후속 항목 1: 사용자가 실행 앱 종료 후 Debug 재검증 요청. `dotnet build DotDeck.slnx` 경고 0·오류 0, `dotnet test --solution DotDeck.slnx` 총 720 / 성공 718 / 실패 0 / 건너뜀 2. DLL 잠금 해소 확인.
 - 사용자 2a 수동 확인 완료, 문제 없음. 2b-0 진행 승인 및 바이트 왕복 테스트 선작성 요청을 받음.
 - Tomlyn 실시간 NuGet v3 flat-container 버전 목록에서 가장 높은 비프리릴리스 버전 2.10.2 확인. registration/catalog에서도 `listed: true`, 게시일 `2026-11-04T20:44:46.14Z` 확인, 실제 restore 성공. 검색 캐시의 2.10.1보다 실시간 피드를 우선함. 출처: https://api.nuget.org/v3-flatcontainer/tomlyn/index.json 및 https://api.nuget.org/v3/registration5-semver1/tomlyn/2.10.2.json

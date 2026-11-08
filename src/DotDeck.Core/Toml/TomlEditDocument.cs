@@ -20,6 +20,68 @@ public sealed class TomlEditDocument
     private DocumentSyntax _syntax;
     private readonly Dictionary<string, ValueSyntax> _values = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _sections = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, KeyValueSyntax> _assignments = new(StringComparer.Ordinal);
+    private readonly Dictionary<TableSyntaxBase, IReadOnlyList<string>> _tablePaths = [];
+
+    public void CreateTable(IReadOnlyList<string> path)
+    {
+        if (path.Count == 0) throw new ArgumentException("A table path is required.", nameof(path));
+        var newline = _text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        var separator = _text.Length > 0 && !_text.EndsWith('\n') ? newline : string.Empty;
+        Adopt(_text + separator + "[" + string.Join(".", path.Select(QuoteKey)) + "]" + newline);
+    }
+
+    public bool CanDeleteKey(IReadOnlyList<string> path) => _assignments.ContainsKey(Key(path));
+
+    /// <summary>Removes the assignment's physical lines, inline comment and final newline. Standalone comments stay.</summary>
+    public void DeleteKey(IReadOnlyList<string> path)
+    {
+        if (!_assignments.TryGetValue(Key(path), out var pair))
+            throw new TomlEditException("이 키의 삭제는 지원하지 않습니다(인라인 항목·배열 원소 제외).");
+        var start = LineStart(pair.Key!.Span.Start.Offset);
+        var end = LineEnd(pair.Value!.Span.Start.Offset + pair.Value.Span.Length);
+        Adopt(_text[..start] + _text[end..], path);
+    }
+
+    /// <summary>Removes empty ordinary table headers only. Array tables and parents of remaining tables stay.</summary>
+    public void RemoveEmptyTables()
+    {
+        while (true)
+        {
+            var empty = _tablePaths.Reverse().FirstOrDefault(entry => entry.Key is not TableArraySyntax
+                && !entry.Key.Items.Any()
+                && !_tablePaths.Any(other => other.Key != entry.Key && IsPrefix(entry.Value, other.Value)));
+            if (empty.Key is null) return;
+            var start = LineStart(empty.Key.OpenBracket!.Span.Start.Offset);
+            var end = LineEnd(empty.Key.CloseBracket!.Span.Start.Offset + empty.Key.CloseBracket.Span.Length);
+            Adopt(_text[..start] + _text[end..]);
+        }
+    }
+
+    private static bool IsPrefix(IReadOnlyList<string> prefix, IReadOnlyList<string> path) =>
+        prefix.Count <= path.Count && prefix.SequenceEqual(path.Take(prefix.Count));
+
+    private int LineStart(int offset) => _text.LastIndexOf('\n', Math.Max(0, offset - 1)) + 1;
+    private int LineEnd(int offset)
+    {
+        var newline = _text.IndexOf('\n', offset);
+        return newline < 0 ? _text.Length : newline + 1;
+    }
+
+    private void Adopt(string candidate, IReadOnlyList<string>? removed = null)
+    {
+        var next = new TomlEditDocument(candidate, _bom);
+        foreach (var (key, value) in _values)
+        {
+            var path = JsonSerializer.Deserialize<string[]>(key)!;
+            if (removed is not null && IsPrefix(removed, path)) continue;
+            if (!next._values.TryGetValue(key, out var other) || Slice(value) != next.Slice(other))
+                throw new TomlEditException("다른 값이 바뀌어 변경을 취소했습니다.");
+        }
+        _text = next._text;
+        _syntax = next._syntax;
+        Index();
+    }
 
     private TomlEditDocument(string text, bool bom)
     {
@@ -152,10 +214,12 @@ public sealed class TomlEditDocument
         var tables = _syntax.Tables.ToArray();
         _values.Clear();
         _sections.Clear();
+        _assignments.Clear();
+        _tablePaths.Clear();
         _sections[Key([])] = tables.Length == 0 ? _text.Length : tables[0].Span.Start.Offset;
         foreach (var pair in _syntax.KeyValues)
         {
-            IndexPair([], pair);
+            IndexPair([], pair, true);
         }
 
         var activeArrays = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -180,16 +244,18 @@ public sealed class TomlEditDocument
             }
 
             _sections[Key(expanded)] = i + 1 < tables.Length ? tables[i + 1].Span.Start.Offset : _text.Length;
+            _tablePaths[table] = expanded;
             foreach (var pair in table.Items)
             {
-                IndexPair(expanded, pair);
+                IndexPair(expanded, pair, true);
             }
         }
     }
 
-    private void IndexPair(IReadOnlyList<string> prefix, KeyValueSyntax pair)
+    private void IndexPair(IReadOnlyList<string> prefix, KeyValueSyntax pair, bool standalone = false)
     {
         List<string> path = [.. prefix, .. Segments(pair.Key!)];
+        if (standalone) _assignments[Key(path)] = pair;
         if (pair.Value is { } value)
         {
             IndexValue(path, value);

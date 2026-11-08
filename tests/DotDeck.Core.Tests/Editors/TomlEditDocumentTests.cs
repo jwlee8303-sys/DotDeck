@@ -6,6 +6,48 @@ namespace DotDeck.Core.Tests.Editors;
 public sealed class TomlEditDocumentTests
 {
     [Theory]
+    [InlineData("\n", false)]
+    [InlineData("\r\n", true)]
+    public void New_dotted_table_and_key_delete_preserve_comments_and_bytes(string newline, bool bom)
+    {
+        var original = "# document\nroot = 1\n\n# keep this note\n[old]\n# key note stays\nvalue = 2 # inline removed\n\n[next]\nkeep = 3\n".Replace("\n", newline, StringComparison.Ordinal);
+        var doc = TomlEditDocument.Parse(Encode(original, bom));
+        doc.CreateTable(["a", "b"]);
+        doc.SetValue(["a", "b", "x"], "4");
+        doc.DeleteKey(["old", "value"]);
+        // Leading standalone comments and blank lines stay; the assignment and its inline comment/newline go.
+        var expected = original.Replace("value = 2 # inline removed" + newline, "", StringComparison.Ordinal)
+            + "[a.b]" + newline + "x = 4" + newline;
+        Assert.Equal(Encode(expected, bom), doc.ToBytes());
+        doc.RemoveEmptyTables();
+        Assert.Equal(Encode(expected.Replace("[old]" + newline, "", StringComparison.Ordinal), bom), doc.ToBytes());
+    }
+
+    [Fact]
+    public void Delete_multiline_and_eof_keys_and_keep_nonempty_parent_tables()
+    {
+        var doc = TomlEditDocument.Parse(Encode("[a]\n[a.b]\n# note\nx = [\n 1, 2\n] # inline\ny = 3", false));
+        doc.DeleteKey(["a", "b", "x"]);
+        Assert.Equal("[a]\n[a.b]\n# note\ny = 3", Encoding.UTF8.GetString(doc.ToBytes()));
+        doc.RemoveEmptyTables();
+        Assert.Contains("[a]", Encoding.UTF8.GetString(doc.ToBytes()), StringComparison.Ordinal);
+        doc.DeleteKey(["a", "b", "y"]);
+        doc.RemoveEmptyTables();
+        Assert.Equal("# note\n", Encoding.UTF8.GetString(doc.ToBytes()));
+    }
+
+    [Fact]
+    public void Unsupported_inline_delete_and_conflicting_table_are_atomic()
+    {
+        var bytes = Encode("a = { b = 1 }\n", true);
+        var doc = TomlEditDocument.Parse(bytes);
+        Assert.False(doc.CanDeleteKey(["a", "b"]));
+        Assert.Throws<TomlEditException>(() => doc.DeleteKey(["a", "b"]));
+        Assert.Throws<TomlEditException>(() => doc.CreateTable(["a"]));
+        Assert.Equal(bytes, doc.ToBytes());
+    }
+
+    [Theory]
     [InlineData(false, "\n")]
     [InlineData(true, "\r\n")]
     [InlineData(true, "\n")]

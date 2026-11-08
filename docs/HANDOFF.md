@@ -105,6 +105,7 @@
 - 제품 앱을 직접 실행한 시각적 수동 확인은 아직 하지 않았음. 사용자 확인 후 2b-0(Tomlyn 무손실 TOML 시험 구현)로 진행한다.
 
 ## 12. 2b-0 진행 기록 (2026-11-08)
+- 후속 항목 1: 사용자가 실행 앱 종료 후 Debug 재검증 요청. `dotnet build DotDeck.slnx` 경고 0·오류 0, `dotnet test --solution DotDeck.slnx` 총 720 / 성공 718 / 실패 0 / 건너뜀 2. DLL 잠금 해소 확인.
 - 사용자 2a 수동 확인 완료, 문제 없음. 2b-0 진행 승인 및 바이트 왕복 테스트 선작성 요청을 받음.
 - Tomlyn 실시간 NuGet v3 flat-container 버전 목록에서 가장 높은 비프리릴리스 버전 2.10.2 확인. registration/catalog에서도 `listed: true`, 게시일 `2026-11-04T20:44:46.14Z` 확인, 실제 restore 성공. 검색 캐시의 2.10.1보다 실시간 피드를 우선함. 출처: https://api.nuget.org/v3-flatcontainer/tomlyn/index.json 및 https://api.nuget.org/v3/registration5-semver1/tomlyn/2.10.2.json
 - `TomlEditDocumentTests`를 먼저 작성하고 미구현 타입으로 빌드 실패 확인 후 구현. 기존 승인에 따라 CPM에 Tomlyn 2.10.2 추가. 패키지의 net10.0 XML API 문서에 따라 `SyntaxParser.Parse(validate: true)` 사용. 전체 문서 직렬화 없이 원본 텍스트의 값 Span만 교체하고 별도 후보 문서를 재파싱·경로 대조 후 적용.

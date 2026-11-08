@@ -84,6 +84,7 @@ public sealed partial class ShellViewModel : ObservableObject
             ? System.IO.Path.Combine(managedDir, "managed-mcp.json")
             : null;
         _mcp = new Core.Mcp.McpServerDiscovery(services.Store, services.Paths.Home, managedMcp);
+        _agents = new Core.Editors.AgentNameFinder(services.Store, services.Paths.Home);
         _roles = new FileRoleResolver([roleCatalog.Value], services.Store, services.Paths.Home, ProjectRoots,
             includeManaged: !services.Paths.IsHomeOverridden);
         _editorOverrides = new EditorOverrideStore(services.Store, services.Paths.EditorOverridesFile);

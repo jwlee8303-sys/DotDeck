@@ -32,6 +32,9 @@ public interface ITextDocumentHost
     /// <summary>Reads configured MCP server names (never starts or contacts servers). Null root: user settings.</summary>
     Task<DotDeck.Core.Mcp.McpDiscoveryResult> DiscoverMcpAsync(string? projectRoot);
 
+    /// <summary>Subagent names from agents/*.md for a settings scope (null root: user agents only).</summary>
+    Task<IReadOnlyList<AgentNameInfo>> DiscoverAgentsAsync(string? projectRoot);
+
     /// <summary>Shows help for the selected form row in the properties pane (null clears it).</summary>
     void ShowFormHelp(Tools.RoleDescription? help);
 }
@@ -252,6 +255,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
                 Tools = _host.ToolCatalog,
                 Events = _host.HookEvents,
                 DiscoverMcp = _host.DiscoverMcpAsync,
+                DiscoverAgents = _host.DiscoverAgentsAsync,
                 ShowHelp = _host.ShowFormHelp,
             }
             : new FrontmatterFormViewModel(Kind, ApplyFormText, _host.ToolCatalog?.Ordered.Where(t => t.Common).Select(t => t.Name).ToList());

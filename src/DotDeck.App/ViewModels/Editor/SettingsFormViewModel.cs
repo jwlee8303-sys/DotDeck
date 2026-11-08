@@ -48,6 +48,141 @@ public sealed partial class PermissionRow : FormRow
     [ObservableProperty]
     private string _argument = string.Empty;
 
+    /// <summary>Warnings for this rule (also listed in the validation pane); saving is never blocked.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasWarnings), nameof(HasNotesOnly), nameof(IssueText))]
+    private IReadOnlyList<ValidationIssue> _issues = [];
+
+    public bool HasWarnings => Issues.Any(i => i.Severity != IssueSeverity.Info);
+
+    public bool HasNotesOnly => Issues.Count > 0 && !HasWarnings;
+
+    public string IssueText => string.Join(Environment.NewLine, Issues.Select(i => i.Message));
+
+    private ToolArgumentKind? ArgumentKind => Owner?.Tools?.ArgumentOf(Tool.Trim());
+
+    /// <summary>How the argument cell works for the chosen tool (free text for unknown tools).</summary>
+    public ArgumentInput Input => ArgumentKind?.Input ?? (IsMcp ? ArgumentInput.Mcp : ArgumentInput.Text);
+
+    /// <summary><c>Tool(name:value)</c> deny/ask rule (shown and kept as typed).</summary>
+    public PermissionParameter? Parameter =>
+        Owner?.Tools is { } tools && IsParsed ? PermissionRule.ParameterOf(Tool, Argument, tools) : null;
+
+    public bool IsMcp => IsParsed && PermissionRule.IsMcp(Tool.Trim());
+
+    public McpRuleParts? Mcp => IsMcp ? McpRuleParts.Parse(Tool, Owner?.McpServerNames) : null;
+
+    /// <summary>The argument box: hidden for MCP rules unless one already has (wrong) parentheses to clear.</summary>
+    public bool ShowArgumentBox => IsParsed && (!IsMcp || Argument.Length > 0);
+
+    public bool ShowMcpScope => Mcp is not null;
+
+    public bool IsArgumentEnabled => Input is not (ArgumentInput.Disabled or ArgumentInput.Mcp) || Argument.Trim().Length > 0;
+
+    public bool HasArgumentChoices => Input == ArgumentInput.Choice;
+
+    public string? Prefix => ArgumentKind is { Input: ArgumentInput.Prefixed, Prefix: { } prefix } ? prefix : null;
+
+    /// <summary>The prefix is shown outside the box while the argument has it (or is empty); other text is shown as typed.</summary>
+    public bool UsesPrefix =>
+        Prefix is { } prefix && Parameter is null && (Argument.Length == 0 || Argument.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The text in the argument box: <see cref="Argument"/> without the shown prefix.</summary>
+    public string ArgumentValue
+    {
+        get => UsesPrefix && Argument.Length >= Prefix!.Length ? Argument[Prefix.Length..] : Argument;
+        set
+        {
+            var text = value ?? string.Empty;
+            if (UsesPrefix)
+            {
+                var prefix = Prefix!;
+                Argument = text.Length == 0 ? string.Empty
+                    : text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? text
+                    : prefix + text;
+            }
+            else
+            {
+                Argument = text;
+            }
+        }
+    }
+
+    public string McpServer => Mcp?.Server ?? string.Empty;
+
+    public bool IsMcpToolScope => Mcp?.Scope == McpRuleScope.Tool;
+
+    private static readonly IReadOnlyList<ChoiceItem> s_mcpScopes =
+    [
+        new("server", "서버 전체 (mcp__서버)", "그 서버의 모든 도구. mcp__서버__*와 같습니다."),
+        new("all", "모든 도구 (mcp__서버__*)", "그 서버의 모든 도구를 와일드카드로 씁니다."),
+        new("tool", "특정 도구 (mcp__서버__도구)", "도구 하나만. 오른쪽 칸에 도구 이름을 씁니다."),
+    ];
+
+    public IReadOnlyList<ChoiceItem> McpScopeChoices => s_mcpScopes;
+
+    public string McpScopeLabel => Mcp?.Scope switch
+    {
+        McpRuleScope.AllTools => "모든 도구 (__*)",
+        McpRuleScope.Tool => "특정 도구",
+        _ => "서버 전체",
+    };
+
+    /// <summary>Tool name of a <c>mcp__server__tool</c> rule; typing one switches to that scope.</summary>
+    public string McpToolName
+    {
+        get => Mcp?.Scope == McpRuleScope.Tool ? Mcp.ToolName : string.Empty;
+        set
+        {
+            if (Mcp is { } parts)
+            {
+                var name = (value ?? string.Empty).Trim();
+                Tool = (name.Length == 0 && parts.Scope != McpRuleScope.Tool ? parts : parts with { Scope = McpRuleScope.Tool, ToolName = name }).ToolText;
+            }
+        }
+    }
+
+    private string _mcpToolDraft = string.Empty;
+
+    [RelayCommand]
+    private void SetMcpScope(string? value)
+    {
+        var scope = value switch
+        {
+            "all" => McpRuleScope.AllTools,
+            "tool" => McpRuleScope.Tool,
+            _ => McpRuleScope.Server,
+        };
+        if (Mcp is not { } parts || parts.Scope == scope)
+        {
+            return;
+        }
+
+        if (parts.Scope == McpRuleScope.Tool)
+        {
+            _mcpToolDraft = parts.ToolName;
+        }
+
+        Tool = (parts with { Scope = scope, ToolName = scope == McpRuleScope.Tool ? _mcpToolDraft : string.Empty }).ToolText;
+    }
+
+    private static readonly string[] s_displayProperties =
+    [
+        nameof(Input), nameof(Parameter), nameof(IsMcp), nameof(Mcp), nameof(ShowArgumentBox), nameof(ShowMcpScope),
+        nameof(IsArgumentEnabled), nameof(HasArgumentChoices), nameof(Prefix), nameof(UsesPrefix), nameof(ArgumentValue),
+        nameof(McpServer), nameof(IsMcpToolScope), nameof(McpScopeLabel), nameof(McpToolName),
+        nameof(ArgumentPlaceholder), nameof(ToolDescription),
+    ];
+
+    /// <summary>Re-reads every derived display property (tool, argument, catalog or MCP servers changed).</summary>
+    internal void RefreshDisplay()
+    {
+        foreach (var name in s_displayProperties)
+        {
+            OnPropertyChanged(name);
+        }
+    }
+
     /// <summary>False for text that is not <c>Tool</c> or <c>Tool(argument)</c>: then <see cref="Tool"/> holds all of it.</summary>
     [ObservableProperty]
     private bool _isParsed = true;
@@ -76,9 +211,26 @@ public sealed partial class PermissionRow : FormRow
     [RelayCommand]
     private void SetTool(string? value) => Tool = value ?? Tool;
 
-    partial void OnToolChanged(string value) => MarkEdited();
+    [RelayCommand]
+    private void SetArgument(string? value) => Argument = value ?? Argument;
 
-    partial void OnArgumentChanged(string value) => MarkEdited();
+    partial void OnToolChanged(string value)
+    {
+        MarkEdited();
+        if (!_loading)
+        {
+            RefreshDisplay();
+        }
+    }
+
+    partial void OnArgumentChanged(string value)
+    {
+        MarkEdited();
+        if (!_loading)
+        {
+            RefreshDisplay();
+        }
+    }
 
     private void MarkEdited()
     {
@@ -89,7 +241,8 @@ public sealed partial class PermissionRow : FormRow
     }
 
     protected override bool IsDisplayOnly(string? propertyName) =>
-        _loading || propertyName is nameof(ArgumentPlaceholder) or nameof(ToolDescription) or nameof(IsParsed);
+        _loading || propertyName is nameof(IsParsed) or nameof(Issues) or nameof(HasWarnings) or nameof(HasNotesOnly) or nameof(IssueText)
+        || s_displayProperties.Contains(propertyName);
 }
 
 /// <summary>One hook command: event, matcher, command and timeout (other handler types are kept as they are).</summary>
@@ -221,6 +374,9 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
     /// <summary>Finds MCP servers for a project root (null: user settings). Read-only parsing, off the UI thread.</summary>
     public Func<string?, Task<McpDiscoveryResult>>? DiscoverMcp { get; init; }
 
+    /// <summary>Finds subagent names (agents/*.md) for a project root (null: user agents only), off the UI thread.</summary>
+    public Func<string?, Task<IReadOnlyList<AgentNameInfo>>>? DiscoverAgents { get; init; }
+
     /// <summary>Shows help for the selected row in the properties pane.</summary>
     public Action<RoleDescription?>? ShowHelp { get; init; }
 
@@ -236,7 +392,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
     private IReadOnlyList<ValidationIssue> _scopeIssues = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ToolChoices))]
+    [NotifyPropertyChangedFor(nameof(ToolChoices), nameof(McpServerNames))]
     private IReadOnlyList<McpServerInfo> _mcpServers = [];
 
     [ObservableProperty]
@@ -244,6 +400,20 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
 
     [ObservableProperty]
     private string _mcpDetails = string.Empty;
+
+    /// <summary>Configuration files that exist but could not be read (path and reason only).</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _mcpProblems = [];
+
+    /// <summary>The server list under "MCP 서버 N개" is open.</summary>
+    [ObservableProperty]
+    private bool _isMcpListOpen;
+
+    /// <summary>Names offered for <c>Agent(이름)</c>: documented built-ins, then agents/*.md of this scope.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<ChoiceItem> _agentChoices = [];
+
+    public IReadOnlyList<string> McpServerNames => [.. McpServers.Select(s => s.Name)];
 
     [ObservableProperty]
     private FormRow? _selectedRow;
@@ -253,13 +423,17 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
             ? [.. ClaudeSettingsDocument.HookEvents.Select(e => new ChoiceItem(e, e))]
             : [.. Events.Ordered.Select(e => new ChoiceItem(e.Name, e.Name, string.Join(Environment.NewLine, e.HelpLines()), e.Common ? "자주 쓰는 이벤트" : "기타 이벤트"))];
 
+    public const string McpGroup = "MCP 도구";
+
     /// <summary>Tool menu of a permission row: built-in tools, then MCP servers (all tools of a server).</summary>
     public IReadOnlyList<ChoiceItem> ToolChoices =>
     [
         .. ToolItems(),
-        .. McpServers.Select(s => new ChoiceItem(s.PermissionRule, $"{s.PermissionRule}  — {s.Source}",
-            $"{s.Name} 서버의 모든 도구. 도구 하나는 {s.PermissionRule}__도구이름 으로 직접 입력합니다.", "MCP 서버")),
+        .. McpServers.Select(s => new ChoiceItem(s.PermissionRule, s.PermissionRule,
+            $"{s.Name} 서버의 모든 도구. 고른 뒤 모든 도구(__*)나 특정 도구로 바꿀 수 있습니다.{Environment.NewLine}{SourceText(s)}", McpGroup)),
     ];
+
+    private static string SourceText(McpServerInfo server) => $"출처: {server.Source}{Environment.NewLine}{server.SourcePath}";
 
     private IEnumerable<ChoiceItem> ToolItems() =>
         Tools is null
@@ -277,13 +451,13 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         return
         [
             .. ToolItems(),
-            .. McpServers.Select(s => new ChoiceItem(s.MatcherPattern, $"{s.MatcherPattern}  — {s.Source}", $"{s.Name} 서버의 모든 도구", "MCP 서버")),
+            .. McpServers.Select(s => new ChoiceItem(s.MatcherPattern, s.MatcherPattern, $"{s.Name} 서버의 모든 도구{Environment.NewLine}{SourceText(s)}", McpGroup)),
         ];
     }
 
     public string PlaceholderFor(string tool) =>
-        PermissionRule.IsMcp(tool) ? "MCP 규칙은 괄호 없이 씁니다 (도구 하나: mcp__서버__도구)"
-        : Tools?.ArgumentOf(tool.Trim())?.Placeholder ?? "인수 (비우면 도구 전체)";
+        Tools?.ArgumentOf(tool.Trim())?.Placeholder
+        ?? (PermissionRule.IsMcp(tool) ? "MCP 규칙은 괄호 없이 씁니다 (도구 하나: mcp__서버__도구)" : "인수 (비우면 도구 전체)");
 
     public string? DescriptionFor(string tool) =>
         Tools is null ? null : string.Join(Environment.NewLine, Tools.PermissionHelp(tool.Trim(), Role));
@@ -309,12 +483,25 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
             Source = h,
         }));
         Reset(Env, doc.GetEnv().Select(p => new EnvRow { Key = p.Key, Value = p.Value }));
+        UpdatePermissionIssues();
         if (_mcpVersion == 0)
         {
+            AgentChoices = BuildAgentChoices([]);
             _ = RefreshMcpAsync();
         }
 
         return null;
+    }
+
+    private IReadOnlyList<ChoiceItem> BuildAgentChoices(IReadOnlyList<AgentNameInfo> found)
+    {
+        var builtIn = Tools?.ArgumentKinds.TryGetValue("agent", out var kind) == true ? kind.Choices : [];
+        return
+        [
+            .. builtIn.Select(n => new ChoiceItem(n, n, "Claude Code 기본 서브에이전트", "기본 에이전트")),
+            .. found.Where(a => !builtIn.Contains(a.Name, StringComparer.Ordinal))
+                .Select(a => new ChoiceItem(a.Name, a.Name, $"출처: {a.Source}{Environment.NewLine}{a.Path}", "이 범위의 에이전트")),
+        ];
     }
 
     [RelayCommand]
@@ -344,10 +531,38 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         }
 
         McpServers = result.Servers;
+        McpProblems = result.Problems;
         McpStatus = $"MCP 서버 {result.Servers.Count}개" + (result.Problems.Count > 0 ? $" · 읽지 못한 파일 {result.Problems.Count}개" : string.Empty);
         var lines = result.Servers.Select(s => $"{s.Name} — {s.Source}").Concat(result.Problems).ToList();
         McpDetails = lines.Count == 0 ? "설정 파일에서 MCP 서버를 찾지 못했습니다(서버를 실행하거나 연결하지 않습니다)." : string.Join(Environment.NewLine, lines);
+
+        // Server names decide where an mcp__ tool name splits into server and tool.
+        foreach (var row in Permissions)
+        {
+            row.RefreshDisplay();
+        }
+
+        if (DiscoverAgents is not null)
+        {
+            IReadOnlyList<AgentNameInfo> agents;
+            try
+            {
+                agents = await DiscoverAgents(Role?.ProjectRoot).ConfigureAwait(true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                agents = [];
+            }
+
+            if (version == _mcpVersion)
+            {
+                AgentChoices = BuildAgentChoices(agents);
+            }
+        }
     }
+
+    [RelayCommand]
+    private void ToggleMcpList() => IsMcpListOpen = !IsMcpListOpen;
 
     [RelayCommand]
     private void AddPermission(string? kind) => Permissions.Add(Wire(new PermissionRow { Kind = kind ?? "allow" }));
@@ -392,12 +607,25 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         RoleDescription? help = SelectedRow switch
         {
             PermissionRow p when p.IsParsed && p.Tool.Trim().Length > 0 =>
-                new RoleDescription($"권한 규칙 · {p.Kind} · {p.Tool.Trim()}", Tools?.PermissionHelp(p.Tool.Trim(), Role) ?? []),
+                new RoleDescription($"권한 규칙 · {p.Kind} · {p.Tool.Trim()}", PermissionHelp(p)),
             PermissionRow p => new RoleDescription("권한 규칙", [p.IsParsed ? "도구를 고르거나 직접 입력하세요." : "형식을 해석할 수 없는 규칙입니다. 고치지 않으면 원문 그대로 저장합니다."]),
             HookRow h => new RoleDescription($"훅 · {h.Event}", HookHelp(h)),
             _ => null,
         };
         ShowHelp?.Invoke(help);
+    }
+
+    private List<string> PermissionHelp(PermissionRow row)
+    {
+        var lines = row.Issues.Select(i => (i.Severity == IssueSeverity.Info ? "참고: " : "⚠ ") + i.Message).ToList();
+        if (row.Parameter is not null && Tools is not null)
+        {
+            lines.Add($"매개변수 규칙: {row.Parameter.Name} = {row.Parameter.Value}");
+            lines.AddRange(Tools.ParameterHelp());
+        }
+
+        lines.AddRange(Tools?.PermissionHelp(row.Tool.Trim(), Role) ?? []);
+        return lines;
     }
 
     private List<string> HookHelp(HookRow row)
@@ -463,9 +691,34 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
     private void OnRowChanged(FormRow row, string? property)
     {
         Commit();
-        if (row == SelectedRow && property is nameof(PermissionRow.Tool) or nameof(PermissionRow.Kind) or nameof(HookRow.Event))
+        if (row == SelectedRow && property is nameof(PermissionRow.Tool) or nameof(PermissionRow.Kind) or nameof(PermissionRow.Argument) or nameof(HookRow.Event))
         {
             UpdateHelp();
+        }
+    }
+
+    /// <summary>Row warnings from the same checks as the validation pane (rules that would be saved).</summary>
+    private void UpdatePermissionIssues()
+    {
+        var rows = Permissions.Where(p => p.IsUnchanged || p.RuleText.Length > 0).ToList();
+        var issues = PermissionLint.Check([.. rows.Select(r => new PermissionEntry(r.Kind, r.RuleText))], Tools);
+        var byRow = new Dictionary<PermissionRow, List<ValidationIssue>>();
+        foreach (var issue in issues)
+        {
+            foreach (var index in new[] { issue.Index, issue.OtherIndex }.OfType<int>())
+            {
+                if (!byRow.TryGetValue(rows[index], out var list))
+                {
+                    byRow[rows[index]] = list = [];
+                }
+
+                list.Add(issue.Issue);
+            }
+        }
+
+        foreach (var row in Permissions)
+        {
+            row.Issues = byRow.TryGetValue(row, out var list) ? list : [];
         }
     }
 
@@ -495,6 +748,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
             .ToList());
         _doc.SetEnv(Env.Select(e => new KeyValuePair<string, string>(e.Key, e.Value)).ToList());
         UpdateScopeIssues();
+        UpdatePermissionIssues();
         Apply(_doc.ToJson());
     }
 

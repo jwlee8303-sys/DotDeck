@@ -17,6 +17,8 @@ public sealed partial class ShellViewModel
 
     private readonly Core.Mcp.McpServerDiscovery _mcp;
 
+    private readonly AgentNameFinder _agents;
+
     public SettingsKeyCatalog? SettingsKeys { get; }
 
     public ClaudeToolCatalog? ToolCatalog { get; }
@@ -25,6 +27,9 @@ public sealed partial class ShellViewModel
 
     /// <summary>Configured MCP server names for the settings form, read on the thread pool (servers are never run).</summary>
     public Task<Core.Mcp.McpDiscoveryResult> DiscoverMcpAsync(string? projectRoot) => Task.Run(() => _mcp.Discover(projectRoot));
+
+    /// <summary>Subagent names for <c>Agent(이름)</c> suggestions, read on the thread pool (follows --home).</summary>
+    public Task<IReadOnlyList<AgentNameInfo>> DiscoverAgentsAsync(string? projectRoot) => Task.Run(() => _agents.Find(projectRoot));
 
     public void ShowFormHelp(Tools.RoleDescription? help) => Properties.Help = help;
 

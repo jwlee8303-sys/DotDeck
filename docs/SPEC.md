@@ -132,6 +132,10 @@ docs/                          SPEC.md, 설계 문서
 - 폼: `name`, `description` + 본문. 검증: `name`은 선택(없으면 폴더명), 폴더명과 다르면 경고, `description`+`when_to_use` 1536자 초과 경고.
 ### settings.json (전역/프로젝트/로컬)
 - **권한 탭**: 행 = `[allow|ask|deny] [도구(선택+직접 입력, 기본 도구+MCP)] [인수]`. 저장할 때 `도구(인수)`, 인수가 없으면 `도구`. 해석할 수 없는 규칙은 원문 그대로 표시·보존. 도구별 인수 작성법(placeholder·규칙·예시·함께 적용되는 도구, `/path`의 범위별 기준)을 툴팁과 속성 패널에 한글로 표시. 행 추가·삭제·이동, 중복·충돌 경고와 무효 규칙 경고.
+  - **인수 형식**(카탈로그 `argumentKinds`, 공식 문서 기준): 명령(Bash·PowerShell) / 경로(Read·Edit) / 도메인(WebFetch, `domain:` 접두어를 칸 밖에 표시) / 에이전트 이름(Agent, 기본 Explore·Plan + 이 범위의 `agents/*.md` 이름 선택) / 스킬 이름(Skill) / 없음(WebSearch 등, 칸 비활성) / 다른 도구 규칙 사용(Write·NotebookEdit → Edit, Glob·Grep → Read) / MCP(인수 대신 서버 전체·모든 도구 `__*`·특정 도구 선택). 기존 규칙도 이 형식으로 나눠 보이고, 형식에 맞지 않는 값은 그대로 보인다.
+  - **매개변수 규칙** `도구(매개변수:값)`(deny·ask, 예: `Agent(model:opus)`)은 그대로 표시·보존하고 속성 패널에 설명한다(별도 입력 UI 없음).
+  - **경고**(저장은 막지 않음, 행 옆 ⚠/ⓘ 툴팁 + 검증 결과 패널): 괄호 붙은 MCP 규칙, 인수 없는 도구의 인수, `domain:` 없는 WebFetch, 복합 명령(정보), 가운데의 `:*`(정보), Edit deny만 있고 같은 경로 Read deny 없음(정보), allow의 매개변수 규칙, 쓸 수 없는 매개변수(command·file_path·path·notebook_path·url), allow/deny 충돌·중복, 기존 경고.
+  - 도구·matcher 메뉴의 "MCP 도구" 그룹에 찾은 서버(`mcp__서버`, matcher는 `mcp__서버__.*`)와 출처 파일 툴팁. "MCP 서버 N개"를 누르면 서버 이름·출처·읽지 못한 파일 목록.
 - **훅 탭**: 이벤트 드롭다운(Claude Code 훅 이벤트 전체 + 직접 입력, 모르는 값 보존), 이벤트 설명(실행 시점·matcher 사용 여부·할 수 있는 일·사용 예). matcher는 체크 목록(도구 또는 이벤트별 값, MCP)·전체·정규식(오류는 경고만). matcher를 쓰지 않는 이벤트는 칸 비활성화(기존 값 보존). `type`이 command가 아닌 훅도 보존. command, timeout 열.
 - 스크립트 경로 존재 검증은 판별된 루트 기준(`$CLAUDE_PROJECT_DIR`·상대 경로는 프로젝트 루트, `~`는 홈). 해석할 수 없는 경로는 "확인 불가".
 - **MCP 서버 탐색**: 사용자·로컬(`~/.claude.json`), 프로젝트(`.mcp.json`), 설치된 플러그인 설정을 읽기 전용으로 파싱해 서버 이름과 출처만 표시. 서버 실행·연결 안 함. 새로고침.

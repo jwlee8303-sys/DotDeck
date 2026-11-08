@@ -399,7 +399,7 @@
                 <ControlTemplate TargetType="ContextMenu">
                     <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1" Padding="2" SnapsToDevicePixels="True">
-                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" Grid.IsSharedSizeScope="True" />
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Focusable="False"><StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" Grid.IsSharedSizeScope="True" /></ScrollViewer>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
@@ -426,7 +426,7 @@
                        AllowsTransparency="True" Focusable="False" PopupAnimation="None">
                     <Border Background="{DynamicResource DD.Brush.Popup.Background}" BorderBrush="{DynamicResource DD.Brush.Popup.Border}"
                             BorderThickness="1" Padding="2" SnapsToDevicePixels="True">
-                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" Grid.IsSharedSizeScope="True" />
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Focusable="False"><StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" Grid.IsSharedSizeScope="True" /></ScrollViewer>
                     </Border>
                 </Popup>
             </Grid>
@@ -508,7 +508,7 @@
                        AllowsTransparency="True" Focusable="False" PopupAnimation="None">
                     <Border Background="{DynamicResource DD.Brush.Popup.Background}" BorderBrush="{DynamicResource DD.Brush.Popup.Border}"
                             BorderThickness="1" Padding="2" SnapsToDevicePixels="True">
-                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" Grid.IsSharedSizeScope="True" />
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Focusable="False"><StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" Grid.IsSharedSizeScope="True" /></ScrollViewer>
                     </Border>
                 </Popup>
             </Grid>

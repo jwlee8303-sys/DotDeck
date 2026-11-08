@@ -241,6 +241,15 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - 선택한 행(키보드 포커스)의 도움말은 속성 창 상단 "도움말"에 표시(`ITextDocumentHost.ShowFormHelp`).
 - 저장 시 `type`이 command가 아닌 훅에는 `command` 키를 새로 만들지 않는다.
 
+### 권한 규칙 인수 형식·경고 (tools.json schemaVersion 2)
+- `argumentKinds.<키>`: `label`, `input`(`text|prefixed|choice|disabled|mcp`), `prefix`(domain:), `choices`(Agent 기본 Explore·Plan), `separators`(복합 명령), `argumentWarning`, placeholder·help·examples. 도구: `parameters`·`excludedParameters`(매개변수 규칙 판정), 도구별 `separators`(PowerShell). `parameterRules`(도움말), `messages`(경고 문구, `{rule}` 등 치환). 필수 메시지 키가 없거나 v1이면 내장 카탈로그로 대체(로그 경고).
+- 매개변수 규칙은 인수가 `이름:값`이고 이름이 그 도구의 `parameters`/`excludedParameters`에 있을 때만 인식한다(`Bash(git:*)`, `WebFetch(domain:x)`는 일반 인수).
+- `McpRuleParts`: `mcp__서버[__도구]`를 찾은 서버 이름(긴 것 우선, `__` 포함 가능)으로 먼저 나누고, 없으면 첫 `__`에서 나눈다. 폼의 MCP 행은 도구 칸이 원본이고 범위·도구 이름은 그 위의 보기다.
+- `PermissionLint.Check(규칙 목록)`: 행 경고와 검증 패널이 같은 결과를 쓴다. 중복·충돌은 두 행 모두 표시(`OtherIndex`), 패널에는 한 번. Read deny는 같은 경로의 Edit·Write도 막으므로(공식 문서) 요청의 "Read deny만" 경고 대신 "Edit deny만 있고 같은 경로(또는 전체) Read deny 없음 → 읽기는 막혀 있지 않음"(정보)을 쓴다.
+- `AgentNameFinder`: 사용자 설정은 `~/.claude/agents/**/*.md`, 프로젝트·로컬은 `<루트>/.claude/agents`도(같은 이름은 프로젝트 우선). frontmatter `name`(앞 16KB), 없으면 파일 이름. 500개·깊이 8 제한, 링크 제외, 홈은 `AppPaths.Home`(--home).
+- 메뉴(ContextMenu·하위 메뉴) 템플릿에 `ScrollViewer`: 항목을 담는 StackPanel에 스크롤이 없어 `MaxHeight`(480)를 넘는 도구 메뉴 끝의 MCP 그룹이 잘려 보이지 않던 문제.
+- App ViewModel 테스트는 `tests/DotDeck.App.Tests`(net10.0-windows, 가짜 MCP·에이전트 검색만 사용).
+
 **projects.json 초안**
 ```json
 {

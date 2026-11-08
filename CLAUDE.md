@@ -19,6 +19,7 @@
 - `src/DotDeck.App`: WPF 앱 (`net10.0-windows`) — Shell(도킹), 탐색기, 에디터, 테마, ViewModel
 - `src/DotDeck.Core`: UI 의존성 없는 라이브러리 (`net10.0`) — 프로젝트 모델, 파일 작업·이력, 파서, 검증기, 환경변수 추상화
 - `tests/DotDeck.Core.Tests`: xUnit
+- `tests/DotDeck.App.Tests`: xUnit, ViewModel 테스트 (`net10.0-windows`, 가짜 구현만)
 - 솔루션 파일은 `.slnx` 유지
 
 ## 프로젝트 규칙

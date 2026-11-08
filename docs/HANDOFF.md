@@ -6,7 +6,11 @@
 - 알려진 제한: **하드링크는 일반 파일과 구분할 수 없어 이름으로만 판정**. 공유 모드 상태는 프로세스 전역 static이며 테스트는 `ScreenShareCollection`(병렬 비활성)으로 격리.
 - A 검증: Debug `dotnet build DotDeck.slnx` 경고 0·오류 0, `dotnet test --solution DotDeck.slnx` 총 757 / 성공 755 / 실패 0 / 건너뜀 2(심볼릭 링크 권한). 실제 정션 생성 테스트 통과. 커밋 e80f3f3.
 - **B `fix(toml)` 완료**: `RenameTable`은 대상 경로가 명시적·암시적·배열 테이블, 인라인 테이블, 점 키, 값으로 점유되면 거부(같은 이름은 무변경). `Index()`가 헤더 키 세그먼트의 확장 경로 위치(`_headerPositions`)를 저장해 헤더에는 원본 키만 기록(배열 원소 번호 rename은 거부). `SetStringList`는 비문자열 원소가 있으면 거부. MCP 서버 `ArgsEditable`/`ArgsNotice`로 혼합 args 읽기 전용, 고급 트리 `Known()`에서 args 숨김 해제. 테스트: Core `TomlRenameTableTests` 15건(배열 테이블 자체 rename, 인라인 충돌 포함), App AdvancedToml 3건.
-- B 검증: Debug build 경고 0·오류 0, 전체 775 / 성공 773 / 실패 0 / 건너뜀 2.
+- B 검증: Debug build 경고 0·오류 0, 전체 775 / 성공 773 / 실패 0 / 건너뜀 2. 커밋 bc431cb.
+- **C `fix(ui)` 완료**: 원인 = 폼 컨트롤 다수(TabControl/TabItem, ComboBox/Item, DataGrid 계열, TreeView/Item, Expander, PasswordBox, ToggleButton)에 암시적 스타일이 없어 Aero2 기본 템플릿 사용 + 로컬 `ItemContainerStyle`이 `BasedOn` 없이 테마 스타일 대체 + DataGrid 열이 자체 ElementStyle 사용 + 명시적 키 스타일(툴바 버튼, Thumb, 전체 선택 버튼)이 Background를 지정하지 않아 시스템 기본값 잔존 + `ToolBar.ToggleButtonStyleKey` 미정의. `Controls.xaml`에 스타일 추가(새 팔레트 키는 `DD.*.StatusBar.Separator`만, Dark/Light 동일). 색은 모두 DynamicResource. Codex 위임은 하지 않고 직접 구현.
+- C 테스트: `ThemeColorTests`(Themes 밖 하드코딩 색 금지, 줄 단위 예외는 `theme-color-ok: 사유` 표시, 허용 파일은 프로젝트 라벨 팔레트 ProjectDialogViewModel), 팔레트 키 일치, 대화상자 배경·글자색, Controls.xaml 내부 리터럴 금지. `FormXamlTests` STA 렌더링에서 config.toml 6탭·MCP DataGrid·콤보 드롭다운·settings/훅/에이전트/스킬 폼·편집기 뷰 바의 모든 Background 휘도 < 0.5 확인.
+- C 검증: Debug build 경고 0·오류 0, 전체 779 / 성공 777 / 실패 0 / 건너뜀 2.
+- 스크린샷: 임시 fixture(`<scratchpad>\shot-home`, 가짜 값만)와 `shot.ps1`(UI Automation 탭 전환 + PrintWindow) 준비. 자동 모드 분류기가 PowerShell 창 캡처 실행을 거부해 **수정 전후 스크린샷은 미실행**. 사용자가 직접 실행하거나 권한을 허용해야 함.
 
 ## 최신 인수인계 메모 (다음 담당자용, 2026-11-08)
 

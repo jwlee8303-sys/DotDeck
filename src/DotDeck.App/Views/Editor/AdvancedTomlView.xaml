@@ -7,7 +7,7 @@
  </UserControl.Resources>
  <DockPanel Margin="8">
   <TreeView DockPanel.Dock="Left" Width="260" ItemsSource="{Binding Roots}" SelectedItemChanged="OnSelection" Margin="0,0,12,0">
-   <TreeView.ItemContainerStyle><Style TargetType="TreeViewItem"><Setter Property="IsExpanded" Value="True" /></Style></TreeView.ItemContainerStyle>
+   <TreeView.ItemContainerStyle><Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}"><Setter Property="IsExpanded" Value="True" /></Style></TreeView.ItemContainerStyle>
   </TreeView>
   <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
    <TextBlock Text="전용 탭에서 다루지 않는 값을 편집합니다. 배열과 인라인 테이블은 한 항목으로 표시합니다." TextWrapping="Wrap" />

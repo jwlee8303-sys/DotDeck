@@ -11,7 +11,7 @@
     <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Margin="0,3" />
     <ComboBox ItemsSource="{Binding Choices}" DisplayMemberPath="Value" IsEditable="True" Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
       IsEnabled="{Binding IsComplex, Converter={StaticResource Inverse}}">
-     <ComboBox.ItemContainerStyle><Style TargetType="ComboBoxItem"><Setter Property="ToolTip" Value="{Binding Description}" /></Style></ComboBox.ItemContainerStyle>
+     <ComboBox.ItemContainerStyle><Style TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}"><Setter Property="ToolTip" Value="{Binding Description}" /></Style></ComboBox.ItemContainerStyle>
     </ComboBox>
     <TextBlock Text="{Binding Default}" Foreground="{DynamicResource DD.Brush.Text.Secondary}" Margin="0,3" />
     <TextBlock Text="{Binding Warning}" Foreground="{DynamicResource DD.Brush.Warning}" TextWrapping="Wrap" />
@@ -38,9 +38,11 @@
      <DataGrid ItemsSource="{Binding Servers}" SelectedItem="{Binding SelectedServer}" AutoGenerateColumns="False" CanUserAddRows="False" MaxHeight="210">
       <DataGrid.Columns>
        <DataGridTextColumn Header="이름" Binding="{Binding Name}" IsReadOnly="True" />
-       <DataGridTextColumn Header="command" Binding="{Binding Command, UpdateSourceTrigger=LostFocus}" Width="*" />
+       <DataGridTextColumn Header="command" Binding="{Binding Command, UpdateSourceTrigger=LostFocus}" Width="*"
+                           EditingElementStyle="{StaticResource DD.DataGrid.EditingTextBox}" />
        <DataGridTextColumn Header="인수 개수" Binding="{Binding Args.Values.Count}" IsReadOnly="True" />
-       <DataGridCheckBoxColumn Header="활성(일부=미설정)" IsThreeState="True" Binding="{Binding Enabled}" />
+       <DataGridCheckBoxColumn Header="활성(일부=미설정)" IsThreeState="True" Binding="{Binding Enabled}"
+                               ElementStyle="{StaticResource DD.DataGrid.CheckBox}" EditingElementStyle="{StaticResource DD.DataGrid.EditingCheckBox}" />
       </DataGrid.Columns>
      </DataGrid>
      <DockPanel Margin="0,6"><TextBox Text="{Binding ServerName, UpdateSourceTrigger=PropertyChanged}" Width="180" DockPanel.Dock="Left" /><WrapPanel><Button Content="추가" Command="{Binding AddServerCommand}" /><Button Content="삭제" Command="{Binding DeleteServerCommand}" /><Button Content="이름 변경" Command="{Binding RenameServerCommand}" /></WrapPanel></DockPanel>

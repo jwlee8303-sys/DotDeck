@@ -1,3 +1,4 @@
+using DotDeck.Core.Hooks;
 using System.IO;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -245,86 +246,6 @@ public sealed partial class PermissionRow : FormRow
         || s_displayProperties.Contains(propertyName);
 }
 
-/// <summary>One hook command: event, matcher, command and timeout (other handler types are kept as they are).</summary>
-public sealed partial class HookRow : FormRow
-{
-    internal SettingsFormViewModel? Owner { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(UsesMatcher), nameof(MatcherPlaceholder), nameof(EventDescription), nameof(MatcherWarning))]
-    private string _event = "PreToolUse";
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MatcherWarning))]
-    private string _matcher = string.Empty;
-
-    [ObservableProperty]
-    private string _command = string.Empty;
-
-    [ObservableProperty]
-    private string _timeout = string.Empty;
-
-    internal HookRule? Source { get; init; }
-
-    /// <summary>Handler type; only <c>command</c> hooks have an editable command line.</summary>
-    public string Type => Source?.Type ?? "command";
-
-    public bool IsCommandHook => Type == "command";
-
-    public string CommandToolTip => IsCommandHook ? "실행할 명령" : $"{Type} 형식 훅입니다. 내용은 JSON 보기에서 고치세요(그대로 보존됩니다).";
-
-    public HookEventInfo? EventInfo => Owner?.Events?.Find(Event.Trim());
-
-    /// <summary>False for events that ignore matchers (an existing value is kept and still shown).</summary>
-    public bool UsesMatcher => EventInfo?.UsesMatcher ?? true;
-
-    public string MatcherPlaceholder => EventInfo switch
-    {
-        null => "matcher (비우면 전체)",
-        { UsesMatcher: false } => "이 이벤트는 matcher를 사용하지 않음",
-        { MatchesTools: true } => "도구 이름 (비우면 전체)",
-        var info => $"{info.MatcherTarget ?? "값"} (비우면 전체)",
-    };
-
-    public string? EventDescription => EventInfo is { } info ? string.Join(Environment.NewLine, info.HelpLines()) : "목록에 없는 이벤트입니다. 값은 그대로 보존됩니다.";
-
-    public string? MatcherWarning => HookMatcher.Parse(Matcher, HookMatcher.SyntaxOf(EventInfo)).RegexError();
-
-    [RelayCommand]
-    private void SetEvent(string? value) => Event = value ?? Event;
-
-    /// <summary>The matcher menu: "all", then check boxes for tools (and MCP servers) or the event's documented values.</summary>
-    public IReadOnlyList<MatcherChoice> MatcherChoices()
-    {
-        var parsed = HookMatcher.Parse(Matcher, HookMatcher.SyntaxOf(EventInfo));
-        var choices = new List<MatcherChoice> { new("*", "전체 (* 또는 비움)", "모든 값에 실행합니다.", parsed.Mode == HookMatcherMode.All, null) };
-        var items = Owner?.MatcherItemsFor(EventInfo) ?? [];
-        choices.AddRange(items.Select(i => new MatcherChoice(i.Value, i.Label, i.Description, parsed.Contains(i.Value), i.Group)));
-
-        // Names in the matcher that the lists do not have stay visible (and can be unchecked).
-        foreach (var extra in parsed.Items.Where(v => items.All(i => i.Value != v)))
-        {
-            choices.Add(new MatcherChoice(extra, extra, "직접 입력한 값", true, "직접 입력"));
-        }
-
-        return choices;
-    }
-
-    public void ToggleMatcher(string value, bool on)
-    {
-        if (value == "*")
-        {
-            Matcher = on ? string.Empty : Matcher;
-            return;
-        }
-
-        Matcher = HookMatcher.Parse(Matcher, HookMatcher.SyntaxOf(EventInfo)).Toggle(value, on);
-    }
-
-    protected override bool IsDisplayOnly(string? propertyName) =>
-        propertyName is nameof(UsesMatcher) or nameof(MatcherPlaceholder) or nameof(EventDescription) or nameof(MatcherWarning);
-}
-
 public sealed partial class EnvRow : FormRow
 {
     [ObservableProperty]
@@ -343,7 +264,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
     public SettingsFormViewModel(Action<string> apply)
         : base(apply)
     {
-        foreach (var collection in new INotifyCollectionChanged[] { Permissions, Hooks, Env })
+        foreach (var collection in new INotifyCollectionChanged[] { Permissions, Env })
         {
             collection.CollectionChanged += (_, _) => Commit();
         }
@@ -353,7 +274,19 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
 
     public ObservableCollection<PermissionRow> Permissions { get; } = [];
 
-    public ObservableCollection<HookRow> Hooks { get; } = [];
+    private HookTableViewModel? _hookTable;
+
+    public HookTableViewModel HookTable => _hookTable ??= new HookTableViewModel
+    {
+        GetEvents = () => Events ?? HookEventCatalog.BuiltIn,
+        GetMatcherItems = MatcherItemsFor,
+        Changed = Commit,
+        RunHook = row => RunHook?.Invoke(row),
+        ShowHelp = help => ShowHelp?.Invoke(help),
+        MatcherHelp = () => Tools?.Mcp.MatcherHelp ?? [],
+    };
+
+    public ObservableCollection<HookRow> Hooks => HookTable.Rows;
 
     public ObservableCollection<EnvRow> Env { get; } = [];
 
@@ -418,10 +351,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
     [ObservableProperty]
     private FormRow? _selectedRow;
 
-    public IReadOnlyList<ChoiceItem> HookEventChoices =>
-        Events is null
-            ? [.. ClaudeSettingsDocument.HookEvents.Select(e => new ChoiceItem(e, e))]
-            : [.. Events.Ordered.Select(e => new ChoiceItem(e.Name, e.Name, string.Join(Environment.NewLine, e.HelpLines()), e.Common ? "자주 쓰는 이벤트" : "기타 이벤트"))];
+    public IReadOnlyList<ChoiceItem> HookEventChoices => HookTable.HookEventChoices;
 
     public const string McpGroup = "MCP 도구";
 
@@ -474,14 +404,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         UpdateScopeIssues();
         Reset(Permissions, ClaudeSettingsDocument.PermissionKinds
             .SelectMany(kind => doc.GetPermissions(kind).Select(rule => new PermissionRow(kind, rule))));
-        Reset(Hooks, doc.GetHooks().Select(h => new HookRow
-        {
-            Event = h.Event,
-            Matcher = h.Matcher,
-            Command = h.Command,
-            Timeout = h.Timeout?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
-            Source = h,
-        }));
+        HookTable.Load(new ClaudeSettingsHookStore(doc));
         Reset(Env, doc.GetEnv().Select(p => new EnvRow { Key = p.Key, Value = p.Value }));
         UpdatePermissionIssues();
         if (_mcpVersion == 0)
@@ -568,7 +491,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
     private void AddPermission(string? kind) => Permissions.Add(Wire(new PermissionRow { Kind = kind ?? "allow" }));
 
     [RelayCommand]
-    private void AddHook(string? evt) => Hooks.Add(Wire(new HookRow { Event = evt ?? "PreToolUse" }));
+    private void AddHook(string? evt) => HookTable.AddHookCommand.Execute(evt ?? "PreToolUse");
 
     [RelayCommand]
     private void AddEnv() => Env.Add(Wire(new EnvRow()));
@@ -579,7 +502,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         switch (row)
         {
             case PermissionRow p: Permissions.Remove(p); break;
-            case HookRow h: Hooks.Remove(h); break;
+            case HookRow h: HookTable.RemoveCommand.Execute(h); break;
             case EnvRow e: Env.Remove(e); break;
         }
     }
@@ -650,7 +573,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         switch (row)
         {
             case PermissionRow p: Shift(Permissions, p, delta); break;
-            case HookRow h: Shift(Hooks, h, delta); break;
+            case HookRow h: HookTable.Move(h, delta); break;
             case EnvRow e: Shift(Env, e, delta); break;
         }
     }
@@ -681,7 +604,6 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         switch (row)
         {
             case PermissionRow p: p.Owner = this; break;
-            case HookRow h: h.Owner = this; break;
         }
 
         row.Changed = OnRowChanged;
@@ -735,17 +657,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
             _doc.SetPermissions(kind, Permissions.Where(p => p.Kind == kind && (p.IsUnchanged || p.RuleText.Length > 0)).Select(p => p.RuleText).ToList());
         }
 
-        _doc.SetHooks(Hooks.Where(h => h.Event.Trim().Length > 0)
-            .Select(h => new HookRule(
-                h.Source is not null && h.Event == h.Source.Event ? h.Event : h.Event.Trim(),
-                // A regex matcher's spaces are significant: keep the matcher as read unless it was changed.
-                h.Source is not null && h.Matcher == h.Source.Matcher ? h.Matcher : h.Matcher.Trim(),
-                h.Command,
-                int.TryParse(h.Timeout, NumberStyles.Integer, CultureInfo.InvariantCulture, out var t) ? t : null,
-                h.Source?.CommandExtra,
-                h.Source?.GroupExtra,
-                h.Source?.GroupKey))
-            .ToList());
+        HookTable.Write();
         _doc.SetEnv(Env.Select(e => new KeyValuePair<string, string>(e.Key, e.Value)).ToList());
         UpdateScopeIssues();
         UpdatePermissionIssues();

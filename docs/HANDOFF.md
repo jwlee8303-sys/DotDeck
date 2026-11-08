@@ -1,7 +1,7 @@
 # 인수인계 (2026-11-08) — Claude Code → Codex
 
 ## 1. 현재 상태
-- 브랜치 `feat/codex-editors` (main `b3325f5`에서 생성). 단계 0 사양·설계 및 2a-1 편집기 등록소 반영 완료.
+- 브랜치 `feat/codex-editors` (main `b3325f5`에서 생성). 단계 0 사양·설계 및 2a-1 등록소·2a-2 공용 훅 반영 완료.
 - main(로컬)에 `feat/explorer-visibility`(547ae6a), `feat/custom-files`(d508a3a), `feat/permission-arg-kinds`(b3325f5) 모두 `--no-ff` 병합 완료. **origin에는 아무것도 push 안 함.**
 - 병합 직전 검증(2026-11-08): `dotnet build DotDeck.slnx` 오류 0 / Core.Tests 669 통과·2 건너뜀 / App.Tests 6 통과.
 - 미커밋: `.claude/`(로컬 설정, 커밋 대상 아님)만 남음.
@@ -20,8 +20,8 @@
 |---|---|---|---|
 | 0 | `docs(spec): Codex 전용 편집기 사양과 설계 추가` | `docs/SPEC.md`(§2.1 Codex 행, §7.0 문구, 신규 §7.5), `docs/DESIGN.md` | 완료 |
 | 2a-1 | `refactor(editors): 편집기 등록소로 종류별 분기 통합` | 신규 `Core/Editors/Registry/*`, `App/ViewModels/Editor/FormRegistry.cs`; 수정 `EditorKind.cs`, `Roles/FileRoleCatalog.cs`, `Roles/EditorOverrideStore.cs`, `TextDocumentViewModel.cs`, `ShellViewModel.Validation.cs`, `.Roles.cs`, `.cs` | 완료 |
-| 2a-2 | `refactor(hooks): 훅 모델·표·실행기를 제품 공용으로 분리` | 신규 `Core/Hooks/*`, `HookTableViewModel.cs`, `Views/Editor/HookTable.xaml`; 수정 `ClaudeSettingsDocument.cs`, `HookRunner.cs`, `SettingsFormViewModel.cs`, `HookTestPaneViewModel.cs`, `FormTemplates.xaml` | **다음 할 일** |
-| 2a-3 | `refactor(forms): 키-값 표·문자열 목록·frontmatter 프로필 공통화` | `KeyValueTableViewModel.cs`, `StringListViewModel.cs`, `FormViewModels.cs`, `SettingsFormViewModel.cs` | 남음 |
+| 2a-2 | `refactor(hooks): 훅 모델·표·실행기를 제품 공용으로 분리` | 신규 `Core/Hooks/*`, `HookTableViewModel.cs`, `Views/Editor/HookTable.xaml`; 수정 `ClaudeSettingsDocument.cs`, `HookRunner.cs`, `SettingsFormViewModel.cs`, `HookTestPaneViewModel.cs`, `FormTemplates.xaml` | 완료 |
+| 2a-3 | `refactor(forms): 키-값 표·문자열 목록·frontmatter 프로필 공통화` | `KeyValueTableViewModel.cs`, `StringListViewModel.cs`, `FormViewModels.cs`, `SettingsFormViewModel.cs` | **다음 할 일** |
 | → | **2a 끝: Claude 편집기 동작이 같은지 사용자 확인** | | |
 | 2b-0 | `build(core): Tomlyn 추가와 TOML 무손실 편집기` | `Directory.Packages.props`, `DotDeck.Core.csproj`, 신규 `Core/Toml/TomlEditDocument.cs` + 테스트 | 남음 |
 | 2b-1 | `feat(codex): CODEX_HOME·Codex 파일 역할·런타임 파일 보호·스킬 연결 노드` | `Paths/AppPaths*.cs`, `Projects/BuiltinProjects.cs`, 신규 `Catalogs/Codex/file-roles.json`, `Catalogs/Codex/agents-file-roles.json`, `Explorer/LinkedFolders.cs`, `RuntimeFilePolicy.cs`, `ISecretFileClassifier`, `Documents/BackupStore.cs`, `ExplorerViewModel.cs` | 남음 |
@@ -93,3 +93,5 @@
 - 공식 문서 차이: 이번 단계는 기존 조사 기록의 문서화이며 새로운 외부 문서 검증은 수행하지 않음. 구현 단계별 대조 예정.
 - 2026-11-08 2a-1: Core `EditorDescriptor`·`EditorRegistry`、App `FormRegistry` 추가. 저장 이름·라벨·기능·검증·폼 생성·문서/탐색기 메뉴를 연결하고 Claude 전용 호스트 서비스를 `IClaudeFormServices`로 분리. Codex enum·저장 이름은 예약하되 폼·메뉴는 아직 비활성. `ICodexFormServices`는 실제 서비스 추가 시 정의 예정.
 - 2a-1 검증: 빌드 경고 0·오류 0, 전체 테스트 695 / 성공 693 / 실패 0 / 건너뜀 2. 신규 18개 사례로 저장 이름 호환·진단·미지 필드 보존·메뉴 명령·미구현 폼 차단 검증. UI 직접 실행은 아직 하지 않음. 새 의존성·버전·실제 설정 변경 없음.
+- 2026-11-08 2a-2: 공용 `HookHandlerModel`·`IHookStore`·`ClaudeSettingsHookStore`·`HookRunner`·`HookTestProfile`, `HookTableViewModel`·`HookTable.xaml` 분리. 샘플 생성과 실행 환경은 제품 프로필로 주입. 공유 폼 스타일·메뉴 동작은 `FormControls`로 이동. Codex 저장 어댑터는 2b-4에서 추가한다.
+- 2a-2 검증: 빌드 경고 0·오류 0, 전체 테스트 699 / 성공 697 / 실패 0 / 건너뜀 2. 기존 실행기·matcher·MCP 테스트 통과, 새 회귀 검사로 미지 데이터·그룹·정규식 공백 보존, 행 이벤트 해제, 테스트 프로필 주입 확인. STA에서 WPF 테마·공유 훅 표·설정 템플릿을 실제 로드하고 바인딩 검증(제품 Startup 실행 안 함).

@@ -1,3 +1,4 @@
+using DotDeck.Core.Hooks;
 using DotDeck.Core.Editors;
 
 namespace DotDeck.Core.Tests.Editors;
@@ -47,7 +48,7 @@ public sealed class ClaudeSettingsDocumentTests
         var doc = Load();
         var hooks = doc.GetHooks().ToList();
         hooks[0] = hooks[0] with { Command = "python C:\\h\\guard2.py", Timeout = null };
-        hooks.Add(new HookRule("PreToolUse", "Bash", "echo second"));
+        hooks.Add(new HookHandlerModel("PreToolUse", "Bash", "echo second"));
 
         doc.SetPermissions("allow", ["Read"]);
         doc.SetPermissions("ask", ["WebFetch"]);
@@ -125,7 +126,7 @@ public sealed class ClaudeSettingsDocumentTests
         var doc = Load();
         doc.SetPermissions("ask", ["WebFetch", "WebFetch"]);
         var hooks = doc.GetHooks().ToList();
-        hooks.Add(new HookRule("OnSave", "", " ", 0));
+        hooks.Add(new HookHandlerModel("OnSave", "", " ", 0));
         doc.SetHooks(hooks);
 
         var issues = doc.Validate(path => !path.EndsWith("guard.py", StringComparison.Ordinal));

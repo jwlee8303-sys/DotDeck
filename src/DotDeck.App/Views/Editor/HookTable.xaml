@@ -1,0 +1,79 @@
+<UserControl x:Class="DotDeck.App.Views.Editor.HookTable"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:DotDeck.App.Views.Editor">
+    <UserControl.Resources>
+        <local:FormControls />
+    </UserControl.Resources>
+    <StackPanel>
+                <Grid Margin="0,0,0,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="60" />
+                        <ColumnDefinition Width="120" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="이벤트" />
+                    <TextBlock Grid.Column="1" Style="{StaticResource DD.Text.Secondary}" Text="matcher" />
+                    <TextBlock Grid.Column="2" Style="{StaticResource DD.Text.Secondary}" Text="command" />
+                    <TextBlock Grid.Column="3" Style="{StaticResource DD.Text.Secondary}" Text="timeout(초)" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Rows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,3" Style="{StaticResource HookRowPanel}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="170" />
+                                        <ColumnDefinition Width="170" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="60" />
+                                        <ColumnDefinition Width="120" />
+                                    </Grid.ColumnDefinitions>
+                                    <DockPanel Margin="0,0,6,0">
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource DropButton}" ToolTip="이벤트 선택"
+                                                Tag="{Binding DataContext.HookEventChoices, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding SetEventCommand}" />
+                                        <TextBox Text="{Binding Event, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding EventDescription}" />
+                                    </DockPanel>
+                                    <DockPanel Grid.Column="1" Margin="0,0,6,0">
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource MatcherButton}"
+                                                IsEnabled="{Binding UsesMatcher}" ToolTip="목록에서 고르기 (여러 개 선택 가능)">
+                                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="10" Text="&#xE762;" />
+                                        </Button>
+                                        <Grid>
+                                            <TextBox x:Name="MatcherBox" Text="{Binding Matcher, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding MatcherPlaceholder}" />
+                                            <TextBlock Style="{StaticResource FormPlaceholder}" Text="{Binding MatcherPlaceholder}"
+                                                       Visibility="{Binding Matcher, Converter={StaticResource FormEmptyToVisible}}" />
+                                        </Grid>
+                                    </DockPanel>
+                                    <TextBox Grid.Column="2" Margin="0,0,6,0" Text="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
+                                             IsReadOnly="{Binding IsCommandHook, Mode=OneWay, Converter={StaticResource FormInvert}}"
+                                             ToolTip="{Binding CommandToolTip}" FontFamily="{DynamicResource DD.Font.Editor}" />
+                                    <TextBox Grid.Column="3" Text="{Binding Timeout, UpdateSourceTrigger=PropertyChanged}" />
+                                    <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="4,0,0,0">
+                                        <Button Style="{StaticResource RowButton}" ToolTip="훅 테스트 실행" IsEnabled="{Binding IsCommandHook, Mode=OneWay}"
+                                                Command="{Binding DataContext.RunCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}">
+                                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="10" Text="&#xE768;" />
+                                        </Button>
+                                        <ContentPresenter ContentTemplate="{StaticResource RowTools}" Content="{Binding}" />
+                                    </StackPanel>
+                                </Grid>
+                                <DockPanel Margin="0,2,0,0" Visibility="{Binding MatcherWarning, Converter={StaticResource FormNullToCollapsed}}">
+                                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource DD.Glyph}" FontSize="12" Margin="0,1,6,0"
+                                               Foreground="{DynamicResource DD.Brush.Warning}" Text="&#xE7BA;" />
+                                    <TextBlock TextWrapping="Wrap" Text="{Binding MatcherWarning}" />
+                                </DockPanel>
+                            </StackPanel>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding UsesMatcher}" Value="False">
+                                    <Setter TargetName="MatcherBox" Property="Opacity" Value="0.55" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Style="{StaticResource AddButton}" Content="+ 훅 추가" Command="{Binding AddHookCommand}" CommandParameter="PreToolUse" />
+    </StackPanel>
+</UserControl>

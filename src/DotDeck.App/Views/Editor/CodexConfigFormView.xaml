@@ -45,15 +45,16 @@
      </DataGrid>
      <DockPanel Margin="0,6"><TextBox Text="{Binding ServerName, UpdateSourceTrigger=PropertyChanged}" Width="180" DockPanel.Dock="Left" /><WrapPanel><Button Content="추가" Command="{Binding AddServerCommand}" /><Button Content="삭제" Command="{Binding DeleteServerCommand}" /><Button Content="이름 변경" Command="{Binding RenameServerCommand}" /></WrapPanel></DockPanel>
      <TextBlock Text="인수 (args) — 각 항목을 별도로 전달합니다." Margin="0,8" />
-     <ItemsControl ItemsSource="{Binding SelectedServer.Args.Rows}"><ItemsControl.ItemTemplate><DataTemplate>
+     <TextBlock Text="{Binding SelectedServer.ArgsNotice}" Foreground="{DynamicResource DD.Brush.Warning}" TextWrapping="Wrap" Margin="0,0,0,4" />
+     <ItemsControl ItemsSource="{Binding SelectedServer.Args.Rows}" IsEnabled="{Binding SelectedServer.ArgsEditable, FallbackValue=False}"><ItemsControl.ItemTemplate><DataTemplate>
       <DockPanel Margin="0,2"><WrapPanel DockPanel.Dock="Right">
        <Button Content="↑" Command="{Binding DataContext.SelectedServer.Args.MoveUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
        <Button Content="↓" Command="{Binding DataContext.SelectedServer.Args.MoveDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
        <Button Content="삭제" Command="{Binding DataContext.SelectedServer.Args.RemoveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
       </WrapPanel><TextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" /></DockPanel>
      </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
-     <Button Content="인수 추가" Command="{Binding SelectedServer.Args.AddCommand}" HorizontalAlignment="Left" />
-     <TextBlock Text="환경변수 (env) — 비밀 이름의 값은 기본 가림이며 눈 아이콘으로 표시·편집합니다." TextWrapping="Wrap" Margin="0,10,0,5" />
+     <Button Content="인수 추가" Command="{Binding SelectedServer.Args.AddCommand}" HorizontalAlignment="Left" IsEnabled="{Binding SelectedServer.ArgsEditable, FallbackValue=False}" />
+     <TextBlock Text="환경변수 (env) — 화면 공유 모드에서는 비밀 이름의 값을 가리며 눈 아이콘으로 표시·편집합니다." TextWrapping="Wrap" Margin="0,10,0,5" />
      <ItemsControl ItemsSource="{Binding SelectedServer.Env.Rows}"><ItemsControl.ItemTemplate><DataTemplate>
       <DockPanel Margin="0,2">
        <Button DockPanel.Dock="Right" Content="삭제" Command="{Binding DataContext.SelectedServer.Env.RemoveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />

@@ -82,6 +82,12 @@ public sealed class TomlEditDocument
     private void SetArray(IReadOnlyList<string> path, IReadOnlyList<string> values, bool strings)
     {
         var work = new TomlEditDocument(_text, _bom);
+        if (strings && work._values.TryGetValue(Key(path), out var existing) && existing is ArraySyntax current
+            && current.Items.Any(item => item.Value is not StringValueSyntax))
+        {
+            throw new TomlEditException("문자열이 아닌 원소가 있는 배열은 목록으로 편집할 수 없습니다. 고급 탭에서 편집하세요.");
+        }
+
         if (!work._values.TryGetValue(Key(path), out var found) || found is not ArraySyntax)
         {
             work.SetValue(path, "[" + string.Join(", ", values.Select(v => strings ? JsonSerializer.Serialize(v) : v)) + "]");
@@ -137,11 +143,25 @@ public sealed class TomlEditDocument
     public void RenameTable(IReadOnlyList<string> path, string newName)
     {
         if (path.Count == 0 || string.IsNullOrEmpty(newName)) throw new TomlEditException("테이블 이름을 입력하세요.");
+        if (newName == path[^1]) return;
         IReadOnlyList<string> renamed = [.. path.Take(path.Count - 1), newName];
+
+        // Never merge into something that already exists: explicit/implicit/array tables, inline tables, dotted keys, values.
+        if (_tablePaths.Values.Any(p => IsPrefix(renamed, p))
+            || _values.Keys.Any(k => IsPrefix(renamed, JsonSerializer.Deserialize<string[]>(k)!)))
+        {
+            throw new TomlEditException($"'{newName}' 이름의 테이블이나 키가 이미 있습니다.");
+        }
+
         var patches = new List<(int Start, int Length, string Text)>();
         foreach (var (table, tablePath) in _tablePaths.Where(p => IsPrefix(path, p.Value)))
         {
-            patches.Add((table.Name!.Span.Start.Offset, table.Name.Span.Length, FormatPath([.. renamed, .. tablePath.Skip(path.Count)])));
+            // Headers hold key segments only; array element indices exist only in the expanded path.
+            var header = Segments(table.Name!);
+            var segment = _headerPositions[table].IndexOf(path.Count - 1);
+            if (segment < 0) throw new TomlEditException("배열 원소 번호는 이름을 바꿀 수 없습니다.");
+            header[segment] = newName;
+            patches.Add((table.Name!.Span.Start.Offset, table.Name.Span.Length, FormatPath(header)));
         }
         foreach (var (key, pair) in _assignments)
         {
@@ -174,6 +194,9 @@ public sealed class TomlEditDocument
     private readonly Dictionary<string, int> _sections = new(StringComparer.Ordinal);
     private readonly Dictionary<string, KeyValueSyntax> _assignments = new(StringComparer.Ordinal);
     private readonly Dictionary<TableSyntaxBase, IReadOnlyList<string>> _tablePaths = [];
+
+    // For each header key segment, its position in the expanded table path (which also holds array indices).
+    private readonly Dictionary<TableSyntaxBase, List<int>> _headerPositions = [];
 
     public void CreateTable(IReadOnlyList<string> path)
     {
@@ -368,6 +391,7 @@ public sealed class TomlEditDocument
         _sections.Clear();
         _assignments.Clear();
         _tablePaths.Clear();
+        _headerPositions.Clear();
         _sections[Key([])] = tables.Length == 0 ? _text.Length : tables[0].Span.Start.Offset;
         foreach (var pair in _syntax.KeyValues)
         {
@@ -380,9 +404,11 @@ public sealed class TomlEditDocument
             var table = tables[i];
             var name = Segments(table.Name!);
             var expanded = new List<string>();
+            var positions = new List<int>();
             for (var j = 0; j < name.Count; j++)
             {
                 expanded.Add(name[j]);
+                positions.Add(expanded.Count - 1);
                 var arrayKey = Key(expanded);
                 if (j == name.Count - 1 && table is TableArraySyntax)
                 {
@@ -397,6 +423,7 @@ public sealed class TomlEditDocument
 
             _sections[Key(expanded)] = i + 1 < tables.Length ? tables[i + 1].Span.Start.Offset : _text.Length;
             _tablePaths[table] = expanded;
+            _headerPositions[table] = positions;
             foreach (var pair in table.Items)
             {
                 IndexPair(expanded, pair, true);

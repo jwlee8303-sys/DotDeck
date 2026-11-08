@@ -40,5 +40,49 @@ public sealed class AdvancedTomlTests
         Assert.Contains("flag = false", writes[^1], StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Mixed_mcp_args_are_read_only_in_the_form_and_edited_losslessly_in_the_tree()
+    {
+        var writes = new List<string>();
+        var form = new CodexConfigFormViewModel(writes.Add);
+        Assert.Null(form.Load("[mcp_servers.s]\ncommand = 'run'\nargs = ['first', 1, true] # mixed\n"));
+        var server = form.SelectedServer!;
+        Assert.False(server.ArgsEditable);
+        Assert.NotNull(server.ArgsNotice);
+        server.Args.Rows[0].Value = "changed";
+        Assert.Empty(writes);
+
+        var args = Flatten(form.Advanced.Roots.Single()).Single(n => n.Label == "args");
+        form.Advanced.Selected = args;
+        Assert.True(form.Advanced.IsArray);
+        form.Advanced.Array.Rows[0].Value = "'changed'";
+        form.Advanced.ApplyCommand.Execute(null);
+        Assert.Contains("args = ['changed', 1, true] # mixed\n", Assert.Single(writes), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void String_mcp_args_stay_editable_in_the_form()
+    {
+        var writes = new List<string>();
+        var form = new CodexConfigFormViewModel(writes.Add);
+        Assert.Null(form.Load("[mcp_servers.s]\nargs = ['a', \"b\"]\n"));
+        Assert.True(form.SelectedServer!.ArgsEditable);
+        form.SelectedServer.Args.Rows[1].Value = "c";
+        Assert.Contains("args = ['a', \"c\"]", Assert.Single(writes), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Renaming_a_profile_onto_an_existing_one_is_refused_with_a_message()
+    {
+        var writes = new List<string>();
+        var form = new CodexConfigFormViewModel(writes.Add);
+        Assert.Null(form.Load("[profiles.a]\nmodel = 'x'\n[profiles.b.child]\nc = 1\n"));
+        form.SelectedProfile = "a";
+        form.ProfileName = "b";
+        form.RenameProfileCommand.Execute(null);
+        Assert.Empty(writes);
+        Assert.NotNull(form.Message);
+    }
+
     private static IEnumerable<AdvancedTomlNode> Flatten(AdvancedTomlNode node) => new[] { node }.Concat(node.Children.SelectMany(Flatten));
 }

@@ -4,7 +4,9 @@
 - Codex 교차 검증(379d697..HEAD) 지적 5건 모두 반영 결정: P1 #1 파싱 실패 시 평문, P1 #2 링크로 마스킹 우회, P2 #3 rename 충돌 병합, P2 #4 배열 테이블 부모 rename 실패, P2 #5 MCP 혼합 args 타입 변경.
 - **A `fix(security)` 완료**: 화면 값 기본 평문. `SecretPresentation.ScreenShareMode`(AppSettings `ScreenShareMode`, 기본 false, 상태줄 버튼·보기 메뉴)일 때만 가림, 공유 모드 파싱 실패 시 문서 전체 가림. 로그 필터용 `CollectSecrets`를 표시와 분리(열기·다시 읽기·저장 시점만 수집, 입력 중 접두어 등록 방지). `SecretFileResolver`가 파일 링크·폴더 링크·정션을 구간별로 끝까지 추적(최대 40홉, 순환·검사 실패는 비밀로 간주). `IFileStore.GetLinkTarget`(기본 구현 = ResolveLinkTarget) 추가. 탐색기 자물쇠(`NodeInfo.FromEntry(store)`·사용자 지정 파일)와 문서 가림이 같은 판정 사용. 설정 대화상자 "비밀값 기본 가림" 제거(옛 키 무시). SPEC §0·§2.3·§6·§7.5·§8 문구 수정.
 - 알려진 제한: **하드링크는 일반 파일과 구분할 수 없어 이름으로만 판정**. 공유 모드 상태는 프로세스 전역 static이며 테스트는 `ScreenShareCollection`(병렬 비활성)으로 격리.
-- A 검증: Debug `dotnet build DotDeck.slnx` 경고 0·오류 0, `dotnet test --solution DotDeck.slnx` 총 757 / 성공 755 / 실패 0 / 건너뜀 2(심볼릭 링크 권한). 실제 정션 생성 테스트 통과.
+- A 검증: Debug `dotnet build DotDeck.slnx` 경고 0·오류 0, `dotnet test --solution DotDeck.slnx` 총 757 / 성공 755 / 실패 0 / 건너뜀 2(심볼릭 링크 권한). 실제 정션 생성 테스트 통과. 커밋 e80f3f3.
+- **B `fix(toml)` 완료**: `RenameTable`은 대상 경로가 명시적·암시적·배열 테이블, 인라인 테이블, 점 키, 값으로 점유되면 거부(같은 이름은 무변경). `Index()`가 헤더 키 세그먼트의 확장 경로 위치(`_headerPositions`)를 저장해 헤더에는 원본 키만 기록(배열 원소 번호 rename은 거부). `SetStringList`는 비문자열 원소가 있으면 거부. MCP 서버 `ArgsEditable`/`ArgsNotice`로 혼합 args 읽기 전용, 고급 트리 `Known()`에서 args 숨김 해제. 테스트: Core `TomlRenameTableTests` 15건(배열 테이블 자체 rename, 인라인 충돌 포함), App AdvancedToml 3건.
+- B 검증: Debug build 경고 0·오류 0, 전체 775 / 성공 773 / 실패 0 / 건너뜀 2.
 
 ## 최신 인수인계 메모 (다음 담당자용, 2026-11-08)
 

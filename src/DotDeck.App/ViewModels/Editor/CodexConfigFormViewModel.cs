@@ -38,11 +38,17 @@ public sealed partial class CodexServerViewModel : ObservableObject
     public KeyValueTableViewModel Env { get; }
     [ObservableProperty] private string _command;
     [ObservableProperty] private bool? _enabled;
+
+    /// <summary>False when args holds non-string items: the list editor would change their types (use the 고급 tab).</summary>
+    public bool ArgsEditable { get; }
+
+    public string? ArgsNotice => ArgsEditable ? null : "args에 문자열이 아닌 값이 있어 여기서는 읽기 전용입니다. 고급 탭에서 편집하세요.";
+
     public CodexServerViewModel(string name, string command, bool? enabled, IEnumerable<string> args,
-        IEnumerable<KeyValuePair<string, string>> env, Action<string, string?> field, Action argsChanged, Action envChanged)
+        IEnumerable<KeyValuePair<string, string>> env, Action<string, string?> field, Action argsChanged, Action envChanged, bool argsEditable = true)
     {
-        _loading = true; Name = name; _command = command; _enabled = enabled; _field = field;
-        Args = new StringListViewModel { Changed = argsChanged }; Args.Load(args);
+        _loading = true; Name = name; _command = command; _enabled = enabled; _field = field; ArgsEditable = argsEditable;
+        Args = new StringListViewModel { Changed = argsEditable ? argsChanged : null }; Args.Load(args);
         Env = new KeyValueTableViewModel { Changed = envChanged }; Env.Load(env);
         _loading = false;
     }
@@ -123,7 +129,11 @@ public sealed partial class CodexConfigFormViewModel : DocumentFormViewModel
             foreach (var name in Names("mcp_servers"))
             {
                 string[] prefix = ["mcp_servers", name];
-                var args = _doc!.Entries.Where(e => e.Path.Count == 4 && e.Path.Take(3).SequenceEqual(prefix.Append("args"))).Select(e => Decode(e.Literal)).ToList();
+                var argEntries = _doc!.Entries.Where(e => e.Path.Count == 4 && e.Path.Take(3).SequenceEqual(prefix.Append("args"))).ToList();
+                var argsLiteral = Find(prefix.Append("args").ToArray())?.Literal;
+                var argsEditable = argsLiteral is null
+                    || (argsLiteral.StartsWith('[') && argEntries.All(e => e.Literal.StartsWith('\'') || e.Literal.StartsWith('"')));
+                var args = argEntries.Select(e => Decode(e.Literal)).ToList();
                 var env = _doc.Entries.Where(e => e.Path.Count == 4 && e.Path.Take(3).SequenceEqual(prefix.Append("env"))).Select(e => KeyValuePair.Create(e.Path[3], Decode(e.Literal))).ToList();
                 CodexServerViewModel? server = null;
                 server = new CodexServerViewModel(name, Find(prefix.Append("command").ToArray()) is { } command ? Decode(command.Literal) : string.Empty,
@@ -131,7 +141,7 @@ public sealed partial class CodexConfigFormViewModel : DocumentFormViewModel
                     (key, value) => Edit(d => { Ensure(d, prefix); var path = prefix.Append(key).ToArray(); if (value is null) { if (d.CanDeleteKey(path)) d.DeleteKey(path); }
                         else if (key == "enabled") d.SetValue(path, value); else d.SetString(path, value); }, false),
                     () => Edit(d => { Ensure(d, prefix); d.SetStringList([.. prefix, "args"], server!.Args.Values); }, false),
-                    () => SaveEnv(prefix, server!.Env.Values()));
+                    () => SaveEnv(prefix, server!.Env.Values()), argsEditable);
                 Servers.Add(server);
             }
             SelectedServer = Servers.FirstOrDefault(s => s.Name == selected) ?? Servers.FirstOrDefault();

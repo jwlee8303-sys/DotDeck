@@ -43,7 +43,8 @@ public sealed partial class AdvancedTomlViewModel(Func<TomlEditDocument?> docume
         string[] fields = ["model", "model_reasoning_effort", "plan_mode_reasoning_effort", "approval_policy", "sandbox_mode"];
         if (p.Count == 1 && fields.Contains(p[0])) return !complex;
         if (p.Count == 3 && p[0] == "profiles" && fields.Contains(p[2])) return !complex;
-        if (p.Count >= 3 && p[0] == "mcp_servers" && p[2] is "command" or "args" or "enabled" or "env") return true;
+        // args stays visible here: mixed-type arrays can only be edited losslessly in this tree.
+        if (p.Count >= 3 && p[0] == "mcp_servers" && p[2] is "command" or "enabled" or "env") return true;
         return p.Count == 3 && p[0] == "projects" && p[2] == "trust_level" && !complex;
     }
     private static bool Prefix(IReadOnlyList<string> prefix, IReadOnlyList<string> path) => prefix.Count < path.Count && prefix.SequenceEqual(path.Take(prefix.Count));

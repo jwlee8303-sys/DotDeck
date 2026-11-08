@@ -270,7 +270,7 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 
 ## Codex 편집기 확장 설계 (SPEC 7.5, 2026-11-08)
 
-상태: HANDOFF의 승인된 결정 1~7을 반영한 구현 계획. 아래 타입·기능은 구현 전이다. 외부 제품 동작은 HANDOFF의 조사 기록을 기준으로 하며 구현 단계에서 공식 문서와 대조한다.
+상태: HANDOFF의 승인된 결정 1~7을 반영한 구현 계획. 2a 공통화 구현 완료(2026-11-08), 2b Codex 전용 기능은 구현 전이다. 외부 제품 동작은 HANDOFF의 조사 기록을 기준으로 하며 구현 단계에서 공식 문서와 대조한다.
 
 ### 2a: 기존 편집기 공통화
 - `EditorKind` enum과 기존 저장 이름(`settingsForm` 등)을 유지한다. Core `Editors/Registry/EditorRegistry`는 `EditorDescriptor`(Kind, 저장 이름, 라벨, 제품, HasForm/HasOutline, Validate, CanShowForm)를 관리한다. App `FormRegistry`는 폼 생성 책임을 갖는다. 역할 카탈로그·수동 지정·문서 VM·메뉴·검증의 종류별 분기를 등록소로 모은다.

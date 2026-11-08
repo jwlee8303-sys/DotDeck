@@ -246,15 +246,6 @@ public sealed partial class PermissionRow : FormRow
         || s_displayProperties.Contains(propertyName);
 }
 
-public sealed partial class EnvRow : FormRow
-{
-    [ObservableProperty]
-    private string _key = string.Empty;
-
-    [ObservableProperty]
-    private string _value = string.Empty;
-}
-
 /// <summary>Claude Code settings.json: permissions, hooks and env tables. Other keys are kept untouched.</summary>
 public sealed partial class SettingsFormViewModel : DocumentFormViewModel
 {
@@ -264,10 +255,8 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
     public SettingsFormViewModel(Action<string> apply)
         : base(apply)
     {
-        foreach (var collection in new INotifyCollectionChanged[] { Permissions, Env })
-        {
-            collection.CollectionChanged += (_, _) => Commit();
-        }
+        Permissions.CollectionChanged += (_, _) => Commit();
+        EnvironmentTable = new KeyValueTableViewModel { Changed = Commit };
     }
 
     public IReadOnlyList<string> PermissionKinds => ClaudeSettingsDocument.PermissionKinds;
@@ -288,7 +277,9 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
 
     public ObservableCollection<HookRow> Hooks => HookTable.Rows;
 
-    public ObservableCollection<EnvRow> Env { get; } = [];
+    public KeyValueTableViewModel EnvironmentTable { get; }
+
+    public ObservableCollection<KeyValueRow> Env => EnvironmentTable.Rows;
 
     /// <summary>Raised by <see cref="ShellViewModel"/> to run a hook row in the hook test pane.</summary>
     public Action<HookRow>? RunHook { get; set; }
@@ -405,7 +396,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         Reset(Permissions, ClaudeSettingsDocument.PermissionKinds
             .SelectMany(kind => doc.GetPermissions(kind).Select(rule => new PermissionRow(kind, rule))));
         HookTable.Load(new ClaudeSettingsHookStore(doc));
-        Reset(Env, doc.GetEnv().Select(p => new EnvRow { Key = p.Key, Value = p.Value }));
+        EnvironmentTable.Load(doc.GetEnv());
         UpdatePermissionIssues();
         if (_mcpVersion == 0)
         {
@@ -494,7 +485,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
     private void AddHook(string? evt) => HookTable.AddHookCommand.Execute(evt ?? "PreToolUse");
 
     [RelayCommand]
-    private void AddEnv() => Env.Add(Wire(new EnvRow()));
+    private void AddEnv() => EnvironmentTable.AddCommand.Execute(null);
 
     [RelayCommand]
     private void Remove(FormRow? row)
@@ -503,7 +494,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         {
             case PermissionRow p: Permissions.Remove(p); break;
             case HookRow h: HookTable.RemoveCommand.Execute(h); break;
-            case EnvRow e: Env.Remove(e); break;
+            case KeyValueRow e: EnvironmentTable.RemoveCommand.Execute(e); break;
         }
     }
 
@@ -574,7 +565,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         {
             case PermissionRow p: Shift(Permissions, p, delta); break;
             case HookRow h: HookTable.Move(h, delta); break;
-            case EnvRow e: Shift(Env, e, delta); break;
+            case KeyValueRow e: EnvironmentTable.Move(e, delta); break;
         }
     }
 
@@ -658,7 +649,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         }
 
         HookTable.Write();
-        _doc.SetEnv(Env.Select(e => new KeyValuePair<string, string>(e.Key, e.Value)).ToList());
+        _doc.SetEnv(EnvironmentTable.Values());
         UpdateScopeIssues();
         UpdatePermissionIssues();
         Apply(_doc.ToJson());

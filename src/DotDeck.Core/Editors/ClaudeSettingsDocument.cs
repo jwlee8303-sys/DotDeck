@@ -264,15 +264,22 @@ public sealed class ClaudeSettingsDocument
 
     public IReadOnlyList<KeyValuePair<string, string>> GetEnv() =>
         _root["env"] is JsonObject env
-            ? env.Select(p => new KeyValuePair<string, string>(p.Key, p.Value is JsonValue v && v.TryGetValue<string>(out var s) ? s : p.Value?.ToJsonString() ?? string.Empty)).ToList()
+            ? env.Select(p => new KeyValuePair<string, string>(p.Key, EnvText(p.Value))).ToList()
             : [];
+
+    private static string EnvText(JsonNode? value) =>
+        value is JsonValue v && v.TryGetValue<string>(out var text) ? text : value?.ToJsonString() ?? string.Empty;
 
     public void SetEnv(IReadOnlyList<KeyValuePair<string, string>> values)
     {
+        var original = _root["env"] as JsonObject;
         var env = new JsonObject();
         foreach (var (key, value) in values.Where(p => p.Key.Trim().Length > 0))
         {
-            env[key.Trim()] = value;
+            // The table displays unsupported JSON values as text. An unrelated edit must not change their type.
+            env[key.Trim()] = original is not null && original.TryGetPropertyValue(key, out var previous) && EnvText(previous) == value
+                ? previous?.DeepClone()
+                : JsonValue.Create(value);
         }
 
         if (env.Count == 0)

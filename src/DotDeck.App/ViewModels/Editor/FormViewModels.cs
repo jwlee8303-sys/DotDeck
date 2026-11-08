@@ -51,23 +51,30 @@ public abstract class DocumentFormViewModel : ObservableObject
 public sealed partial class FrontmatterFormViewModel : DocumentFormViewModel
 {
     /// <summary>Fallback when the tool catalog is unavailable (normally the catalog's common tools are offered).</summary>
-    public static readonly IReadOnlyList<string> KnownTools =
-        ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "PowerShell", "WebFetch", "WebSearch", "Agent", "Skill", "NotebookEdit"];
+    public static IReadOnlyList<string> KnownTools => FrontmatterProfiles.ClaudeAgent.Tools;
 
     private FrontmatterDocument _doc = FrontmatterDocument.Parse(string.Empty);
 
     private readonly IReadOnlyList<string> _tools;
 
     public FrontmatterFormViewModel(EditorKind kind, Action<string> apply, IReadOnlyList<string>? tools = null)
-        : base(apply)
+        : this(FrontmatterProfiles.For(kind), apply, tools)
     {
-        IsAgent = kind == EditorKind.Agent;
-        _tools = tools ?? KnownTools;
     }
 
-    public bool IsAgent { get; }
+    public FrontmatterFormViewModel(FrontmatterProfile profile, Action<string> apply, IReadOnlyList<string>? tools = null)
+        : base(apply)
+    {
+        Profile = profile;
+        _tools = tools ?? profile.Tools;
+        ToolListValues = new StringListViewModel { Changed = OnToolsChanged };
+    }
 
-    public IReadOnlyList<string> Models => MarkdownAgentValidator.KnownModels;
+    public FrontmatterProfile Profile { get; }
+
+    public bool IsAgent => Profile.ShowAgentFields;
+
+    public IReadOnlyList<string> Models => Profile.Models;
 
     public IReadOnlyList<string> Tools => _tools;
 
@@ -77,8 +84,19 @@ public sealed partial class FrontmatterFormViewModel : DocumentFormViewModel
     [ObservableProperty]
     private string _description = string.Empty;
 
-    [ObservableProperty]
-    private string _toolList = string.Empty;
+    public StringListViewModel ToolListValues { get; }
+
+    public string ToolList
+    {
+        get => ToolListValues.Text;
+        set => ToolListValues.Text = value;
+    }
+
+    private void OnToolsChanged()
+    {
+        OnPropertyChanged(nameof(ToolList));
+        Write(() => _doc.SetList("tools", ToolListValues.Values));
+    }
 
     [ObservableProperty]
     private string _model = string.Empty;
@@ -96,7 +114,8 @@ public sealed partial class FrontmatterFormViewModel : DocumentFormViewModel
 
         Name = _doc.Get("name") ?? string.Empty;
         Description = (_doc.Get("description") ?? string.Empty).Replace("\n", Environment.NewLine, StringComparison.Ordinal);
-        ToolList = string.Join(", ", _doc.GetList("tools"));
+        ToolListValues.Load(_doc.GetList("tools"));
+        OnPropertyChanged(nameof(ToolList));
         Model = _doc.Get("model") ?? string.Empty;
         Body = _doc.Body;
         return null;
@@ -110,12 +129,7 @@ public sealed partial class FrontmatterFormViewModel : DocumentFormViewModel
             return;
         }
 
-        var tools = SplitTools(ToolList);
-        if (!tools.Contains(tool, StringComparer.Ordinal))
-        {
-            tools.Add(tool);
-            ToolList = string.Join(", ", tools);
-        }
+        ToolListValues.AddUnique(tool);
     }
 
     [RelayCommand]
@@ -127,8 +141,6 @@ public sealed partial class FrontmatterFormViewModel : DocumentFormViewModel
         Write(() => _doc.Set("description", value.Replace("\r\n", "\n", StringComparison.Ordinal)));
 
     // Optional fields disappear when cleared (absent means "inherit all tools" / "default model").
-    partial void OnToolListChanged(string value) => Write(() => _doc.SetList("tools", SplitTools(value)));
-
     partial void OnModelChanged(string value) => Write(() => _doc.Set("model", value.Trim().Length == 0 ? null : value.Trim()));
 
     partial void OnBodyChanged(string value) => Write(() => _doc.Body = value);
@@ -144,8 +156,6 @@ public sealed partial class FrontmatterFormViewModel : DocumentFormViewModel
         Apply(_doc.ToString());
     }
 
-    private static List<string> SplitTools(string value) =>
-        value.Split(',').Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
 }
 
 /// <summary>A row of a form table; any edit asks the owner to write the document back.</summary>

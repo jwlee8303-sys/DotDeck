@@ -5,6 +5,21 @@ namespace DotDeck.Core.Tests.Editors;
 
 public sealed class ClaudeSettingsDocumentTests
 {
+    [Fact]
+    public void Unchanged_nonstring_env_values_keep_their_original_json_types()
+    {
+        var doc = ClaudeSettingsDocument.TryParse("""{"env":{"number":42,"object":{"keep":true},"empty":null,"text":"old"}}""", out _)!;
+        var values = doc.GetEnv().Select(p => p.Key == "text" ? KeyValuePair.Create(p.Key, "new") : p).ToList();
+        doc.SetEnv(values);
+        var saved = System.Text.Json.Nodes.JsonNode.Parse(doc.ToJson())!["env"]!;
+        Assert.Equal(42, saved["number"]!.GetValue<int>());
+        Assert.True(saved["object"]!["keep"]!.GetValue<bool>());
+        Assert.Null(saved["empty"]);
+        Assert.Equal("new", saved["text"]!.GetValue<string>());
+        doc.SetEnv([KeyValuePair.Create("number", "changed")]);
+        Assert.Equal("changed", System.Text.Json.Nodes.JsonNode.Parse(doc.ToJson())!["env"]!["number"]!.GetValue<string>());
+    }
+
     private const string Settings = """
         {
           "model": "opus",
@@ -84,7 +99,7 @@ public sealed class ClaudeSettingsDocumentTests
         }
 
         Assert.Equal(
-            System.Text.Json.Nodes.JsonNode.Parse(Load().ToJson())!.ToJsonString().Replace("\"N\":2", "\"N\":\"2\"", StringComparison.Ordinal),
+            System.Text.Json.Nodes.JsonNode.Parse(Load().ToJson())!.ToJsonString(),
             System.Text.Json.Nodes.JsonNode.Parse(doc.ToJson())!.ToJsonString());
     }
 

@@ -3,6 +3,7 @@
 
 ## [Unreleased]
 ### Changed
+- 시스템 프로젝트 "기타 파일"을 "사용자 지정 파일"로 이름 변경
 - 탐색기 "표시 필터(모든 파일/설정·문서만)"와 "보이는 항목 편집"을 새 보이는 항목 방식으로 대체(SPEC 2.3): ✎ 편집 모드의 3상태 체크박스(체크/해제/일부), 일반 모드는 체크된 항목만 표시, 보일 것이 없는 폴더는 숨김
 - `projects.json` 형식을 schemaVersion 2로 올림(`visibility`·`view`). v1 파일은 처음 읽을 때 `projects.json.v1-<시각>.bak`으로 보존하고 한 번 변환한다(`filter: all` → 모든 파일 보기, `configDocs` → 이전 확장자 20개 + `.gitignore`·`.editorconfig`, `visibleItems` → 루트 해제 + 항목 체크). 이전 DotDeck은 v2 파일을 읽기 전용으로 연다
 - 확장자 없는 dotfile(`.gitignore`·`.editorconfig` 제외)과 `.env*` 파일은 기본 확장자 목록으로 더 이상 보이지 않는다(편집 모드에서 개별 체크하거나 "모든 파일 보기")
@@ -14,6 +15,7 @@
 - 설정 폼에서 저장할 때 http·prompt 등 command가 아닌 훅에 빈 `command` 키가 추가되던 문제
 - `type`이 command가 아닌 훅(http·prompt·agent·mcp_tool)에 "command가 비어 있습니다" 오류가 잘못 표시되던 문제
 ### Added
+- 모든 폴더 프로젝트(기본 제공 Claude·Codex 포함)에 "사용자 지정 파일" 노드: 프로젝트 루트 밖 파일도 경로 입력·찾아보기로 등록, 목록에서 빼기, 편집 모드에서 체크 해제로 노드 숨기기, 이름 바꾸기·이동을 따라 경로 갱신(`projects.json`의 `customFiles`·`visibility.hideCustomFiles`)
 - 탐색기 보기 방식(프로젝트별): 트리 / 압축 트리(하위 폴더 하나뿐인 폴더를 한 줄로, 마디 클릭으로 폴더 선택) / 평면(보이는 파일만, 이름순 또는 끌어서 정렬)
 - 최상위에 고정/해제, 트리에서 위치 보기(편집 모드 전체 트리로 이동해 선택)
 - 기본 확장자 설정: 프로젝트 대화상자(프리셋 체크 목록, 직접 입력, 모든 파일 보기, 전역 기본값 사용)와 설정 대화상자의 탐색기 기본 확장자

@@ -94,7 +94,7 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Shell, services.Dialogs,
             new ExplorerFileOperations(services.FileOperations, services.Dialogs, services.Log, message => StatusMessage = message),
             services.Log, message => StatusMessage = message, new FolderWatcherFactory(), ExplorerPreferences, OpenFileAsync, OpenSystemNode,
-            RegisterOtherFileAsync, RemoveOtherFileAsync, OpenFileAsAsync);
+            RegisterCustomFileAsync, RemoveCustomFileAsync, OpenFileAsAsync);
         Properties = new PropertiesPaneViewModel { DescribeRole = DescribeRole };
         Output = new OutputPaneViewModel(services.Log);
         Validation = new ValidationPaneViewModel();

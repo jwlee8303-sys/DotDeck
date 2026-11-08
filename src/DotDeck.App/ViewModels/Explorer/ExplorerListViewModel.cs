@@ -7,6 +7,7 @@ using DotDeck.Core.Explorer;
 using DotDeck.Core.Explorer.Visibility;
 using DotDeck.Core.FileOperations;
 using DotDeck.Core.Logging;
+using DotDeck.Core.Projects;
 
 namespace DotDeck.App.ViewModels.Explorer;
 
@@ -636,7 +637,7 @@ public sealed partial class ExplorerListViewModel : ObservableObject
     private void CopyFullPaths() => CopyPathsText(TargetNodes().Select(r => r.Node.FullPath!));
 
     [RelayCommand(CanExecute = nameof(HasTargets))]
-    private void CopyRelativePaths() => CopyPathsText(TargetNodes().Select(r => r.Node.RelativePath ?? r.Name));
+    private void CopyRelativePaths() => CopyPathsText(TargetNodes().Select(r => r.TargetNode.RelativePath ?? r.TargetNode.FullPath ?? r.Name));
 
     private void CopyPathsText(IEnumerable<string> paths)
     {
@@ -715,7 +716,7 @@ public sealed partial class ExplorerListViewModel : ObservableObject
     }
 
     /// <summary>A file system item of a folder project (pin, "트리에서 위치 보기").</summary>
-    public bool IsVisibilityTarget => SelectedRow is NodeRowViewModel { IsFileSystemItem: true, Explorer.SupportsVisibility: true };
+    public bool IsVisibilityTarget => SelectedRow is NodeRowViewModel { IsFileSystemItem: true, Explorer.SupportsVisibility: true, Node.IsCustomFile: false };
 
     private bool CanPin() => IsVisibilityTarget;
 
@@ -739,19 +740,32 @@ public sealed partial class ExplorerListViewModel : ObservableObject
         OnPropertyChanged(nameof(IsOtherFileItem));
     }
 
-    /// <summary>The System project's "other files" node or one of its files is selected (context menu items).</summary>
-    public bool IsOtherFilesTarget => SelectedRow is NodeRowViewModel { Explorer.Source: SystemProjectSource } row
-        && (row.Node.Id == SystemProjectSource.ImportantFilesId || row.Node.Kind == NodeKind.File);
+    /// <summary>
+    /// "사용자 지정 파일" commands apply: a project header of a folder project, the node itself, or one of its files
+    /// (System project and folder projects).
+    /// </summary>
+    public bool IsOtherFilesTarget => SelectedRow switch
+    {
+        ProjectHeaderRowViewModel { Explorer.SupportsVisibility: true } => true,
+        NodeRowViewModel row => row.Node.Id is SystemProjectSource.ImportantFilesId or CustomFilesProjectSource.NodeId || row.Node.IsCustomFile,
+        _ => false,
+    };
 
-    public bool IsOtherFileItem => SelectedRow is NodeRowViewModel { Explorer.Source: SystemProjectSource, Node.Kind: NodeKind.File };
+    public bool IsOtherFileItem => SelectedRow is NodeRowViewModel { Node.IsCustomFile: true };
+
+    /// <summary>The list a "사용자 지정 파일" command goes to: null means the System project's own list.</summary>
+    private ProjectDefinition? CustomFilesOwner => SelectedRow?.Explorer is { SupportsVisibility: true } explorer ? explorer.Project : null;
 
     [RelayCommand]
-    private Task RegisterOtherFileAsync() => _context.RegisterOtherFile?.Invoke() ?? Task.CompletedTask;
+    private Task RegisterOtherFileAsync() => _context.RegisterCustomFile?.Invoke(CustomFilesOwner, false) ?? Task.CompletedTask;
+
+    [RelayCommand]
+    private Task BrowseOtherFileAsync() => _context.RegisterCustomFile?.Invoke(CustomFilesOwner, true) ?? Task.CompletedTask;
 
     [RelayCommand]
     private Task UnregisterOtherFileAsync() =>
-        IsOtherFileItem && SelectedRow is NodeRowViewModel { Node.FullPath: { } path } && _context.UnregisterOtherFile is { } remove
-            ? remove(path)
+        IsOtherFileItem && SelectedRow is NodeRowViewModel { Node.FullPath: { } path } && _context.UnregisterCustomFile is { } remove
+            ? remove(CustomFilesOwner, path)
             : Task.CompletedTask;
 
     private void UpdateBreadcrumb(ExplorerRowViewModel? row)

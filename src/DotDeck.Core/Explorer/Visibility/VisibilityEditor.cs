@@ -79,6 +79,13 @@ public sealed class VisibilityEditor
         Changed();
     }
 
+    /// <summary>Checks (shows) or unchecks (hides) the "사용자 지정 파일" node.</summary>
+    public void SetCustomFilesVisible(bool visible)
+    {
+        _base = _base with { HideCustomFiles = !visible };
+        Changed();
+    }
+
     /// <summary>Drops every rule (the "모두 기본값으로 초기화" choice).</summary>
     public void Clear()
     {

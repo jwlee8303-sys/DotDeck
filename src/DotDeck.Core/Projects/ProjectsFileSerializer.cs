@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotDeck.Core.Explorer;
 using DotDeck.Core.Explorer.Visibility;
 
 namespace DotDeck.Core.Projects;
@@ -37,11 +38,11 @@ public static class ProjectsFileSerializer
     private static readonly HashSet<string> s_knownRootKeys = ["schemaVersion", "projects"];
 
     private static readonly HashSet<string> s_knownProjectKeys =
-        ["id", "kind", "builtinKey", "name", "root", "color", "order", "hidden", "excludedFolders", "visibility", "view",
+        ["id", "kind", "builtinKey", "name", "root", "color", "order", "hidden", "excludedFolders", "visibility", "view", "customFiles",
          // v1 fields: read for migration, never written.
          "filter", "visibleItems"];
 
-    private static readonly HashSet<string> s_knownVisibilityKeys = ["defaultExtensions", "showAllFiles", "rules"];
+    private static readonly HashSet<string> s_knownVisibilityKeys = ["defaultExtensions", "showAllFiles", "hideCustomFiles", "rules"];
 
     private static readonly HashSet<string> s_knownViewKeys = ["mode", "flatSort", "flatOrder", "pins"];
 
@@ -162,7 +163,8 @@ public static class ProjectsFileSerializer
             || !TryGetExcluded(entry, out var excluded)
             || !TryGetStringList(entry, "visibleItems", out var visible)
             || !TryGetVisibility(entry, out var visibility)
-            || !TryGetView(entry, out var view))
+            || !TryGetView(entry, out var view)
+            || !TryGetCustomFiles(entry, out var customFiles))
         {
             return null;
         }
@@ -196,6 +198,7 @@ public static class ProjectsFileSerializer
                     ExcludedFolders = excluded,
                     Visibility = visibility ?? VisibilitySettings.Default,
                     View = view ?? ProjectViewSettings.Default,
+                    CustomFiles = customFiles,
                     Extra = extra,
                 };
 
@@ -231,6 +234,7 @@ public static class ProjectsFileSerializer
                     ExcludedFolders = excluded,
                     Visibility = visibility ?? VisibilitySettings.Default,
                     View = view ?? ProjectViewSettings.Default,
+                    CustomFiles = customFiles,
                     Extra = extra,
                 };
 
@@ -270,6 +274,10 @@ public static class ProjectsFileSerializer
 
         obj["visibility"] = WriteVisibility(project.Visibility);
         obj["view"] = WriteView(project.View);
+        if (project.CustomFiles.Count > 0)
+        {
+            obj["customFiles"] = Strings(project.CustomFiles);
+        }
 
         CopyExtra(project.Extra, obj, s_knownProjectKeys);
         return obj;
@@ -343,7 +351,8 @@ public static class ProjectsFileSerializer
                 return true;
             case JsonObject v:
                 // An extension that cannot be normalized makes the entry invalid (kept verbatim) instead of being dropped.
-                if (!TryGetBool(v, "showAllFiles", out var showAll) || !TryGetStringList(v, "defaultExtensions", out var extensions)
+                if (!TryGetBool(v, "showAllFiles", out var showAll) || !TryGetBool(v, "hideCustomFiles", out var hideCustom)
+                    || !TryGetStringList(v, "defaultExtensions", out var extensions)
                     || (extensions is not null && extensions.Any(e => ExtensionRules.Normalize(e) is null)))
                 {
                     return false;
@@ -375,6 +384,7 @@ public static class ProjectsFileSerializer
                 {
                     Rules = rules,
                     ShowAllFiles = showAll,
+                    HideCustomFiles = hideCustom,
                     DefaultExtensions = extensions is null ? null : ExtensionRules.NormalizeAll(extensions),
                     Extra = ExtractExtra(v, s_knownVisibilityKeys),
                 };
@@ -428,6 +438,11 @@ public static class ProjectsFileSerializer
             ["showAllFiles"] = visibility.ShowAllFiles,
             ["rules"] = rules,
         };
+        if (visibility.HideCustomFiles)
+        {
+            obj["hideCustomFiles"] = true;
+        }
+
         CopyExtra(visibility.Extra, obj, s_knownVisibilityKeys);
         return obj;
     }
@@ -459,6 +474,38 @@ public static class ProjectsFileSerializer
         value = false;
         var node = obj[key];
         return node is null || (node is JsonValue v && v.TryGetValue(out value));
+    }
+
+    /// <summary>"customFiles": absolute file paths. A relative or unusable path makes the entry invalid (kept verbatim).</summary>
+    private static bool TryGetCustomFiles(JsonObject obj, out IReadOnlyList<string> files)
+    {
+        files = [];
+        if (!TryGetStringList(obj, "customFiles", out var list))
+        {
+            return false;
+        }
+
+        if (list is null)
+        {
+            return true;
+        }
+
+        var result = new List<string>(list.Count);
+        foreach (var path in list)
+        {
+            if (CustomFileRules.Validate(path) is not null)
+            {
+                return false;
+            }
+
+            if (!result.Contains(path, StringComparer.OrdinalIgnoreCase))
+            {
+                result.Add(path);
+            }
+        }
+
+        files = result;
+        return true;
     }
 
     private static bool TryGetExcluded(JsonObject obj, out IReadOnlyList<string>? excluded) =>

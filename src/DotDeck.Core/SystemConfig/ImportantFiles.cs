@@ -6,7 +6,7 @@ using DotDeck.Core.Paths;
 namespace DotDeck.Core.SystemConfig;
 
 /// <summary>
-/// The "important files" list of the System project (SPEC §8): defaults plus user additions, minus user
+/// The "사용자 지정 파일" list of the System project (SPEC §8): defaults plus user additions, minus user
 /// removals, stored in a JSON file. Secret files can never be added.
 /// </summary>
 public sealed class ImportantFiles(IFileStore store, string listFile)
@@ -59,14 +59,9 @@ public sealed class ImportantFiles(IFileStore store, string listFile)
     /// <summary>Adds a file. Returns an error message (secret file, relative path) or null.</summary>
     public string? Add(string path)
     {
-        if (!Path.IsPathFullyQualified(path))
+        if (CustomFileRules.Validate(path) is { } error)
         {
-            return "전체 경로를 입력해야 합니다.";
-        }
-
-        if (SecretFilePolicy.IsSecret(Path.GetFileName(path)))
-        {
-            return "비밀 파일은 기타 파일 목록에 추가할 수 없습니다.";
+            return error;
         }
 
         var stored = Load();

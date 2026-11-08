@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using DotDeck.Core.Explorer;
 using DotDeck.Core.Explorer.Visibility;
 using DotDeck.Core.Files;
 using DotDeck.Core.Logging;
@@ -278,6 +279,40 @@ public sealed partial class ProjectRegistry
         {
             Replace(project with { Visibility = visibility });
         }
+    }
+
+    /// <summary>Adds a file to a folder project's "사용자 지정 파일" list (no-op when already there).</summary>
+    /// <exception cref="ArgumentException">Relative path, secret file or invalid path.</exception>
+    public void AddCustomFile(string id, string path)
+    {
+        var project = RequireCustomFilesProject(id);
+        if (CustomFileRules.Validate(path) is { } error)
+        {
+            throw new ArgumentException(error, nameof(path));
+        }
+
+        if (!project.CustomFiles.Contains(path, StringComparer.OrdinalIgnoreCase))
+        {
+            Replace(project with { CustomFiles = [.. project.CustomFiles, path] });
+        }
+    }
+
+    /// <summary>Takes a file off the list (the file itself is not touched).</summary>
+    public void RemoveCustomFile(string id, string path)
+    {
+        var project = RequireCustomFilesProject(id);
+        if (project.CustomFiles.Contains(path, StringComparer.OrdinalIgnoreCase))
+        {
+            Replace(project with { CustomFiles = project.CustomFiles.Where(p => !string.Equals(p, path, StringComparison.OrdinalIgnoreCase)).ToList() });
+        }
+    }
+
+    private ProjectDefinition RequireCustomFilesProject(string id)
+    {
+        var project = Require(id);
+        return project.Builtin == BuiltinProject.System
+            ? throw new InvalidOperationException("시스템 프로젝트의 사용자 지정 파일은 별도 목록에 저장합니다.")
+            : project;
     }
 
     public void SetView(string id, ProjectViewSettings view)

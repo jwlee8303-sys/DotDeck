@@ -28,8 +28,8 @@ public sealed record ExplorerContext(
     ExplorerPreferences Preferences,
     Func<string, bool, Task> OpenFile,
     Action<string>? OpenSystemNode = null,
-    Func<Task>? RegisterOtherFile = null,
-    Func<string, Task>? UnregisterOtherFile = null,
+    Func<ProjectDefinition?, bool, Task>? RegisterCustomFile = null,
+    Func<ProjectDefinition?, string, Task>? UnregisterCustomFile = null,
     Func<string, DotDeck.Core.Editors.EditorKind?, Task>? OpenAs = null);
 
 /// <summary>
@@ -120,7 +120,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
             || !SameList(old.ExcludedFolders, project.ExcludedFolders);
         var treeChanged = sourceChanged
             || !old.Visibility.ContentEquals(project.Visibility)
-            || !old.View.ContentEquals(project.View);
+            || !old.View.ContentEquals(project.View)
+            || !old.CustomFiles.SequenceEqual(project.CustomFiles, StringComparer.OrdinalIgnoreCase);
         if (sourceChanged)
         {
             Source = ProjectSources.Create(project, _context.Paths, _context.Store);
@@ -129,7 +130,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
         // An open edit session keeps its (unsaved) checks; extension settings changed elsewhere apply to it.
         if (_editor is not null && !old.Visibility.ContentEquals(project.Visibility))
         {
-            _editor = new VisibilityEditor(project.Visibility with { Rules = _editor.Current.Rules }, Extensions);
+            var session = _editor.Current;
+            _editor = new VisibilityEditor(project.Visibility with { Rules = session.Rules, HideCustomFiles = session.HideCustomFiles }, Extensions);
         }
 
         if (treeChanged)
@@ -154,12 +156,23 @@ public sealed partial class ExplorerViewModel : ObservableObject
         try
         {
             TreeBuildResult result;
+            IReadOnlyList<TreeRow> customRows;
             IProjectSource source;
             while (true)
             {
                 var expanded = new HashSet<string>(_expanded, ExplorerTreeBuilder.KeyComparer);
                 source = BuildSource();
-                result = await Task.Run(() => ExplorerTreeBuilder.Build(source, expanded));
+                var current = source;
+                (result, customRows) = await Task.Run(() =>
+                {
+                    var built = ExplorerTreeBuilder.Build(current, expanded);
+
+                    // No root listing: the "사용자 지정 파일" node (files anywhere) is still shown above the message.
+                    var custom = current is CustomFilesProjectSource wrapper && (built.RootState == ProjectRootState.Missing || built.RootError is not null)
+                        ? ExplorerTreeBuilder.Build(wrapper.NodeOnly(), expanded).Rows
+                        : [];
+                    return (built, custom);
+                });
                 if (version != _loadVersion)
                 {
                     return;
@@ -204,13 +217,13 @@ public sealed partial class ExplorerViewModel : ObservableObject
             }
 
             // A filtered layout does not list every folder: only an unfiltered listing tells which keys are gone.
-            if (source is not VisibleProjectSource)
+            if (CustomFilesProjectSource.Unwrap(source) is not VisibleProjectSource)
             {
                 _expanded.ExceptWith(result.StaleExpandedKeys);
             }
 
-            ReplaceBody(CreateBody(result, source is VisibleProjectSource));
-            if (source is VisibleProjectSource { IsTruncated: true })
+            ReplaceBody([.. customRows.Select(CreateNodeRow), .. CreateBody(result, CustomFilesProjectSource.Unwrap(source) is VisibleProjectSource)]);
+            if (CustomFilesProjectSource.Unwrap(source) is VisibleProjectSource { IsTruncated: true })
             {
                 _context.SetStatus($"{Project.Name}: 항목이 너무 많아 일부 폴더는 내용을 확인하지 않고 표시했습니다.");
             }
@@ -388,7 +401,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 return;
             }
 
-            if (source is not VisibleProjectSource)
+            if (CustomFilesProjectSource.Unwrap(source) is not VisibleProjectSource)
             {
                 _expanded.ExceptWith(stale);
             }
@@ -729,7 +742,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
     private NodeRowViewModel CreateNodeRow(TreeRow row) => new(this, row.Node, row.Depth, row.IsExpanded, row.Error)
     {
-        CheckState = _editor is not null && row.Node.RelativePath is { } key ? _editor.Evaluator.CheckStateOf(key, row.Node.Kind == NodeKind.Folder) : null,
+        CheckState = CheckStateOf(row.Node),
     };
 
     // ===== Visibility (SPEC 2.3) =====
@@ -754,17 +767,44 @@ public sealed partial class ExplorerViewModel : ObservableObject
     /// <summary>The extensions in effect for this project (its own list or the global default).</summary>
     public IReadOnlyList<string> Extensions => Project.Visibility.EffectiveExtensions(_context.Preferences.GlobalExtensions);
 
-    /// <summary>Normal mode: a fresh filtered layout per build (it caches listings); edit mode and the System project: everything.</summary>
+    /// <summary>
+    /// Normal mode: a fresh filtered layout per build (it caches listings); edit mode and the System project: everything.
+    /// Folder projects get their "사용자 지정 파일" node on top, unless it was unchecked (normal mode only).
+    /// </summary>
     private IProjectSource BuildSource()
     {
         var source = Source;
-        if (source is not FolderProjectSource || _editor is not null)
+        if (source is not FolderProjectSource)
         {
             return source;
         }
 
-        return new VisibleProjectSource(source, _context.Store, new VisibilityEvaluator(Project.Visibility, Extensions), Project.View);
+        var layout = _editor is not null
+            ? source
+            : new VisibleProjectSource(source, _context.Store, new VisibilityEvaluator(Project.Visibility, Extensions), Project.View);
+        return _editor is null && Project.Visibility.HideCustomFiles
+            ? layout
+            : new CustomFilesProjectSource(layout, _context.Store, Project.CustomFiles);
     }
+
+    /// <summary>Edit mode check box of a row (null outside edit mode and for rows without one).</summary>
+    private CheckState? CheckStateOf(NodeInfo node)
+    {
+        if (_editor is not { } editor)
+        {
+            return null;
+        }
+
+        if (node.Id == CustomFilesProjectSource.NodeId)
+        {
+            return editor.Current.HideCustomFiles ? CheckState.Unchecked : CheckState.Checked;
+        }
+
+        return node.RelativePath is { } key && !node.IsCustomFile ? editor.Evaluator.CheckStateOf(key, node.Kind == NodeKind.Folder) : null;
+    }
+
+    /// <summary>True when <paramref name="path"/> is on this project's "사용자 지정 파일" list.</summary>
+    public bool HasCustomFile(string path) => Project.CustomFiles.Contains(path, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The unsaved edit-mode rules (for saving on shutdown), or null.</summary>
     public VisibilitySettings? PendingVisibility() =>
@@ -866,6 +906,13 @@ public sealed partial class ExplorerViewModel : ObservableObject
             return;
         }
 
+        if (row is NodeRowViewModel { Node.Id: CustomFilesProjectSource.NodeId })
+        {
+            editor.SetCustomFilesVisible(editor.Current.HideCustomFiles);
+            RefreshChecks();
+            return;
+        }
+
         string key;
         bool isFolder;
         switch (row)
@@ -913,10 +960,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         Header.CheckState = evaluator.CheckStateOf(string.Empty, isDirectory: true);
         foreach (var node in BodyRows.OfType<NodeRowViewModel>())
         {
-            if (node.Node.RelativePath is { } key)
-            {
-                node.CheckState = evaluator.CheckStateOf(key, node.IsFolder);
-            }
+            node.CheckState = CheckStateOf(node.Node);
         }
     }
 

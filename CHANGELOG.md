@@ -25,6 +25,7 @@
 - 설정 폼에서 저장할 때 http·prompt 등 command가 아닌 훅에 빈 `command` 키가 추가되던 문제
 - `type`이 command가 아닌 훅(http·prompt·agent·mcp_tool)에 "command가 비어 있습니다" 오류가 잘못 표시되던 문제
 ### Added
+- Tomlyn 2.10.2 기반 UTF-8 TOML 위치 편집기: BOM·줄바꿈·주석·미지 키 보존, 값 교체·루트/기존 테이블 키 추가, 재파싱 실패 시 변경 거부. 바이트 왕복·점 키·인라인/배열 테이블 회귀 테스트
 - 권한 규칙 경고(저장은 막지 않음, 행 옆 ⚠/ⓘ와 검증 결과 패널): 괄호 붙은 MCP 규칙, 인수 없는 도구에 인수, `domain:` 없는 WebFetch, 복합 명령, 가운데의 `:*`, Edit deny만 있고 Read deny 없음, allow의 매개변수 규칙, 쓸 수 없는 매개변수
 - 매개변수 규칙 `도구(매개변수:값)`(deny·ask) 인식·보존과 속성 패널 설명
 - App ViewModel 테스트 프로젝트 `tests/DotDeck.App.Tests`

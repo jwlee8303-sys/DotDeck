@@ -11,6 +11,7 @@
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
   </ItemGroup>
   <ItemGroup Label="Core">
+    <PackageVersion Include="Tomlyn" Version="2.10.2" />
     <PackageVersion Include="DiffPlex" Version="1.9.0" />
     <PackageVersion Include="Markdig" Version="1.6.0" />
   </ItemGroup>

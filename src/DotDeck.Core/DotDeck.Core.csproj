@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Tomlyn" />
     <PackageReference Include="DiffPlex" />
     <PackageReference Include="Markdig" />
   </ItemGroup>

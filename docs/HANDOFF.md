@@ -1,7 +1,7 @@
 # 인수인계 (2026-11-08) — Claude Code → Codex
 
 ## 1. 현재 상태
-- 브랜치 `feat/codex-editors` (main `b3325f5`에서 생성). 단계 0 사양·설계 및 2a 공통화(등록소·훅·표·frontmatter 프로필) 완료. **2a 종료: 기존 Claude 편집기 사용자 확인 대기.**
+- 브랜치 `feat/codex-editors` (main `b3325f5`에서 생성). 단계 0·2a 완료, 사용자 수동 확인 통과. 2b-0 TOML 무손실 편집기 완료.
 - main(로컬)에 `feat/explorer-visibility`(547ae6a), `feat/custom-files`(d508a3a), `feat/permission-arg-kinds`(b3325f5) 모두 `--no-ff` 병합 완료. **origin에는 아무것도 push 안 함.**
 - 병합 직전 검증(2026-11-08): `dotnet build DotDeck.slnx` 오류 0 / Core.Tests 669 통과·2 건너뜀 / App.Tests 6 통과.
 - 미커밋: `.claude/`(로컬 설정, 커밋 대상 아님)만 남음.
@@ -23,7 +23,7 @@
 | 2a-2 | `refactor(hooks): 훅 모델·표·실행기를 제품 공용으로 분리` | 신규 `Core/Hooks/*`, `HookTableViewModel.cs`, `Views/Editor/HookTable.xaml`; 수정 `ClaudeSettingsDocument.cs`, `HookRunner.cs`, `SettingsFormViewModel.cs`, `HookTestPaneViewModel.cs`, `FormTemplates.xaml` | 완료 |
 | 2a-3 | `refactor(forms): 키-값 표·문자열 목록·frontmatter 프로필 공통화` | `KeyValueTableViewModel.cs`, `StringListViewModel.cs`, `FormViewModels.cs`, `SettingsFormViewModel.cs` | 완료 |
 | → | **2a 끝: Claude 편집기 동작이 같은지 사용자 확인** | | |
-| 2b-0 | `build(core): Tomlyn 추가와 TOML 무손실 편집기` | `Directory.Packages.props`, `DotDeck.Core.csproj`, 신규 `Core/Toml/TomlEditDocument.cs` + 테스트 | **2a 사용자 확인 후 다음 할 일** |
+| 2b-0 | `build(core): Tomlyn 추가와 TOML 무손실 편집기` | `Directory.Packages.props`, `DotDeck.Core.csproj`, 신규 `Core/Toml/TomlEditDocument.cs` + 테스트 | 완료 |
 | 2b-1 | `feat(codex): CODEX_HOME·Codex 파일 역할·런타임 파일 보호·스킬 연결 노드` | `Paths/AppPaths*.cs`, `Projects/BuiltinProjects.cs`, 신규 `Catalogs/Codex/file-roles.json`, `Catalogs/Codex/agents-file-roles.json`, `Explorer/LinkedFolders.cs`, `RuntimeFilePolicy.cs`, `ISecretFileClassifier`, `Documents/BackupStore.cs`, `ExplorerViewModel.cs` | 남음 |
 | 2b-2 | `feat(codex-config): 스키마 기반 config.toml 폼·계층·신뢰 배너·검증` | `Catalogs/Codex/config-schema.json`, `Core/Codex/CodexConfigDocument.cs`, `CodexTrustResolver.cs`, `Core/Schema/*`, `App/ViewModels/Editor/Codex/CodexConfigFormViewModel.cs`, `SchemaGrid.xaml` | 남음 |
 | 2b-3 | `feat(codex-config): MCP 서버 탭과 비밀값 마스킹` (+ DPAPI 백업) | `CodexSecretRules.cs`, `DiffReviewViewModel.cs`, 백업 보호기 | 남음 |
@@ -103,3 +103,12 @@
 - 저장소 루트에서 실행: `dotnet run --project src/DotDeck.App -- --home "C:\Users\jwlee\AppData\Local\Temp\DotDeck-2a-review-1ba75241"`.
 - Claude 전역에서 `settings.json`, `agents/demo-reviewer.md`, `skills/demo-skill/SKILL.md`를 열고 다음 형식 메뉴·폼 전환·권한/훅/env 행 수정·이동·삭제·도구 선택·Undo를 확인한다. 저장 diff와 미지 필드(`demoUnknown`, `demo_unknown`) 보존도 확인한다. 훅 명령은 `echo dotdeck-demo`이며 실행은 앱의 확인 대화상자 후에만 한다.
 - 제품 앱을 직접 실행한 시각적 수동 확인은 아직 하지 않았음. 사용자 확인 후 2b-0(Tomlyn 무손실 TOML 시험 구현)로 진행한다.
+
+## 12. 2b-0 진행 기록 (2026-11-08)
+- 사용자 2a 수동 확인 완료, 문제 없음. 2b-0 진행 승인 및 바이트 왕복 테스트 선작성 요청을 받음.
+- Tomlyn 실시간 NuGet v3 flat-container 버전 목록에서 가장 높은 비프리릴리스 버전 2.10.2 확인. registration/catalog에서도 `listed: true`, 게시일 `2026-11-04T20:44:46.14Z` 확인, 실제 restore 성공. 검색 캐시의 2.10.1보다 실시간 피드를 우선함. 출처: https://api.nuget.org/v3-flatcontainer/tomlyn/index.json 및 https://api.nuget.org/v3/registration5-semver1/tomlyn/2.10.2.json
+- `TomlEditDocumentTests`를 먼저 작성하고 미구현 타입으로 빌드 실패 확인 후 구현. 기존 승인에 따라 CPM에 Tomlyn 2.10.2 추가. 패키지의 net10.0 XML API 문서에 따라 `SyntaxParser.Parse(validate: true)` 사용. 전체 문서 직렬화 없이 원본 텍스트의 값 Span만 교체하고 별도 후보 문서를 재파싱·경로 대조 후 적용.
+- UTF-8/BOM·LF/CRLF·한글·주석·Windows 작은따옴표 경로·점 키·인라인 테이블·배열 테이블·중첩 배열·여러 줄 문자열·동일 값 이스케이프 보존·파싱 위치·주입 거부 등 신규 15개 사례 통과. 자체 파서 전환 불필요.
+- 지원: 기존 값 교체, 루트/기존 명시적 테이블에 키 추가. 제한: UTF-8만 지원하며 잘못된 UTF-8은 거부. 없는 테이블 생성·키 삭제·인라인 테이블 신규 키 추가는 아직 미지원(추정 편집 대신 거부). 신규 문자열은 TOML 1.0 호환 이스케이프를 사용하며 기존 따옴표는 표현 가능한 범위에서 유지.
+- 검증: Debug는 사용자 실행 중 DotDeck PID 17900의 DLL 잠금으로 실패. 앱을 종료하지 않고 Release로 검증: `dotnet build DotDeck.slnx -c Release` 경고 0·오류 0, `dotnet test --solution DotDeck.slnx -c Release` 총 720 / 성공 718 / 실패 0 / 건너뜀 2(기존 심볼릭 링크 권한). `git diff --check` 통과. 실제 사용자 설정·환경변수·버전 파일 변경 없음.
+- 다음 단계: 2b-1 CODEX_HOME·파일 역할·런타임 보호·스킬 연결 노드. 이번 요청 범위인 2b-0까지 완료.

@@ -10,6 +10,7 @@ public sealed record AppSettings
     public const double MaxFontSize = 32;
 
     public string Theme { get; init; } = "Dark";
+    public bool MaskSecretsByDefault { get; init; } = true;
 
     public double EditorFontSize { get; init; } = 13.333;
 

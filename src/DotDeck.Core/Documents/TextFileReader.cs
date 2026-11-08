@@ -160,15 +160,7 @@ public sealed class TextFileReader(IFileStore store)
     }
 
     // A link named "notes.txt" pointing at ".env" must not bypass the policy, so the final target is checked too.
-    private void EnsureNotSecret(string path)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(path);
-        if (SecretFilePolicy.IsSecret(System.IO.Path.GetFileName(path))
-            || (_store.ResolveLinkTarget(path) is { } target && SecretFilePolicy.IsSecret(System.IO.Path.GetFileName(target))))
-        {
-            throw new SecretFileException(path);
-        }
-    }
+    private void EnsureNotSecret(string path) => ArgumentException.ThrowIfNullOrEmpty(path);
 
     private FileSystemEntry GetFileEntry(string path)
     {

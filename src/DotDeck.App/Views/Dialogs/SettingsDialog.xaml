@@ -10,6 +10,7 @@
         FontFamily="{DynamicResource DD.Font.Ui}"
         FontSize="{DynamicResource DD.FontSize.Ui}">
     <StackPanel Margin="16,14">
+        <CheckBox x:Name="MaskSecretsBox" Content="비밀값 기본 가림" Margin="0,0,0,8" />
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="140" />

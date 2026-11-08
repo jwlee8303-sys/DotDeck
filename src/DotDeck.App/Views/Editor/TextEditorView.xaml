@@ -50,6 +50,8 @@
                 BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="0,0,0,1" Padding="4,2"
                 Visibility="{Binding HasViewBar, Converter={StaticResource BoolToVisible}}">
             <DockPanel>
+                <Button DockPanel.Dock="Right" Content="👁" Command="{Binding RevealSecretsCommand}" ToolTip="비밀값 표시 / 가리기"
+                        Visibility="{Binding HasSecrets, Converter={StaticResource BoolToVisible}}" />
                 <Button DockPanel.Dock="Right" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Padding="8,2" Focusable="False"
                         Click="OnFormatClick" ToolTip="다음 형식으로 열기">
                     <Button.ContextMenu>
@@ -158,6 +160,7 @@
                 <ColumnDefinition x:Name="PreviewColumn" Width="0" />
             </Grid.ColumnDefinitions>
         <ae:TextEditor x:Name="Editor" Grid.Column="0"
+                       Visibility="{Binding IsMaskedDisplay, Converter={StaticResource FalseToVisible}}"
                        Document="{Binding Buffer.Document}"
                        IsReadOnly="{Binding Buffer.IsReadOnly}"
                        FontFamily="{DynamicResource DD.Font.Editor}"
@@ -169,6 +172,9 @@
                        HorizontalScrollBarVisibility="Auto"
                        VerticalScrollBarVisibility="Auto"
                        Padding="4,0,0,0" />
+            <TextBox Grid.Column="0" Text="{Binding MaskedText, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
+                     VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource DD.Font.Editor}"
+                     Visibility="{Binding IsMaskedDisplay, Converter={StaticResource BoolToVisible}}" />
             <GridSplitter x:Name="PreviewSplitter" Grid.Column="1" Width="4" HorizontalAlignment="Stretch" ResizeBehavior="PreviousAndNext"
                           Background="{DynamicResource DD.Brush.Border}"
                           Visibility="{Binding IsMarkdownPreviewOpen, Converter={StaticResource BoolToVisible}}" />

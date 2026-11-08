@@ -27,7 +27,7 @@
 - 파일 시스템·레지스트리·환경변수 접근은 `IFileStore`, `IEnvironmentStore` 등 인터페이스 뒤에 둔다. 테스트는 임시 폴더와 가짜 구현만 쓴다.
 - **개발·테스트 중 실제 `~/.claude`, `~/.codex`, 환경변수, hosts 파일을 수정하지 않는다.** 수동 테스트는 `DOTDECK_HOME` 환경변수 또는 `--home <dir>`로 홈을 바꿔서 한다.
 - 모든 쓰기는 diff 미리보기 → 백업(`%LOCALAPPDATA%\DotDeck\backups\`) → 원자적 쓰기(인코딩·BOM·줄바꿈 보존).
-- 비밀 파일(`.env*`(example 제외), `*.pfx`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`)은 열지 않는다. 비밀값은 로그·백업에 평문으로 남기지 않는다.
+- 제품은 비밀 파일도 열기·편집·등록을 허용한다. 화면은 기본 마스킹·눈 아이콘, 백업은 DPAPI(CurrentUser) 암호화, 로그·출력·목록 평문 금지. 개발 중 실제 비밀 파일은 조사하지 않으며 테스트는 가짜 파일만 사용한다.
 - 저장 위치: 프로젝트 정의 `%APPDATA%\DotDeck\projects.json`, 템플릿 `%APPDATA%\DotDeck\templates\`, 로그 `%LOCALAPPDATA%\DotDeck\logs\`
 - 색은 모두 리소스 키로 관리(다크/라이트 테마 전환).
 - 패키지 버전은 `Directory.Packages.props`(CPM)에서만 관리. SPEC 3절 외 NuGet 패키지는 추가 전 사용자 승인.

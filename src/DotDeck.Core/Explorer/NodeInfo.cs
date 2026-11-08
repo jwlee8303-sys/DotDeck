@@ -63,7 +63,7 @@ public sealed record NodeInfo
 
     public bool CanExpand => Kind == NodeKind.Folder;
 
-    public bool CanOpen => Kind == NodeKind.File && !IsSecret;
+    public bool CanOpen => Kind == NodeKind.File;
 
     public static NodeInfo FromEntry(FileSystemEntry entry, string relativePath)
     {

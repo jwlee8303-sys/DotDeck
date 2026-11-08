@@ -77,15 +77,6 @@ public sealed class BackupStore
             throw new ArgumentException("Nothing to back up.", nameof(sources));
         }
 
-        foreach (var source in sources)
-        {
-            if (SecretFilePolicy.IsSecret(Path.GetFileName(source.OriginalPath))
-                || (_store.ResolveLinkTarget(source.OriginalPath) is { } target && SecretFilePolicy.IsSecret(Path.GetFileName(target))))
-            {
-                throw new SecretFileException(source.OriginalPath);
-            }
-        }
-
         BackupSet set;
         using (_store.AcquireLock(Path.Combine(BackupsDirectory, ".lock"), s_lockTimeout))
         {

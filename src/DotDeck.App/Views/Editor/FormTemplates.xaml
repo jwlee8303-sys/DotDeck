@@ -16,7 +16,7 @@
                 <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,0,0,8" />
                 <ListBox ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" DisplayMemberPath="Label" MaxHeight="300" />
                 <TextBlock Text="값 (TOML 형식)" Margin="0,8,0,4" />
-                <TextBox Text="{Binding Literal, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="60" IsEnabled="{Binding CanEdit}" />
+                <local:SecretValueEditor Value="{Binding Literal, UpdateSourceTrigger=PropertyChanged}" IsSecret="True" />
                 <WrapPanel>
                     <Button Content="선택한 값 적용" Command="{Binding ApplyValueCommand}" Margin="0,4,8,4" />
                     <Button Content="선택한 키 삭제" Command="{Binding DeleteKeyCommand}" Margin="0,4,8,4"
@@ -229,7 +229,7 @@
                             <DockPanel Margin="0,0,0,3" Style="{StaticResource FormRowPanel}">
                                 <ContentPresenter DockPanel.Dock="Right" ContentTemplate="{StaticResource RowTools}" Content="{Binding}" />
                                 <TextBox DockPanel.Dock="Left" Width="220" Margin="0,0,6,0" Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" />
+                                <local:SecretValueEditor Value="{Binding Value, UpdateSourceTrigger=PropertyChanged}" IsSecret="{Binding IsSecret}" />
                             </DockPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

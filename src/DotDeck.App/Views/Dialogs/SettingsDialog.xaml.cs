@@ -18,6 +18,7 @@ public partial class SettingsDialog : Window
     {
         _defaultBackupDirectory = defaultBackupDirectory;
         InitializeComponent();
+        MaskSecretsBox.IsChecked = current.MaskSecretsByDefault;
         DarkTitleBar.Attach(this);
         ThemeBox.SelectedIndex = current.Theme == "Light" ? 1 : 0;
         FontSizeBox.Text = current.EditorFontSize.ToString("0.##", CultureInfo.InvariantCulture);
@@ -98,6 +99,7 @@ public partial class SettingsDialog : Window
             Theme = (ThemeBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "Dark",
             EditorFontSize = size,
             BackupRetention = retention,
+            MaskSecretsByDefault = MaskSecretsBox.IsChecked == true,
         };
         DialogResult = true;
     }

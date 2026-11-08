@@ -85,11 +85,7 @@ public sealed class SafeWriter(IFileStore store, BackupStore backups)
         var isUnchanged = baseline is not null && kind == baseline.Encoding && string.Equals(newText, baseline.Text, StringComparison.Ordinal);
 
         string? blocking = null;
-        if (SecretFilePolicy.IsSecret(System.IO.Path.GetFileName(path)))
-        {
-            blocking = "Secret files cannot be saved.";
-        }
-        else if (baseline?.IsReadOnly == true)
+        if (baseline?.IsReadOnly == true)
         {
             blocking = baseline.ReadOnlyReason;
         }
@@ -230,14 +226,7 @@ public sealed class SafeWriter(IFileStore store, BackupStore backups)
 
     // Checked again at commit time (plans are public records), and a link named "notes.txt" pointing at
     // ".env" must not be read, backed up or overwritten either.
-    private void EnsureNotSecretTarget(string path)
-    {
-        if (SecretFilePolicy.IsSecret(System.IO.Path.GetFileName(path))
-            || _store.ResolveLinkTarget(path) is { } target && SecretFilePolicy.IsSecret(System.IO.Path.GetFileName(target)))
-        {
-            throw new SecretFileException(path);
-        }
-    }
+    private void EnsureNotSecretTarget(string path) => ArgumentException.ThrowIfNullOrEmpty(path);
 
     private void WriteAtomic(string path, byte[] bytes, bool replace, string? expectedHash)
     {

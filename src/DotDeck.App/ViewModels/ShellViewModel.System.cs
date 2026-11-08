@@ -291,6 +291,8 @@ public sealed partial class ShellViewModel
         }
 
         _backups.Retention = settings.BackupRetention;
+        Core.Security.SecretPresentation.MaskByDefault = settings.MaskSecretsByDefault;
+        foreach (var document in Documents.OfType<Documents.TextDocumentViewModel>()) document.IsSecretsRevealed = !settings.MaskSecretsByDefault;
         _backups.BackupsDirectory = settings.BackupDirectory ?? Paths.BackupsDir;
         ExplorerPreferences.SetGlobalExtensions(settings.DefaultExtensions);
         SettingsChanged?.Invoke(this, settings);

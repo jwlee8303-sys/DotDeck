@@ -87,7 +87,8 @@ public sealed class SystemConfigTests : IDisposable
         var list = new ImportantFiles(PhysicalFileStore.Instance, _temp.Combine("cfg", "important.json"));
         string[] defaults = [@"C:\h\.gitconfig", @"C:\h\.npmrc"];
 
-        Assert.NotNull(list.Add(@"C:\h\.ssh\id_rsa"));
+        Assert.Null(list.Add(@"C:\h\.ssh\id_rsa"));
+        list.Remove(@"C:\h\.ssh\id_rsa");
         Assert.NotNull(list.Add("relative.txt"));
         Assert.Null(list.Add(@"C:\h\my.ini"));
         list.Remove(@"C:\h\.npmrc");

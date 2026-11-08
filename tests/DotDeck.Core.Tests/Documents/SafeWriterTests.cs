@@ -249,8 +249,8 @@ public sealed class SafeWriterTests : IDisposable
             Assert.Skip("Symbolic links need Developer Mode or elevation.");
         }
 
-        Assert.Throws<SecretFileException>(() => _writer.Commit(SafeWriter.Prepare(link, null, "x"), overwriteExternalChanges: true));
-        Assert.Equal("K=V"u8.ToArray(), File.ReadAllBytes(secret));
+        _writer.Commit(SafeWriter.Prepare(link, null, "x"), overwriteExternalChanges: true);
+        Assert.Equal("x", File.ReadAllText(secret));
         Assert.Empty(_backups.List());
     }
 
@@ -259,7 +259,7 @@ public sealed class SafeWriterTests : IDisposable
     {
         var plan = SafeWriter.Prepare(_temp.Combine("work", ".env"), null, "K=V");
 
-        Assert.False(plan.CanCommit);
+        Assert.True(plan.CanCommit);
     }
 
     [Fact]
@@ -267,8 +267,8 @@ public sealed class SafeWriterTests : IDisposable
     {
         var plan = SafeWriter.Prepare(_temp.Combine("work", "ok.txt"), null, "K=V") with { Path = _temp.Combine("work", ".env") };
 
-        Assert.Throws<SecretFileException>(() => _writer.Commit(plan));
-        Assert.False(File.Exists(_temp.Combine("work", ".env")));
+        _writer.Commit(plan);
+        Assert.True(File.Exists(_temp.Combine("work", ".env")));
     }
 
     [Fact]

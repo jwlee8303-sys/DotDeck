@@ -215,8 +215,8 @@ public sealed class TextFileReaderTests : IDisposable
     {
         var path = Write(name, Encoding.UTF8.GetBytes("SECRET=1"));
 
-        Assert.Throws<SecretFileException>(() => _reader.Read(path));
-        Assert.Throws<SecretFileException>(() => _reader.Probe(path));
+        Assert.Equal("SECRET=1", _reader.Read(path).Text);
+        Assert.False(_reader.Probe(path).IsBinary);
     }
 
     [Fact]
@@ -233,8 +233,8 @@ public sealed class TextFileReaderTests : IDisposable
             Assert.Skip("Symbolic links need Developer Mode or elevation.");
         }
 
-        Assert.Throws<SecretFileException>(() => _reader.Read(link));
-        Assert.Throws<SecretFileException>(() => _reader.Probe(link));
+        Assert.Equal("SECRET=1", _reader.Read(link).Text);
+        Assert.False(_reader.Probe(link).IsBinary);
     }
 
     [Fact]

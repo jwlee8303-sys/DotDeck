@@ -50,11 +50,6 @@ public sealed partial class ShellViewModel
             return false;
         }
 
-        if (SecretFilePolicy.IsSecret(Path.GetFileName(path)))
-        {
-            _dialogs.ShowError("저장할 수 없음", $"비밀 파일 이름으로는 저장할 수 없습니다.\n\n{path}");
-            return false;
-        }
 
         var full = Path.GetFullPath(path);
         if (FindTextDocument(full) is { Buffer.IsDirty: true })

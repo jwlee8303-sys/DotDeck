@@ -69,6 +69,7 @@ public partial class App : Application
             var settings = new DotDeck.Core.Settings.AppSettingsStore(store, paths.SettingsFile).Load();
             Themes.ThemeManager.ApplyEditorFontSize(settings.EditorFontSize);
             Themes.ThemeManager.Apply(settings.Theme == "Light" ? Themes.ThemeKind.Light : Themes.ThemeKind.Dark);
+            Core.Security.SecretPresentation.MaskByDefault = settings.MaskSecretsByDefault;
             var backups = new BackupStore(store, settings.BackupDirectory ?? paths.BackupsDir, TimeProvider.System, settings.BackupRetention);
             var services = new ShellServices(
                 paths,

@@ -101,9 +101,6 @@ public sealed partial class ExplorerListViewModel : ObservableObject
             case NodeRowViewModel { IsFolder: true } folder:
                 await folder.Explorer.ToggleNodeAsync(folder);
                 break;
-            case NodeRowViewModel { Node.IsSecret: true } secret:
-                _context.SetStatus($"비밀 파일은 열 수 없습니다: {secret.Name}");
-                break;
             case NodeRowViewModel { Node.CanOpen: true } file:
                 await _context.OpenFile(file.Node.FullPath!, false);
                 break;
@@ -119,7 +116,7 @@ public sealed partial class ExplorerListViewModel : ObservableObject
     /// <summary>Single click on a file: show it in the reusable preview tab.</summary>
     [RelayCommand]
     private Task PreviewAsync(ExplorerRowViewModel? row) =>
-        row is NodeRowViewModel { IsFolder: false, Node.IsSecret: false, Node.CanOpen: true } file
+        row is NodeRowViewModel { IsFolder: false, Node.CanOpen: true } file
             ? _context.OpenFile(file.Node.FullPath!, true)
             : Task.CompletedTask;
 
@@ -663,11 +660,6 @@ public sealed partial class ExplorerListViewModel : ObservableObject
     private void OpenInVsCode()
     {
         // Secret files are never opened (SPEC 2.3), not even in another editor.
-        if (TargetNodes() is [{ Node.IsSecret: true } secret])
-        {
-            _context.SetStatus($"비밀 파일은 열 수 없습니다: {secret.Name}");
-            return;
-        }
 
         // A selected file opens itself; otherwise the folder.
         var path = TargetNodes() is [{ IsFolder: false } file] ? file.Node.FullPath : TargetFolderOf(SelectedRow);

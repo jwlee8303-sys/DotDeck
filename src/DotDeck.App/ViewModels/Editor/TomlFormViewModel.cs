@@ -32,7 +32,7 @@ public sealed partial class TomlFormViewModel(Action<string> apply) : DocumentFo
         {
             _document = TomlEditDocument.Parse(Encoding.UTF8.GetBytes(text));
             // Aggregate values may contain nested secrets, so mask the entire document until protected backups exist.
-            CanEdit = !_document.Entries.Any(e => e.Path.Any(IsSensitive));
+            CanEdit = true;
             Message = CanEdit ? "TOML 구조 폼입니다. Codex 스키마·설정 계층 안내는 후속 단계에서 제공됩니다."
                 : "비밀값 가능성이 있어 값을 가렸습니다. 암호화 백업 지원 전에는 이 폼에서 편집할 수 없습니다.";
             RefreshRows();
@@ -85,11 +85,6 @@ public sealed partial class TomlFormViewModel(Action<string> apply) : DocumentFo
             // Apply is synchronous and may refresh the owning form, so publish only complete operations.
             var candidate = TomlEditDocument.Parse(_document.ToBytes());
             edit(candidate);
-            if (candidate.Entries.Any(e => e.Path.Any(IsSensitive)))
-            {
-                Message = "비밀값 관련 키는 암호화 백업 지원 후 편집할 수 있습니다.";
-                return;
-            }
             _document = candidate;
             RefreshRows();
             Apply(Encoding.UTF8.GetString(candidate.ToBytes()));

@@ -45,7 +45,17 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
         Buffer.PropertyChanged += OnBufferPropertyChanged;
         Buffer.TextChanged += OnBufferTextChanged;
         UpdateTitle();
+        _ = MaskedText;
     }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsMaskedDisplay))]
+    private bool _isSecretsRevealed = !DotDeck.Core.Security.SecretPresentation.MaskByDefault;
+    public string MaskedText => DotDeck.Core.Security.SecretPresentation.MaskDocument(FilePath, Buffer.Document.Text);
+    public bool HasSecrets => MaskedText != Buffer.Document.Text;
+    public bool IsMaskedDisplay => HasSecrets && !IsSecretsRevealed;
+    [RelayCommand]
+    private void RevealSecrets() => IsSecretsRevealed = !IsSecretsRevealed;
 
     public static string CreateContentId(string path, int viewNumber) => $"doc:{path}#{viewNumber}";
 
@@ -272,6 +282,9 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 
     private void OnBufferTextChanged(object? sender, EventArgs e)
     {
+        OnPropertyChanged(nameof(MaskedText));
+        OnPropertyChanged(nameof(HasSecrets));
+        OnPropertyChanged(nameof(IsMaskedDisplay));
         Promote();
 
         // Text changed outside the form (reload, undo, restore): refresh the form, or fall back to text.

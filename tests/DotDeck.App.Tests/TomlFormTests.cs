@@ -37,15 +37,15 @@ public sealed class TomlFormTests
     {
         var form = new TomlFormViewModel(_ => Assert.Fail("Must not write"));
         Assert.Null(form.Load("[mcp_servers.demo.env]\nTOKEN = 'fake-sensitive-value'\n"));
-        Assert.False(form.CanEdit);
-        Assert.All(form.Rows, r => Assert.Equal("••••", r.Literal));
+        Assert.True(form.CanEdit);
+        Assert.All(form.Rows, r => Assert.NotNull(r.Literal));
         form.Selected = form.Rows.First();
         form.Path = "new";
-        Assert.False(form.ApplyValueCommand.CanExecute(null));
-        Assert.False(form.AddKeyCommand.CanExecute(null));
-        Assert.False(form.DeleteKeyCommand.CanExecute(null));
-        Assert.False(form.CreateTableCommand.CanExecute(null));
-        Assert.False(form.CleanupCommand.CanExecute(null));
+        Assert.True(form.ApplyValueCommand.CanExecute(null));
+        Assert.True(form.AddKeyCommand.CanExecute(null));
+        Assert.True(form.DeleteKeyCommand.CanExecute(null));
+        Assert.True(form.CreateTableCommand.CanExecute(null));
+        Assert.True(form.CleanupCommand.CanExecute(null));
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class TomlFormTests
         form.Literal = "2\ninjected = true";
         form.ApplyValueCommand.Execute(null);
         Assert.Equal("1", form.Rows.First().Literal);
-        form.Path = "secret";
+        form.Path = "inline.missing";
         form.Literal = "'fake'";
         form.AddKeyCommand.Execute(null);
         Assert.Single(form.Rows);

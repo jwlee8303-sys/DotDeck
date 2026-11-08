@@ -1,6 +1,7 @@
 # DotDeck — 개발 사양서 v2 (Claude Code 작업 지시)
 
 ## 0. 너의 역할과 진행 방식
+- 최신 원칙(2026-11-08): DotDeck은 관리자가 쓰는 최상위 개발 환경 도구다. 보안을 이유로 파일 열기·편집·저장을 막지 않는다. 비밀 파일도 열기·편집·백업·사용자 지정 파일 등록을 허용한다. 비밀값은 기본 마스킹하며 눈 아이콘으로 즉시 표시·편집하고, 앱 설정의 "비밀값 기본 가림"을 끌 수 있다. 로그·출력 패널·diff 요약·백업 목록에는 비밀값 평문을 남기지 않는다. diff 본문은 눈 아이콘으로 표시 가능하다. 백업은 DPAPI(CurrentUser)로 투명하게 암호화한다. 이 원칙이 아래 과거의 비밀 파일 금지·문서 잠금 문구보다 우선한다. 개발 중 실제 사용자 설정을 수정하지 않는 규칙은 유지한다.
 - 너(Claude Code)는 설계·구현 담당이다. 전역 CLAUDE.md 규칙(Codex 교차 검증, Conventional Commits, SemVer)을 따른다.
 - 아래 Phase 순서대로 진행한다. **각 Phase가 끝나면** 빌드 → 테스트 → `/codex-review` → 커밋 → 결과 보고를 한 뒤, 내 확인을 받고 다음 Phase로 넘어간다.
 - 시작 전에 `/project-init`으로 프로젝트를 세팅하고(버전 0.1.0), `architect` 에이전트로 전체 설계안을 만들어 내게 보여준다. 설계 승인 전에는 코드를 작성하지 않는다.
@@ -61,7 +62,7 @@ UI와 사용감은 **Visual Studio 2022(다크 테마)** 를 기준으로 한다
 - 아이콘으로 파일 종류 구분, 미저장 문서 표시(●), 검증 오류 표시(⚠).
 - 파일 시스템 변경은 `FileSystemWatcher`로 트리에 실시간 반영(디바운스).
 - 이동·이름 바꾸기·삭제는 **작업 이력**에 기록되어 "되돌리기"(탐색기에서 Ctrl+Z)가 가능하다. 삭제는 휴지통에서 복원.
-- 비밀 파일(`.env*`(example 제외), `*.pfx`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`)은 트리에 자물쇠 아이콘으로 표시하고 열지 않는다.
+- 비밀 파일(`.env*`(example 제외), `*.pfx`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `auth.json`)은 자물쇠·기본 마스킹으로 표시하며 열기·편집·저장을 허용한다.
 - 파일을 열 때 7.0 판별기가 역할·범위를 정하고, 탭 툴팁과 속성 패널에 `역할 · 범위`(예: `settings.json · 프로젝트`)를 표시한다.
 - 컨텍스트 메뉴와 문서 탭 메뉴에 "다음 형식으로 열기 ▸ 텍스트/Markdown/설정 폼/에이전트 폼/스킬 폼/자동 판별로 되돌리기"를 둔다. 지정은 파일 경로별로 `%APPDATA%\DotDeck\editor-overrides.json`에 기억한다. 폼이 내용을 해석하지 못하면 이유를 표시하고 텍스트 보기로 연다.
 
@@ -154,13 +155,13 @@ docs/                          SPEC.md, 설계 문서
 #### 경로·파일 역할·보호 정책
 - 실제 홈 모드: 절대경로 `CODEX_HOME`을 사용하고, 없으면 `%USERPROFILE%\.codex`. `--home`/`DOTDECK_HOME` 모드에서는 실제 CODEX_HOME을 무시하고 `<home>\.codex`를 사용한다. 테스트용 `--codex-home` 옵션을 제공하며 데이터 폴더 격리를 유지한다.
 - Codex 전역 트리에 계산된 가상 노드 `스킬 (~/.agents/skills)`를 둔다. 경로는 해석된 홈 기준이고 프로젝트 목록에 별도로 저장하지 않는다. 실제 사용자 설정은 개발·테스트 중 수정하지 않는다.
-- `auth.json`은 비밀 파일로 열기·백업·검색 대상에서 제외한다. 런타임 데이터는 기본 숨김 + 읽기 전용, `/plugins`는 표시 + 읽기 전용, `/skills/.system`은 표시 + "Codex 내장" 안내.
+- `auth.json`은 비밀 파일로 자물쇠 표시·기본 마스킹하되 열기·편집·백업을 허용한다. 런타임 데이터는 기본 숨김, `/plugins`와 `/skills/.system`은 출처를 안내한다. 보안 사유로 편집을 잠그지 않는다.
 - 기본 숨김·읽기 전용 폴더: `/sessions`, `/log`, `/cache`, `/.sandbox`, `/app-server-control`, `/app-server-daemon`, `/packages`, `/thread-writer-locks`, `/tmp`, `/tui-thread-reference-capabilities`.
 - 기본 숨김·읽기 전용 파일: `*.sqlite*`, `*.lock`, `.sandbox_migration`, `installation_id`, `version.json`, `models_cache.json`, `history.jsonl`, `session_index.jsonl`, `config.toml.bak-*`. 표시 설정을 바꿔도 쓰기 보호는 유지한다.
 - Codex 카탈로그·내장 스키마는 `Catalogs/Codex/`, 사용자 덮어쓰기는 `%APPDATA%\DotDeck\catalogs\Codex\`에 둔다(`schemas\` 아님). 설명·형식·문서 주소·확인 날짜를 데이터로 관리한다.
 
 #### config.toml·TOML 편집
-- 탭: 일반 / 권한·샌드박스 / MCP 서버 / 기능 플래그 / 에이전트 / 스킬 / 훅(인라인) / TUI·기록 / 기타(읽기 전용 트리). 스키마 기반 입력·검증, 설정 계층과 신뢰 상태 배너를 제공한다.
+- 승인된 전용 폼 탭: 모델 / 권한·샌드박스 / 프로필 / MCP 서버 / 프로젝트 신뢰 / 기타(고급). 한 줄 설명·현재값·근거가 있는 기본값·선택 목록과 직접 입력을 제공한다. 카탈로그 밖 값은 경고만 하고 보존한다. `[profiles.*]`는 편집하되 최신 Codex는 별도 `<이름>.config.toml`을 사용한다는 안내만 표시한다. 고급 탭은 테이블 단위 트리이며 배열·인라인 테이블은 한 노드로 타입별 편집한다. 모든 쓰기는 TomlEditDocument로 적용한다.
 - 사용자 config의 `[projects.<key>] trust_level`을 경로 기준으로 해석한다. 따옴표·구분자·대소문자·Windows `\\?\` 접두어 차이를 고려하고 `project_root_markers`를 반영한다. 문서로 확정할 수 없는 경우 "확인 불가"로 표시한다.
 - Tomlyn(추가 승인됨)은 위치·trivia 파싱에만 사용하고, 자체 패처로 값 토큰 범위만 수정한다. 모르는 키·값·주석·기존 따옴표 스타일·BOM·줄바꿈을 보존한다. 새 Windows 경로는 literal 문자열, 여러 줄은 기본 문자열을 사용한다. TOML 1.1 전용 구문은 생성하지 않는다.
 - 패치 후 재파싱 검증이 실패하면 저장하지 않는다. 파싱 오류는 줄·열과 함께 표시하고 폼 전환을 막는다. CRLF·BOM·주석·`[projects.'d:\project\dotdeck']`·점 키·인라인 테이블·배열 테이블의 바이트 단위 왕복 테스트가 필수다. 시험 구현이 실패하면 자체 파서로 전환하고 보고한다.
@@ -189,7 +190,7 @@ docs/                          SPEC.md, 설계 문서
 - 시스템(Machine) 범위는 관리자 권한일 때만 쓰기. 아니면 읽기 전용 + "관리자 권한으로 다시 시작"(열린 문서·레이아웃 복원). 앱 매니페스트는 `asInvoker`.
 ### 사용자 지정 파일 (이전 이름: 중요 파일, 기타 파일)
 - 기본 목록(추가·제거 가능): `%USERPROFILE%\.gitconfig`, `.npmrc`, `.ssh\config`, PowerShell 프로필(`$PROFILE`), Windows Terminal `settings.json`, `C:\Windows\System32\drivers\etc\hosts`.
-- 관리자 권한이 필요한 파일(hosts 등)은 환경변수와 같은 규칙. 비밀 파일은 목록에 추가할 수 없다.
+- 관리자 권한이 필요한 파일(hosts 등)은 환경변수와 같은 규칙. 비밀 파일도 목록에 추가할 수 있으며 기본 마스킹과 암호화 백업을 적용한다.
 ### 권한 보기
 - Claude Code 권한은 7절 settings 편집기에서 다룬다.
 - Windows 파일/폴더 ACL은 속성 패널에서 **읽기 전용 보기**만 제공한다. ACL 수정 기능은 만들지 않는다.

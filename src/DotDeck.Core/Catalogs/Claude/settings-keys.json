@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    { "url": "https://code.claude.com/docs/en/settings-reference", "checked": "2026-11-08" },
+    { "url": "https://code.claude.com/docs/en/settings", "checked": "2026-11-08" },
+    { "url": "https://code.claude.com/docs/en/managed-mcp", "checked": "2026-11-08" }
+  ],
+  "scopeNames": { "user": "사용자", "project": "공유 프로젝트", "local": "로컬", "managed": "관리형" },
+  "groups": [
+    {
+      "id": "global-config",
+      "severity": "warning",
+      "ignoredIn": ["user", "project", "local", "managed"],
+      "message": "{key}: settings.json이 아니라 ~/.claude.json에서만 적용되는 키입니다.",
+      "keys": ["autoConnectIde", "autoInstallIdeExtension", "claudeInChromeDefaultEnabled", "copyFullResponse", "copyOnSelect", "defaultToAgentsView", "diffTool", "externalEditorContext", "leftArrowOpensAgents", "permissionExplainerEnabled", "prStatusFooterEnabled", "teammateDefaultModel"]
+    },
+    {
+      "id": "user-only",
+      "severity": "warning",
+      "ignoredIn": ["project", "local", "managed"],
+      "message": "{key}: 사용자 설정(~/.claude/settings.json)에서만 적용됩니다.",
+      "keys": ["worktree.location"]
+    },
+    {
+      "id": "not-shared-project",
+      "severity": "warning",
+      "ignoredIn": ["project"],
+      "message": "{key}: 공유 프로젝트 설정에서는 적용되지 않습니다(사용자·로컬·관리형에서만).",
+      "keys": ["skipDangerousModePermissionPrompt", "syncClaudeAiPlugins", "syncClaudeAiSkills", "useAutoModeDuringPlan"]
+    },
+    {
+      "id": "user-or-managed",
+      "severity": "warning",
+      "ignoredIn": ["project", "local"],
+      "message": "{key}: 사용자·관리형 설정에서만 적용됩니다. 프로젝트·로컬 설정에서는 무시됩니다.",
+      "keys": ["appendPlugins", "askUserQuestionTimeout", "autoContinueAtUsageLimit", "autoMode", "autoMode.classifyAllShell", "axScreenReader", "bashEditDiffEnabled", "desktopSessionCleanupPeriodDays", "dialogExpiry", "feedbackDrafts", "footerLinksRegexes", "forceLoginGatewayUrl", "modelPicker", "pluginConfigs", "prependPlugins", "processWrapper", "sandbox.allowAppleEvents", "sandbox.allowNestedUserNamespaces", "sandbox.credentials.allowPlaintextInject", "sandbox.credentials.awsPairs", "sandbox.credentials.sigv4", "sandbox.filesystem.disabled", "sandbox.network.strictAllowlist", "sandbox.network.tlsTerminate", "sandbox.ripgrep", "skipAutoPermissionPrompt", "spellcheck", "sshConfigs", "sshHostCommands", "vimInsertModeRemaps"]
+    },
+    {
+      "id": "managed-only",
+      "severity": "warning",
+      "ignoredIn": ["user", "project", "local"],
+      "message": "{key}: 관리형 설정에서만 적용됩니다. 이 파일에서는 효과가 없습니다.",
+      "keys": ["allowAllClaudeAiMcps", "allowClaudeInChromeWithManagedMcp", "allowedChannelPlugins", "allowedProviders", "allowManagedHooksOnly", "allowManagedMcpServersOnly", "allowManagedPermissionRulesOnly", "availableModelsMatch", "blockedMarketplaces", "browserExternalPageTools", "channelsEnabled", "claudeMd", "deniedModels", "disableBrowserExternalNavigation", "disableCommandPluginSources", "disableDesktopLocalSessions", "disableMobileSimulatorTools", "disableSideloadFlags", "forceRemoteSettingsRefresh", "gatewayInternalNetworks", "managedMcpServers", "managedSourcesBehavior", "modelPricing", "parentSettingsBehavior", "pluginSuggestionMarketplaces", "pluginTrustMessage", "policyHelper", "requiredMaximumVersion", "requiredMinimumVersion", "sandbox.bwrapPath", "sandbox.filesystem.allowManagedReadPathsOnly", "sandbox.network.allowManagedDomainsOnly", "sandbox.socatPath", "sshHostAllowlist", "strictKnownMarketplaces", "strictPluginOnlyCustomization", "wslInheritsWindowsSettings"]
+    },
+    {
+      "id": "default-mode-elevated",
+      "severity": "warning",
+      "ignoredIn": ["project", "local"],
+      "values": ["auto", "bypassPermissions"],
+      "message": "{key}: \"{value}\"는 프로젝트·로컬 설정에서는 적용되지 않습니다(사용자·관리형·--settings에서만).",
+      "keys": ["permissions.defaultMode"]
+    },
+    {
+      "id": "trust-required",
+      "severity": "info",
+      "appliesIn": ["project"],
+      "message": "{key}: 공유 프로젝트 설정의 이 값은 각 사용자가 폴더를 신뢰한 뒤에 적용됩니다(deny·ask는 바로 적용).",
+      "keys": ["permissions.allow", "permissions.additionalDirectories", "extraKnownMarketplaces", "enableAllProjectMcpServers", "enabledMcpjsonServers"]
+    }
+  ]
+}

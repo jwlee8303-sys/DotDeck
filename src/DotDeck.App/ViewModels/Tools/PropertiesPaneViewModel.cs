@@ -8,10 +8,14 @@ namespace DotDeck.App.ViewModels.Tools;
 /// <summary>One access rule of a file or folder ACL (read-only view, SPEC §8).</summary>
 public sealed record AclRow(string Identity, string Access, string Rights, string Inherited);
 
+/// <summary>What a file is to Claude Code (SPEC 7.0), shown above the file details.</summary>
+public sealed record RoleDescription(string Title, IReadOnlyList<string> Lines);
+
 /// <summary>Selected item information and its Windows ACL. Viewing only: DotDeck never edits ACLs.</summary>
 public sealed partial class PropertiesPaneViewModel() : ToolPaneViewModel("tool.properties", "속성", ToolLocation.Right)
 {
     private int _version;
+    private int _roleVersion;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasItem))]
@@ -31,6 +35,40 @@ public sealed partial class PropertiesPaneViewModel() : ToolPaneViewModel("tool.
 
     public bool HasItem => Path is not null;
 
+    /// <summary>Describes the role of a path (set by the shell); null for unknown files.</summary>
+    public Func<string, RoleDescription?>? DescribeRole { get; init; }
+
+    [ObservableProperty]
+    private RoleDescription? _role;
+
+    /// <summary>Re-reads the role of the shown item (after "다음 형식으로 열기").</summary>
+    public async void Refresh()
+    {
+        if (Path is not { } path)
+        {
+            return;
+        }
+
+        var roleVersion = ++_roleVersion;
+        var role = await Task.Run(() => Describe(path));
+        if (roleVersion == _roleVersion && string.Equals(path, Path, StringComparison.OrdinalIgnoreCase))
+        {
+            Role = role;
+        }
+    }
+
+    private RoleDescription? Describe(string path)
+    {
+        try
+        {
+            return DescribeRole?.Invoke(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Shows <paramref name="path"/> (null clears). ACL reading runs off the UI thread.</summary>
     public async void Show(string? path)
     {
@@ -45,18 +83,25 @@ public sealed partial class PropertiesPaneViewModel() : ToolPaneViewModel("tool.
         Owner = string.Empty;
         AclError = null;
         Rules = [];
+        Role = null;
         if (path is null)
         {
             return;
         }
 
-        var result = await Task.Run(() => Read(path));
+        // Role detection checks folders (project roots) and ACL reading may be slow: both run off the UI thread.
+        var roleVersion = ++_roleVersion;
+        var (result, role) = await Task.Run(() => (Read(path), Describe(path)));
         if (version != _version)
         {
             return;
         }
 
         (Details, Owner, Rules, AclError) = result;
+        if (roleVersion == _roleVersion)
+        {
+            Role = role;
+        }
     }
 
     private static (string Details, string Owner, IReadOnlyList<AclRow> Rules, string? Error) Read(string path)

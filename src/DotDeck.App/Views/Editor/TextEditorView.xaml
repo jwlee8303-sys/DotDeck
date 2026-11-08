@@ -1,4 +1,4 @@
-<UserControl x:Class="DotDeck.App.Views.Editor.TextEditorView"
+﻿<UserControl x:Class="DotDeck.App.Views.Editor.TextEditorView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -50,6 +50,24 @@
                 BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="0,0,0,1" Padding="4,2"
                 Visibility="{Binding HasViewBar, Converter={StaticResource BoolToVisible}}">
             <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Padding="8,2" Focusable="False"
+                        Click="OnFormatClick" ToolTip="다음 형식으로 열기">
+                    <Button.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="텍스트" Command="{Binding OpenAsCommand}" CommandParameter="text" />
+                            <MenuItem Header="Markdown" Command="{Binding OpenAsCommand}" CommandParameter="markdown" />
+                            <MenuItem Header="설정 폼 (settings.json)" Command="{Binding OpenAsCommand}" CommandParameter="settingsForm" />
+                            <MenuItem Header="에이전트 폼" Command="{Binding OpenAsCommand}" CommandParameter="agentForm" />
+                            <MenuItem Header="스킬 폼" Command="{Binding OpenAsCommand}" CommandParameter="skillForm" />
+                            <Separator />
+                            <MenuItem Header="자동 판별로 되돌리기" Command="{Binding OpenAsCommand}" CommandParameter="auto" />
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding KindText}" />
+                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="9" Margin="4,0,0,0" VerticalAlignment="Center" Text="&#xE70D;" />
+                    </StackPanel>
+                </Button>
                 <Button DockPanel.Dock="Right" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Padding="8,2" Focusable="False"
                         Click="OnOutlineClick" ToolTip="목차 (머리글로 이동)"
                         Visibility="{Binding HasOutline, Converter={StaticResource BoolToVisible}}">

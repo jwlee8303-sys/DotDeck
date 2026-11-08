@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -26,7 +26,8 @@ public sealed record ExplorerContext(
     Func<string, bool, Task> OpenFile,
     Action<string>? OpenSystemNode = null,
     Func<Task>? RegisterOtherFile = null,
-    Func<string, Task>? UnregisterOtherFile = null);
+    Func<string, Task>? UnregisterOtherFile = null,
+    Func<string, DotDeck.Core.Editors.EditorKind?, Task>? OpenAs = null);
 
 /// <summary>
 /// One project's explorer. Its rows live in a list (<see cref="List"/>: the project area, or its own detached

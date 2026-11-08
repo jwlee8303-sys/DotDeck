@@ -1,8 +1,9 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.ViewModels.Editor;
 using DotDeck.Core.Editors;
+using DotDeck.Core.Roles;
 
 namespace DotDeck.App.ViewModels.Documents;
 
@@ -15,6 +16,12 @@ public interface ITextDocumentHost
 
     /// <summary>Runs a hook row of a settings form in the hook test pane.</summary>
     void RunHook(HookRow row);
+
+    /// <summary>"다음 형식으로 열기": remembers <paramref name="kind"/> for the file (null: automatic) and applies it.</summary>
+    void SetEditorKind(TextDocumentViewModel document, EditorKind? kind);
+
+    /// <summary>Settings keys that apply only at some levels (for the settings form's scope notes).</summary>
+    SettingsKeyCatalog? SettingsKeys { get; }
 }
 
 /// <summary>
@@ -25,7 +32,8 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 {
     private readonly ITextDocumentHost _host;
 
-    public TextDocumentViewModel(DocumentBuffer buffer, int viewNumber, bool isPreview, ITextDocumentHost host, Action<DocumentViewModel> close)
+    public TextDocumentViewModel(DocumentBuffer buffer, int viewNumber, bool isPreview, ITextDocumentHost host, Action<DocumentViewModel> close,
+        FileRole? role = null, EditorKind? kind = null, bool isKindOverridden = false)
         : base(CreateContentId(buffer.Path, viewNumber), buffer.FileName, close)
     {
         Buffer = buffer;
@@ -33,7 +41,9 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
         _host = host;
         _isPreview = isPreview;
         Find = new FindReplaceViewModel(buffer.Document);
-        Kind = EditorKinds.Detect(buffer.Path);
+        Role = role;
+        _kind = kind ?? (FileRoleResolver.IsMarkdown(buffer.Path) ? EditorKind.Markdown : EditorKind.Text);
+        _isKindOverridden = isKindOverridden;
         Buffer.PropertyChanged += OnBufferPropertyChanged;
         Buffer.TextChanged += OnBufferTextChanged;
         UpdateTitle();
@@ -66,14 +76,65 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 
     public bool CanClose => !IsPinned;
 
-    /// <summary>Type-specific editor of this file (SPEC §7).</summary>
-    public EditorKind Kind { get; }
+    /// <summary>What the file is to Claude Code (SPEC §7.0), or null when it is not a known configuration file.</summary>
+    public FileRole? Role { get; }
+
+    /// <summary>Type-specific editor of this file (SPEC §7): from <see cref="Role"/>, or chosen by the user.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasOutline), nameof(HasForm), nameof(KindText), nameof(ToolTip))]
+    [NotifyCanExecuteChangedFor(nameof(ShowFormCommand))]
+    private EditorKind _kind;
+
+    /// <summary>True when the user chose the editor ("다음 형식으로 열기").</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(KindText), nameof(ToolTip))]
+    private bool _isKindOverridden;
 
     /// <summary>Markdown-based documents get a table of contents.</summary>
     public bool HasOutline => Kind is EditorKind.Markdown or EditorKind.Agent or EditorKind.Skill;
 
-    /// <summary>The view bar (text/form switch, table of contents) is shown for typed documents.</summary>
-    public bool HasViewBar => HasForm || HasOutline;
+    /// <summary>The view bar (format menu, text/form switch, table of contents).</summary>
+    public bool HasViewBar => true;
+
+    public static string KindLabel(EditorKind kind) => kind switch
+    {
+        EditorKind.ClaudeSettings => "설정 폼",
+        EditorKind.Agent => "에이전트 폼",
+        EditorKind.Skill => "스킬 폼",
+        EditorKind.Markdown => "Markdown",
+        _ => "텍스트",
+    };
+
+    /// <summary>e.g. "형식: 설정 폼 (수동 지정)".</summary>
+    public string KindText => $"형식: {KindLabel(Kind)}{(IsKindOverridden ? " (수동 지정)" : string.Empty)}";
+
+    /// <summary>Applies an editor kind (the host stores the choice). The form is rebuilt for the new kind.</summary>
+    public void ApplyKind(EditorKind kind, bool overridden)
+    {
+        IsKindOverridden = overridden;
+        if (Kind == kind)
+        {
+            return;
+        }
+
+        IsFormView = false;
+        Form = null;
+        FormError = null;
+        Kind = kind;
+    }
+
+    /// <summary>Switches to the form after a manual choice; on failure the text stays with the reason shown.</summary>
+    public void TryShowForm()
+    {
+        if (HasForm)
+        {
+            ShowForm();
+            if (FormError is { } error)
+            {
+                FormError = $"{KindLabel(Kind)}으로 해석할 수 없어 텍스트로 표시합니다: {error}";
+            }
+        }
+    }
 
     /// <summary>Raised to move the editor caret to a 1-based line (table of contents, validation).</summary>
     public event EventHandler<int>? GoToLineRequested;
@@ -113,7 +174,25 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 
     public string CaretText => $"줄 {CaretLine}, 열 {CaretColumn}";
 
-    public string ToolTip => FilePath;
+    /// <summary>Tab tooltip: path, then role and scope (e.g. "settings.json · 프로젝트"), then a manual format choice.</summary>
+    public string ToolTip
+    {
+        get
+        {
+            var lines = new List<string> { FilePath };
+            if (Role is not null)
+            {
+                lines.Add($"{Role.Summary(FilePath)} (기준: {Role.BaseRoot})");
+            }
+
+            if (IsKindOverridden)
+            {
+                lines.Add(KindText);
+            }
+
+            return string.Join(Environment.NewLine, lines);
+        }
+    }
 
     /// <summary>Turns a preview tab into a normal one (edit, double click, pin).</summary>
     public void Promote() => IsPreview = false;
@@ -152,7 +231,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     private void ShowForm()
     {
         Form ??= Kind == EditorKind.ClaudeSettings
-            ? new SettingsFormViewModel(ApplyFormText) { RunHook = _host.RunHook }
+            ? new SettingsFormViewModel(ApplyFormText) { RunHook = _host.RunHook, Role = Role, FilePath = FilePath, SettingsKeys = _host.SettingsKeys }
             : new FrontmatterFormViewModel(Kind, ApplyFormText);
         FormError = Form.Load(Buffer.Document.Text);
         IsFormView = FormError is null;
@@ -177,6 +256,11 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
             _applyingForm = false;
         }
     }
+
+    /// <summary>"다음 형식으로 열기" from the view bar: text, markdown, settingsForm, agentForm, skillForm or auto.</summary>
+    [RelayCommand]
+    private void OpenAs(string? name) =>
+        _host.SetEditorKind(this, name is null or "auto" ? null : EditorOverrideStore.NameToKind(name));
 
     [RelayCommand]
     private void OpenFind() => Find.Open(replace: false);

@@ -1,10 +1,11 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.Core.Editors;
+using DotDeck.Core.Roles;
 
 namespace DotDeck.App.ViewModels.Editor;
 
@@ -217,6 +218,24 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
     /// <summary>Raised by <see cref="ShellViewModel"/> to run a hook row in the hook test pane.</summary>
     public Action<HookRow>? RunHook { get; set; }
 
+    /// <summary>Where the settings file sits (global / project / local), or null when it was opened as a form manually.</summary>
+    public FileRole? Role { get; init; }
+
+    public string FilePath { get; init; } = string.Empty;
+
+    public SettingsKeyCatalog? SettingsKeys { get; init; }
+
+    /// <summary>e.g. "settings.json · 프로젝트 · 기준 D:\project\DotDeck".</summary>
+    public string RoleSummary => Role is null
+        ? "Claude Code 설정 위치가 아닌 파일을 설정 폼으로 열었습니다. 범위별 안내는 표시하지 않습니다."
+        : $"{Role.Summary(FilePath)} · 기준 {Role.BaseRoot}";
+
+    public IReadOnlyList<string> RoleNotes => Role?.Notes ?? [];
+
+    /// <summary>Keys this file sets that do not apply at its level (refreshed on every load and edit).</summary>
+    [ObservableProperty]
+    private IReadOnlyList<ValidationIssue> _scopeIssues = [];
+
     protected override string? LoadCore(string text)
     {
         var doc = ClaudeSettingsDocument.TryParse(text, out var error);
@@ -226,6 +245,7 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
         }
 
         _doc = doc;
+        UpdateScopeIssues();
         Reset(Permissions, ClaudeSettingsDocument.PermissionKinds
             .SelectMany(kind => doc.GetPermissions(kind).Select(rule => new PermissionRow { Kind = kind, Rule = rule })));
         Reset(Hooks, doc.GetHooks().Select(h => new HookRow
@@ -335,6 +355,10 @@ public sealed partial class SettingsFormViewModel : DocumentFormViewModel
                 h.Source?.GroupKey))
             .ToList());
         _doc.SetEnv(Env.Select(e => new KeyValuePair<string, string>(e.Key, e.Value)).ToList());
+        UpdateScopeIssues();
         Apply(_doc.ToJson());
     }
+
+    private void UpdateScopeIssues() =>
+        ScopeIssues = _doc is not null && Role is not null && SettingsKeys is not null ? _doc.CheckScope(Role.Scope, SettingsKeys) : [];
 }

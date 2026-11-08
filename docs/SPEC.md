@@ -22,7 +22,7 @@ UI와 사용감은 **Visual Studio 2022(다크 테마)** 를 기준으로 한다
 ### 2.1 기본 제공 프로젝트 (삭제 불가, 숨기기·순서 변경 가능)
 | 이름 | 루트 | 설명 |
 |---|---|---|
-| Claude 전역 | `%USERPROFILE%\.claude\` | CLAUDE.md, settings.json, agents, skills, hooks, commands |
+| Claude 전역 | `%USERPROFILE%\.claude\` | CLAUDE.md, settings.json, agents, skills, commands, rules, output-styles (역할은 7.0 판별기가 결정) |
 | Codex 전역 | `%USERPROFILE%\.codex\` | AGENTS.md, config.toml |
 | 시스템 | (가상 트리) | `환경변수(사용자)`, `환경변수(시스템)`, `PATH`, `중요 파일`(8절) 노드로 구성 |
 - 루트 폴더가 없으면 트리에 "폴더 없음 — 만들기" 안내를 표시한다.
@@ -44,6 +44,8 @@ UI와 사용감은 **Visual Studio 2022(다크 테마)** 를 기준으로 한다
 - 파일 시스템 변경은 `FileSystemWatcher`로 트리에 실시간 반영(디바운스).
 - 이동·이름 바꾸기·삭제는 **작업 이력**에 기록되어 "되돌리기"(탐색기에서 Ctrl+Z)가 가능하다. 삭제는 휴지통에서 복원.
 - 비밀 파일(`.env*`(example 제외), `*.pfx`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`)은 트리에 자물쇠 아이콘으로 표시하고 열지 않는다.
+- 파일을 열 때 7.0 판별기가 역할·범위를 정하고, 탭 툴팁과 속성 패널에 `역할 · 범위`(예: `settings.json · 프로젝트`)를 표시한다.
+- 컨텍스트 메뉴와 문서 탭 메뉴에 "다음 형식으로 열기 ▸ 텍스트/Markdown/설정 폼/에이전트 폼/스킬 폼/자동 판별로 되돌리기"를 둔다. 지정은 파일 경로별로 `%APPDATA%\DotDeck\editor-overrides.json`에 기억한다. 폼이 내용을 해석하지 못하면 이유를 표시하고 텍스트 보기로 연다.
 
 ## 3. 기술 스택과 구조
 - .NET 10 (LTS), WPF, C# (Nullable enable)
@@ -100,14 +102,23 @@ docs/                          SPEC.md, 설계 문서
 
 ## 7. 타입별 전용 편집기
 문서 탭 상단에서 `텍스트 | 미리보기 | 폼 | 분할` 보기를 전환한다(해당 타입만).
-### agents/*.md
-- 폼: `name`, `description`(여러 줄), `tools`(체크 목록 + 직접 입력), `model`(opus/sonnet/haiku/inherit/직접 입력) + 본문.
-- 검증: frontmatter 파싱, `name` 필수·파일명과 일치 권장, `description` 필수. 이름 변경 시 frontmatter `name` 동기화 여부를 묻는다.
-### skills/<이름>/SKILL.md
-- 폼: `name`, `description` + 본문. 검증: `name` = 폴더명, description 1024자 초과 경고.
+### 7.0 파일 역할 판별
+- 파일 이름이 아니라 Claude Code가 설정을 읽는 위치로 판별한다. 가장 가까운 `.claude` 폴더 기준 상대 경로 → `.claude` 밖 규칙(CLAUDE.md, CLAUDE.local.md, .mcp.json, ~/.claude.json 등) 순서. `.claude`의 부모가 홈(`DOTDECK_HOME`/`--home` 해석 결과)이면 전역, 아니면 프로젝트. `settings.local.json`은 로컬(Git 제외).
+- `.claude` 밖 프로젝트 파일은 "앵커 폴더"(`.claude` 또는 `.git`이 있거나 등록된 프로젝트 루트) 기준으로 판별한다. 앵커가 아닌 폴더의 CLAUDE.md는 "하위 폴더"(필요 시 로드) 범위.
+- 규칙은 `DotDeck.Core/Catalogs/<제품>/file-roles.json` 데이터로 관리한다(제품 단위로 확장, Codex는 이후).
+- 파일 내용은 보조 신호로만 쓴다. 기본 제공 프로젝트와 사용자 프로젝트에 같은 판별기를 쓴다.
+### agents/*.md (`.claude/agents/` 아래, 하위 폴더 포함)
+- 폼: `name`, `description`(여러 줄), `tools`(체크 목록 + 직접 입력, 도구 카탈로그 공유), `model`(opus/sonnet/haiku/fable/inherit/직접 입력) + 본문.
+- 검증: frontmatter 파싱, `name`·`description` 필수(`name`이 없으면 Claude Code는 문서로 취급). 파일명과 다르면 정보 표시.
+### skills/<이름>/SKILL.md (`.claude/skills/` 아래)
+- 폼: `name`, `description` + 본문. 검증: `name`은 선택(없으면 폴더명), 폴더명과 다르면 경고, `description`+`when_to_use` 1536자 초과 경고.
 ### settings.json (전역/프로젝트/로컬)
-- **권한 탭**: allow / ask / deny 표. 행 추가·삭제·이동, 중복·충돌 경고.
-- **훅 탭**: 이벤트, matcher, command, timeout 표. 이벤트 드롭다운(SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Notification, Stop, SubagentStop, PreCompact, SessionEnd) + 직접 입력. 스크립트 경로 존재 검증.
+- **권한 탭**: 행 = `[allow|ask|deny] [도구(선택+직접 입력, 기본 도구+MCP)] [인수]`. 저장할 때 `도구(인수)`, 인수가 없으면 `도구`. 해석할 수 없는 규칙은 원문 그대로 표시·보존. 도구별 인수 작성법(placeholder·규칙·예시·함께 적용되는 도구, `/path`의 범위별 기준)을 툴팁과 속성 패널에 한글로 표시. 행 추가·삭제·이동, 중복·충돌 경고와 무효 규칙 경고.
+- **훅 탭**: 이벤트 드롭다운(Claude Code 훅 이벤트 전체 + 직접 입력, 모르는 값 보존), 이벤트 설명(실행 시점·matcher 사용 여부·할 수 있는 일·사용 예). matcher는 체크 목록(도구 또는 이벤트별 값, MCP)·전체·정규식(오류는 경고만). matcher를 쓰지 않는 이벤트는 칸 비활성화(기존 값 보존). `type`이 command가 아닌 훅도 보존. command, timeout 열.
+- 스크립트 경로 존재 검증은 판별된 루트 기준(`$CLAUDE_PROJECT_DIR`·상대 경로는 프로젝트 루트, `~`는 홈). 해석할 수 없는 경로는 "확인 불가".
+- **MCP 서버 탐색**: 사용자·로컬(`~/.claude.json`), 프로젝트(`.mcp.json`), 설치된 플러그인 설정을 읽기 전용으로 파싱해 서버 이름과 출처만 표시. 서버 실행·연결 안 함. 새로고침.
+- **범위 경고**: 해당 범위에서 무시되거나 의미가 달라지는 키를 안내.
+- 도구·이벤트·키 설명은 `Catalogs/Claude/*.json`(공식 문서 주소·확인 날짜 포함)으로 관리. `%APPDATA%\DotDeck\catalogs\`의 같은 이름 파일로 덮어쓸 수 있다.
 - **훅 테스트 실행기**: 이벤트별 샘플 JSON(수정 가능)을 stdin으로 넣어 실행 → stdout/stderr/종료코드/소요시간을 `훅 테스트` 패널에 표시. 10초 타임아웃, 실행 전 확인.
 - **환경 탭**: `env` 키-값 표.
 - **JSON 모드**와 폼 양방향 동기화. 폼이 모르는 키는 반드시 보존. JSON 오류 시 폼 전환 차단.

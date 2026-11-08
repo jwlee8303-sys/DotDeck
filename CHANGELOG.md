@@ -2,7 +2,16 @@
 이 프로젝트의 주요 변경사항을 기록합니다. 형식: Keep a Changelog, 버전: SemVer.
 
 ## [Unreleased]
+### Changed
+- 편집기 종류를 파일 이름 대신 역할 판별기로 결정(`docs/agents/*.md`, `.claude` 밖 `SKILL.md`는 더 이상 폼으로 열지 않고, `.claude/agents/` 하위 폴더는 에이전트로 인식)
+- 에이전트·스킬 검증을 공식 문서에 맞춤: 에이전트 name이 파일명과 달라도 정보, name 형식 오류 검사, model에 fable 추가 / 스킬 name은 선택(폴더명 기본), 폴더명과 다르면 경고, description+when_to_use 1536자 초과 경고
+### Fixed
+- `type`이 command가 아닌 훅(http·prompt·agent·mcp_tool)에 "command가 비어 있습니다" 오류가 잘못 표시되던 문제
 ### Added
+- Claude 설정 파일 역할 판별기(`FileRoleResolver`): 파일 이름이 아니라 가장 가까운 `.claude` 폴더 기준 위치로 설정·서브에이전트·스킬·명령·규칙·CLAUDE.md·.mcp.json 등을 판별하고 범위(전역/프로젝트/로컬(Git 제외)/하위 폴더/관리형)를 정함. 규칙은 `Catalogs/Claude/file-roles.json` 데이터(공식 문서 주소·확인 날짜 포함), `%APPDATA%\DotDeck\catalogs\`의 같은 이름 파일로 덮어쓰기 가능
+- 탭 툴팁·속성 패널에 `역할 · 범위`와 기준 루트 표시, settings 폼 상단에 범위 안내와 "이 범위에서 적용되지 않는 키" 경고(`settings-keys.json`)
+- "다음 형식으로 열기"(탐색기 우클릭, 문서 보기 막대): 텍스트/Markdown/설정 폼/에이전트 폼/스킬 폼, 파일별로 `editor-overrides.json`에 기억, 자동 판별로 되돌리기. 해석할 수 없으면 이유를 표시하고 텍스트로 표시
+- 훅 스크립트 경로 검증이 `$CLAUDE_PROJECT_DIR`·`~`·`%USERPROFILE%`·상대 경로·exec 형식(`args`)을 설정 파일 위치 기준으로 해석, 해석할 수 없으면 "확인 불가"(정보)
 - 시스템 프로젝트 "기타 파일": 경로를 입력해 파일 등록(없으면 확인 후 빈 파일 생성), 탐색기 오른쪽 클릭으로 등록·목록에서 빼기
 - 프로젝트 "보이는 항목 편집" 모드: 체크한 파일·폴더만 탐색기에 표시(폴더는 안의 내용 전체, `projects.json`의 `visibleItems`에 저장)
 - 다른 이름으로 저장(Ctrl+Alt+S)

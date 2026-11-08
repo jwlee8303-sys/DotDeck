@@ -16,7 +16,16 @@ public sealed record HookRule(
     int? Timeout = null,
     JsonObject? CommandExtra = null,
     JsonObject? GroupExtra = null,
-    string? GroupKey = null);
+    string? GroupKey = null)
+{
+    /// <summary>Handler type (<c>command</c>, <c>http</c>, <c>prompt</c>, <c>agent</c>, <c>mcp_tool</c>); missing means command.</summary>
+    public string Type => CommandExtra?["type"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : "command";
+
+    /// <summary>Exec-form arguments (<c>args</c>), when present.</summary>
+    public IReadOnlyList<string>? Args => CommandExtra?["args"] is JsonArray a
+        ? a.Select(n => n is JsonValue v && v.TryGetValue<string>(out var s) ? s : string.Empty).ToList()
+        : null;
+}
 
 /// <summary>
 /// Claude Code settings.json as a JSON tree. The form reads and replaces only <c>permissions.allow|ask|deny</c>,
@@ -296,10 +305,22 @@ public sealed class ClaudeSettingsDocument
 
     public string ToJson() => _root.ToJsonString(s_write);
 
-    /// <summary>Duplicate and conflicting permission rules, hook events and commands (SPEC §7).</summary>
-    public IReadOnlyList<ValidationIssue> Validate(Func<string, bool>? fileExists = null)
+    /// <summary>Keys that do not apply (or need trust) at the file's level; see <see cref="SettingsScopeLint"/>.</summary>
+    public IReadOnlyList<ValidationIssue> CheckScope(Roles.ConfigScope scope, SettingsKeyCatalog keys) => SettingsScopeLint.Check(_root, scope, keys);
+
+    /// <summary>
+    /// Duplicate and conflicting permission rules, hook events and commands (SPEC §7). With <paramref name="context"/>
+    /// hook script paths are resolved from the settings file's location, and with <paramref name="keys"/> keys that
+    /// do not apply at the file's level are reported.
+    /// </summary>
+    public IReadOnlyList<ValidationIssue> Validate(Func<string, bool>? fileExists = null, SettingsContext? context = null, SettingsKeyCatalog? keys = null)
     {
         var issues = new List<ValidationIssue>();
+        if (context is not null && keys is not null)
+        {
+            issues.AddRange(SettingsScopeLint.Check(_root, context.Scope, keys));
+        }
+
         var seen = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var kind in PermissionKinds)
         {
@@ -325,13 +346,25 @@ public sealed class ClaudeSettingsDocument
                 issues.Add(new ValidationIssue(IssueSeverity.Warning, $"알려지지 않은 훅 이벤트입니다: {hook.Event}"));
             }
 
-            if (hook.Command.Trim().Length == 0)
+            // http, prompt, agent and mcp_tool hooks have no command line to check.
+            var isCommand = hook.Type == "command";
+            if (isCommand && hook.Command.Trim().Length == 0)
             {
                 issues.Add(new ValidationIssue(IssueSeverity.Error, $"{hook.Event} 훅의 command가 비어 있습니다."));
             }
-            else if (fileExists is not null && ScriptPath(hook.Command) is { } script && !fileExists(script))
+            else if (isCommand && fileExists is not null)
             {
-                issues.Add(new ValidationIssue(IssueSeverity.Warning, $"훅 스크립트를 찾을 수 없습니다: {script}"));
+                var check = HookScriptResolver.Check(hook.Command, hook.Args, context, fileExists);
+                switch (check.Status)
+                {
+                    case HookScriptStatus.Missing:
+                        issues.Add(new ValidationIssue(IssueSeverity.Warning,
+                            $"훅 스크립트를 찾을 수 없습니다: {check.Path}{(check.Reason is null ? string.Empty : $" ({check.Reason})")}"));
+                        break;
+                    case HookScriptStatus.Unknown when context is not null:
+                        issues.Add(new ValidationIssue(IssueSeverity.Info, $"훅 스크립트 경로 확인 불가: {check.Path} — {check.Reason}"));
+                        break;
+                }
             }
 
             if (hook.Timeout is <= 0)
@@ -345,62 +378,10 @@ public sealed class ClaudeSettingsDocument
 
     /// <summary>
     /// The script file a hook command runs, when it names one by absolute path (first token, or the first token
-    /// after an interpreter such as python/node/bash/powershell). Paths with variables are not checked.
+    /// after an interpreter such as python/node/bash/powershell). Paths with variables are not resolved.
     /// </summary>
-    public static string? ScriptPath(string command)
-    {
-        var tokens = Tokenize(command).ToList();
-        foreach (var token in tokens.Take(3))
-        {
-            if (token.Contains('$', StringComparison.Ordinal) || token.Contains('%', StringComparison.Ordinal))
-            {
-                return null;
-            }
-
-            if (Path.IsPathFullyQualified(token)
-                && Path.GetExtension(token) is { Length: > 0 } ext
-                && !ext.Equals(".exe", StringComparison.OrdinalIgnoreCase))
-            {
-                return token;
-            }
-        }
-
-        return null;
-    }
-
-    private static IEnumerable<string> Tokenize(string command)
-    {
-        var i = 0;
-        while (i < command.Length)
-        {
-            while (i < command.Length && char.IsWhiteSpace(command[i]))
-            {
-                i++;
-            }
-
-            if (i >= command.Length)
-            {
-                yield break;
-            }
-
-            if (command[i] is '"' or '\'')
-            {
-                var quote = command[i];
-                var end = command.IndexOf(quote, i + 1);
-                end = end < 0 ? command.Length : end;
-                yield return command[(i + 1)..end];
-                i = end + 1;
-            }
-            else
-            {
-                var start = i;
-                while (i < command.Length && !char.IsWhiteSpace(command[i]))
-                {
-                    i++;
-                }
-
-                yield return command[start..i];
-            }
-        }
-    }
+    public static string? ScriptPath(string command) =>
+        HookScriptResolver.Check(command, null, null, _ => true) is { Status: HookScriptStatus.Exists or HookScriptStatus.Missing } check
+            ? check.Path
+            : null;
 }

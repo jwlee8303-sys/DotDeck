@@ -211,6 +211,14 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - 백업 폴더: `settings.json`의 `BackupDirectory`(없으면 기본 경로). 바꾸면 이후 백업부터 새 폴더에 저장하고 기존 백업은 옮기지 않는다. 환경변수 변경 기록도 같은 폴더를 쓴다.
 - 프로젝트 백업: `ProjectBackup.CreateZip`이 선택한 프로젝트를 `DotDeck-projects-<시각>.zip` 하나로 저장(비밀 파일·링크·제외 폴더·출력 zip 자신 제외).
 
+## Claude 파일 역할 판별 (SPEC 7.0, Phase 4 이후)
+- `Core/Roles/FileRoleResolver`: 입력은 절대경로, 출력은 `FileRole`(역할·범위·`.claude` 폴더·기준 루트·편집기·규칙 id·안내). 판별 순서: 관리형 폴더(샌드박스에서는 끔) → 가장 가까운 `.claude`(그 폴더의 규칙만 적용, 부모가 홈이면 전역) → 홈 바로 아래 파일 → 앵커 폴더(`.claude`·`.git`이 있거나 등록된 폴더 프로젝트 루트) 파일 → 모든 폴더 규칙. 파일 시스템은 앵커 확인(`DirectoryExists`)에만 쓴다.
+- 규칙 데이터 `Core/Catalogs/<제품>/file-roles.json`(EmbeddedResource). 규칙 = `{id, base(configDir|home|anchorDir|anyDir|managedDir), pattern(* ** /), role, editor, scope(auto|global|project|local|subdirectory|managed), onlyIn, notes}`. 제품 단위로 카탈로그를 추가하면 Codex도 같은 방식으로 판별한다. `CatalogResources.Load`는 `%APPDATA%\DotDeck\catalogs\<제품>\<이름>.json`이 있고 올바르면 그것을, 아니면 내장본과 경고를 돌려준다.
+- 범위별 키 경고 `settings-keys.json`(그룹 = 키 목록 + `ignoredIn`/`appliesIn` + 선택 `values` + 메시지). 검증 패널과 settings 폼 상단에 표시.
+- 수동 지정 `EditorOverrideStore`(`%APPDATA%\DotDeck\editor-overrides.json`, 경로 → `text|markdown|settingsForm|agentForm|skillForm`, 모르는 값은 보존). 문서의 `Kind`는 바꿀 수 있고, 바꾸면 폼을 다시 만든다. 수동 지정 후 폼 해석에 실패하면 `FormError`에 이유를 표시하고 텍스트로 남는다.
+- 훅 스크립트 검증 `HookScriptResolver`: 프로젝트·로컬은 `$CLAUDE_PROJECT_DIR`·상대 경로를 프로젝트 루트로(상대 경로는 "추정"), `~`·`$HOME`·`%USERPROFILE%`는 홈, Git Bash `/c/..` 변환. 전역의 `$CLAUDE_PROJECT_DIR`·상대 경로와 모르는 변수는 "확인 불가"(Info).
+- 제한: 경로 이름만 비교(링크·정션 대상은 따라가지 않음), `CLAUDE_CONFIG_DIR`로 옮긴 설정 폴더는 인식하지 않음, 플러그인 폴더(`~/.claude/plugins/**`) 안 파일은 판별하지 않음, 수동 지정은 파일 이름 바꾸기·이동을 따라가지 않음.
+
 **projects.json 초안**
 ```json
 {

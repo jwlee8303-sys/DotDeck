@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.Services;
@@ -37,6 +37,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost
         {
             case TextDocumentViewModel text:
                 ActiveTextDocument = text;
+                RefreshProjectRoots();
                 Properties.Show(text.FilePath);
                 break;
             case DocumentViewModel:
@@ -86,6 +87,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost
                 return;
             }
 
+            await PrepareRoleAsync(path).ConfigureAwait(true);
             var buffer = await _buffers.AcquireAsync(path).ConfigureAwait(true);
 
             // Re-check after the read: a concurrent open may have created the tab, or a newer preview won.
@@ -312,7 +314,8 @@ public sealed partial class ShellViewModel : ITextDocumentHost
         // Restored tabs keep their saved number (layout ContentId); new views continue after the highest one.
         var number = viewNumber ?? _viewCounters.GetValueOrDefault(buffer.Path) + 1;
         _viewCounters[buffer.Path] = Math.Max(number, _viewCounters.GetValueOrDefault(buffer.Path));
-        var document = new TextDocumentViewModel(buffer, number, preview, this, CloseDocument);
+        var (role, kind, overridden) = EditorFor(buffer.Path);
+        var document = new TextDocumentViewModel(buffer, number, preview, this, CloseDocument, role, kind, overridden);
         Documents.Add(document);
         UpdateContentWatchers();
         return document;

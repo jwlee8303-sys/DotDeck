@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -210,7 +210,7 @@ public sealed partial class ExplorerListViewModel : ObservableObject
                  {
                      OpenSelectedCommand, NewFileCommand, NewFolderCommand, RenameCommand, DeleteCommand, CutCommand, CopyCommand,
                      PasteCommand, DuplicateCommand, UndoCommand, RedoCommand, CopyFullPathsCommand, CopyRelativePathsCommand,
-                     RevealSelectedCommand, OpenInVsCodeCommand, OpenTerminalCommand,
+                     RevealSelectedCommand, OpenInVsCodeCommand, OpenTerminalCommand, OpenAsCommand,
                  })
         {
             command.NotifyCanExecuteChanged();
@@ -227,6 +227,15 @@ public sealed partial class ExplorerListViewModel : ObservableObject
 
     [RelayCommand(CanExecute = nameof(HasSingleTarget))]
     private Task OpenSelectedAsync() => ActivateAsync(TargetNodes().FirstOrDefault());
+
+    private bool HasSingleFile() => TargetNodes() is [{ IsFolder: false }] && _context.OpenAs is not null;
+
+    /// <summary>"다음 형식으로 열기": text, markdown, settingsForm, agentForm, skillForm, or auto (automatic detection).</summary>
+    [RelayCommand(CanExecute = nameof(HasSingleFile))]
+    private Task OpenAsAsync(string? name) =>
+        TargetNodes() is [{ IsFolder: false } file] && _context.OpenAs is { } openAs
+            ? openAs(file.Node.FullPath!, name is null or "auto" ? null : DotDeck.Core.Roles.EditorOverrideStore.NameToKind(name))
+            : Task.CompletedTask;
 
     [RelayCommand(CanExecute = nameof(HasTargetFolder))]
     private Task NewFileAsync() => BeginNewItemAsync(isFolder: false);

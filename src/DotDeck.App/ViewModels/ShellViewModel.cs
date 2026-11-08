@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.Services;
@@ -13,6 +13,7 @@ using DotDeck.Core.Files;
 using DotDeck.Core.Logging;
 using DotDeck.Core.Paths;
 using DotDeck.Core.Projects;
+using DotDeck.Core.Roles;
 
 namespace DotDeck.App.ViewModels;
 
@@ -44,6 +45,8 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly SessionStateStore _session;
     private readonly DotDeck.Core.SystemConfig.IEnvironmentStore _environment;
     private readonly SynchronizationContext? _ui;
+    private readonly FileRoleResolver _roles;
+    private readonly EditorOverrideStore _editorOverrides;
     private int _scratchCounter;
 
     public ShellViewModel(ShellServices services, string version, bool isAdministrator)
@@ -62,13 +65,26 @@ public sealed partial class ShellViewModel : ObservableObject
         Version = version;
         IsAdministrator = isAdministrator;
 
+        // Claude Code file roles (SPEC 7.0): user copies in %APPDATA%\DotDeck\catalogs replace the built-in data.
+        var roleCatalog = Core.Catalogs.CatalogResources.Load(FileRoleCatalog.ClaudeResource, FileRoleCatalog.Parse, services.Store, services.Paths.CatalogsDir);
+        var keyCatalog = Core.Catalogs.CatalogResources.Load(Core.Editors.SettingsKeyCatalog.ClaudeResource, Core.Editors.SettingsKeyCatalog.Parse, services.Store, services.Paths.CatalogsDir);
+        foreach (var warning in new[] { roleCatalog.Warning, keyCatalog.Warning }.OfType<string>())
+        {
+            _log.Warning(warning);
+        }
+
+        SettingsKeys = keyCatalog.Value;
+        _roles = new FileRoleResolver([roleCatalog.Value], services.Store, services.Paths.Home, ProjectRoots,
+            includeManaged: !services.Paths.IsHomeOverridden);
+        _editorOverrides = new EditorOverrideStore(services.Store, services.Paths.EditorOverridesFile);
+
         var explorerContext = new ExplorerContext(
             new ProjectRegistryGateway(services.Registry), services.Paths, services.Store, services.Clipboard,
             services.Shell, services.Dialogs,
             new ExplorerFileOperations(services.FileOperations, services.Dialogs, services.Log, message => StatusMessage = message),
             services.Log, message => StatusMessage = message, new FolderWatcherFactory(), OpenFileAsync, OpenSystemNode,
-            RegisterOtherFileAsync, RemoveOtherFileAsync);
-        Properties = new PropertiesPaneViewModel();
+            RegisterOtherFileAsync, RemoveOtherFileAsync, OpenFileAsAsync);
+        Properties = new PropertiesPaneViewModel { DescribeRole = DescribeRole };
         Output = new OutputPaneViewModel(services.Log);
         Validation = new ValidationPaneViewModel();
         SearchResults = new SearchResultsPaneViewModel(services.Store, SearchRoots, OpenSearchHitAsync);
@@ -80,6 +96,7 @@ public sealed partial class ShellViewModel : ObservableObject
         {
             if (e.PropertyName == nameof(Projects.List.SelectedRow))
             {
+                RefreshProjectRoots();
                 Properties.Show((Projects.List.SelectedRow as NodeRowViewModel)?.Node.FullPath);
             }
         };

@@ -11,8 +11,12 @@ public sealed partial class ShellViewModel
     private TextDocumentViewModel? _validated;
     private int _validationVersion;
 
-    partial void OnActiveTextDocumentChanged(TextDocumentViewModel? value)
+    partial void OnActiveTextDocumentChanged(TextDocumentViewModel? value) => RefreshValidationTarget();
+
+    /// <summary>Re-evaluates what the validation pane follows (the active document, or its new editor kind).</summary>
+    private void RefreshValidationTarget()
     {
+        var value = ActiveTextDocument;
         if (_validated is not null)
         {
             _validated.Buffer.TextChanged -= OnValidatedTextChanged;
@@ -57,19 +61,22 @@ public sealed partial class ShellViewModel
         var text = doc.Buffer.Document.Text;
         var kind = doc.Kind;
         var store = _store;
-        var issues = await Task.Run(() => Validate(kind, path, text, store)).ConfigureAwait(true);
+        var context = Core.Editors.SettingsContext.From(doc.Role, Paths.Home);
+        var keys = SettingsKeys;
+        var issues = await Task.Run(() => Validate(kind, path, text, store, context, keys)).ConfigureAwait(true);
         if (version == _validationVersion && _validated == doc)
         {
             Validation.Show(doc.Buffer.FileName, issues);
         }
     }
 
-    private static IReadOnlyList<ValidationIssue> Validate(EditorKind kind, string path, string text, Core.Files.IFileStore store) => kind switch
+    private static IReadOnlyList<ValidationIssue> Validate(EditorKind kind, string path, string text, Core.Files.IFileStore store,
+        SettingsContext? context, SettingsKeyCatalog? keys) => kind switch
     {
         EditorKind.Agent => MarkdownAgentValidator.ValidateAgent(path, text),
         EditorKind.Skill => MarkdownAgentValidator.ValidateSkill(path, text),
         EditorKind.ClaudeSettings => ClaudeSettingsDocument.TryParse(text, out var error) is { } settings
-            ? settings.Validate(store.FileExists)
+            ? settings.Validate(store.FileExists, context, keys)
             : [new ValidationIssue(IssueSeverity.Error, error ?? "JSON 오류")],
         _ => [],
     };

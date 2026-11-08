@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using DotDeck.App.ViewModels.Documents;
 using DotDeck.Core.Explorer;
 using DotDeck.Core.Logging;
@@ -28,6 +28,7 @@ public sealed partial class ShellViewModel
                     continue;
                 }
 
+                await PrepareRoleAsync(group.Key).ConfigureAwait(true);
                 var buffer = await _buffers.AcquireAsync(group.Key).ConfigureAwait(true);
                 if (Documents.OfType<TextDocumentViewModel>().Any(d => d.Buffer == buffer))
                 {

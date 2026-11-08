@@ -124,6 +124,18 @@ public partial class TextEditorView : UserControl, IEditorSelection
         });
 
     // Table of contents: a menu of the current headings (indented by level).
+    /// <summary>"형식 ▾": opens the button's "다음 형식으로 열기" menu below it.</summary>
+    private void OnFormatClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu } button)
+        {
+            menu.DataContext = button.DataContext;
+            menu.PlacementTarget = button;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
+    }
+
     private void OnOutlineClick(object sender, RoutedEventArgs e)
     {
         if (_viewModel is not { } vm || sender is not Button button)

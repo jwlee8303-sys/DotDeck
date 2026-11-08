@@ -69,6 +69,7 @@
 - 공용 ListBox 템플릿에서 UI 가상화가 꺼져 있던 문제(`CanContentScroll` 미전달)
 
 ### Changed
+- 탐색기 프로젝트 루트 행의 펼침 표시를 강조색 배지(채운 삼각형)로 바꿔 하위 폴더와 구분
 - 시스템 프로젝트의 "중요 파일"을 "기타 파일"로 이름 변경
 - 탐색기에서 한 번 클릭으로 파일이 열리지 않음(더블클릭·Enter로 열기)
 - 솔루션을 `src/DotDeck.App`(WPF, net10.0-windows), `src/DotDeck.Core`(net10.0), `tests/DotDeck.Core.Tests`(xunit.v3) 구조로 재구성

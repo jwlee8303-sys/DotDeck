@@ -212,6 +212,7 @@ public sealed partial class ShellViewModel
 
         _backups.Retention = settings.BackupRetention;
         _backups.BackupsDirectory = settings.BackupDirectory ?? Paths.BackupsDir;
+        ExplorerPreferences.SetGlobalExtensions(settings.DefaultExtensions);
         SettingsChanged?.Invoke(this, settings);
         StatusMessage = "설정을 적용했습니다.";
     }

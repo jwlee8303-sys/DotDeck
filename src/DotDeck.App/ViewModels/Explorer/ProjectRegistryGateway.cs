@@ -19,12 +19,30 @@ public sealed class ProjectRegistryGateway
 
     public ProjectRegistry Registry { get; }
 
-    public async Task<T> RunAsync<T>(Func<ProjectRegistry, T> change)
+    /// <summary>Callers resume on their own context; the gate itself is released on the pool (see <see cref="TryRunNow"/>).</summary>
+    public async Task<T> RunAsync<T>(Func<ProjectRegistry, T> change) => await RunCoreAsync(change);
+
+    public Task RunAsync(Action<ProjectRegistry> change) => RunAsync(r =>
     {
-        await _gate.WaitAsync().ConfigureAwait(true);
+        change(r);
+        return true;
+    });
+
+    /// <summary>
+    /// Shutdown only: runs <paramref name="change"/> on the calling thread once earlier changes finished. False when
+    /// the gate did not free up within <paramref name="timeout"/> (the change is then not made).
+    /// </summary>
+    public bool TryRunNow(Action<ProjectRegistry> change, TimeSpan timeout)
+    {
+        if (!_gate.Wait(timeout))
+        {
+            return false;
+        }
+
         try
         {
-            return await Task.Run(() => change(Registry)).ConfigureAwait(true);
+            change(Registry);
+            return true;
         }
         finally
         {
@@ -32,9 +50,17 @@ public sealed class ProjectRegistryGateway
         }
     }
 
-    public Task RunAsync(Action<ProjectRegistry> change) => RunAsync(r =>
+    // ConfigureAwait(false): the release must not need the UI thread, which TryRunNow may be blocking.
+    private async Task<T> RunCoreAsync<T>(Func<ProjectRegistry, T> change)
     {
-        change(r);
-        return true;
-    });
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            return await Task.Run(() => change(Registry)).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
 }

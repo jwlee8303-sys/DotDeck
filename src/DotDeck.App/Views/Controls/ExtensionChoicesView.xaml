@@ -1,0 +1,48 @@
+<UserControl x:Class="DotDeck.App.Views.Controls.ExtensionChoicesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:DotDeck.App.Converters">
+    <!-- DataContext: ExtensionChoicesViewModel (SPEC 2.3 default extensions). -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+        <conv:NullToCollapsedConverter x:Key="NullToCollapsed" />
+    </UserControl.Resources>
+    <StackPanel>
+        <WrapPanel>
+            <CheckBox Content="전역 기본값 사용" IsChecked="{Binding UseGlobalDefault}" Margin="0,0,16,4"
+                      Foreground="{DynamicResource DD.Brush.Text}"
+                      Visibility="{Binding IsProject, Converter={StaticResource BoolToVisible}}"
+                      ToolTip="설정 대화상자의 기본 확장자를 따릅니다." />
+            <CheckBox Content="모든 파일 보기" IsChecked="{Binding ShowAllFiles}" Margin="0,0,16,4"
+                      Foreground="{DynamicResource DD.Brush.Text}"
+                      Visibility="{Binding IsProject, Converter={StaticResource BoolToVisible}}"
+                      ToolTip="확장자와 관계없이 모든 파일을 보입니다. 아래 목록은 그대로 보관됩니다." />
+        </WrapPanel>
+        <ItemsControl ItemsSource="{Binding Choices}" IsEnabled="{Binding IsListEnabled}" Margin="0,2,0,0">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <CheckBox Content="{Binding Extension}" IsChecked="{Binding IsChecked}" MinWidth="64" Margin="0,0,8,4"
+                              Foreground="{DynamicResource DD.Brush.Text}" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <DockPanel Margin="0,4,0,0" IsEnabled="{Binding IsListEnabled}">
+            <Button DockPanel.Dock="Right" Content="설정·문서" Margin="4,0,0,0" Padding="6,1" Command="{Binding ApplyPresetCommand}"
+                    ToolTip="설정·문서 확장자만 선택합니다." />
+            <Button DockPanel.Dock="Right" Content="추가" Margin="4,0,0,0" Padding="6,1" Command="{Binding AddCustomCommand}" />
+            <TextBox Text="{Binding CustomText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="확장자 추가"
+                     ToolTip="예: .log, .d.ts (쉼표로 여러 개)">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Enter" Command="{Binding AddCustomCommand}" />
+                </TextBox.InputBindings>
+            </TextBox>
+        </DockPanel>
+        <TextBlock Margin="0,4,0,0" Text="{Binding Error}" Foreground="{DynamicResource DD.Brush.Error}" TextWrapping="Wrap"
+                   Visibility="{Binding Error, Converter={StaticResource NullToCollapsed}}" />
+    </StackPanel>
+</UserControl>

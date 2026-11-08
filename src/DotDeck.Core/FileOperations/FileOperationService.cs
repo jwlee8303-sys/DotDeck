@@ -1,3 +1,5 @@
+using DotDeck.Core.Documents;
+using DotDeck.Core.Explorer;
 using DotDeck.Core.Files;
 
 namespace DotDeck.Core.FileOperations;
@@ -5,11 +7,16 @@ namespace DotDeck.Core.FileOperations;
 /// <summary>Outcome of an operation, undo or redo.</summary>
 /// <param name="Paths">Items that exist after the operation (to select in the tree).</param>
 /// <param name="Warnings">Things the user should know (e.g. a recycled item DotDeck cannot restore).</param>
-public sealed record FileOperationResult(string Description, IReadOnlyList<string> Paths, IReadOnlyList<string> Warnings);
+public sealed record FileOperationResult(string Description, IReadOnlyList<string> Paths, IReadOnlyList<string> Warnings)
+{
+    /// <summary>What changed on disk, in order (rules, pins and open tabs follow these).</summary>
+    public IReadOnlyList<PathChange> Changes { get; init; } = [];
+}
 
 /// <summary>
 /// Explorer file operations: create, rename, move, copy, duplicate and delete (to the recycle bin), each recorded
-/// in <see cref="FileOperationHistory"/> for undo/redo. Nothing is overwritten, and DotDeck never deletes permanently by itself (see <see cref="IRecycleBin"/>).
+/// in <see cref="FileOperationHistory"/> for undo/redo. Nothing is overwritten except by an explicit paste choice
+/// (the old file is backed up and sent to the recycle bin), and DotDeck never deletes permanently by itself (see <see cref="IRecycleBin"/>).
 /// Calls are synchronous (run them off the UI thread) and serialized.
 /// Failures throw <see cref="FileOperationException"/> with a message for the user.
 /// </summary>
@@ -18,13 +25,17 @@ public sealed class FileOperationService
     private readonly FileStepContext _context;
     private readonly Lock _sync = new();
 
-    public FileOperationService(IFileStore store, IRecycleBin recycleBin, FileOperationHistory history)
+    private readonly BackupStore? _backups;
+
+    /// <param name="backups">Where a file replaced by "덮어쓰기" is backed up first (SPEC 6); null skips the backup.</param>
+    public FileOperationService(IFileStore store, IRecycleBin recycleBin, FileOperationHistory history, BackupStore? backups = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(recycleBin);
         ArgumentNullException.ThrowIfNull(history);
         _context = new FileStepContext(store, recycleBin);
         History = history;
+        _backups = backups;
     }
 
     public FileOperationHistory History { get; }
@@ -184,7 +195,7 @@ public sealed class FileOperationService
 
             var description = isDirectory ? $"새 폴더 '{name}'" : $"새 파일 '{name}'";
             History.Record(new FileOperationEntry(description, [new RecycleStep(path)]));
-            return new FileOperationResult(description, [path], []);
+            return new FileOperationResult(description, [path], []) { Changes = [new PathChange.Created(path)] };
         }
     }
 
@@ -243,22 +254,22 @@ public sealed class FileOperationService
         var description = CountDescription(verb, items.Count);
         undoSteps.Reverse();
         History.Record(new FileOperationEntry(description, undoSteps));
-        return new FileOperationResult(description, created, []);
+        return new FileOperationResult(description, created, []) { Changes = created.Select(c => (PathChange)new PathChange.Created(c)).ToList() };
     }
 
     /// <summary>Checks and applies forward steps, then records their inverses as one undo entry.</summary>
     private FileOperationResult Run(string description, List<FileStep> steps)
     {
         ThrowIfAnyCheckFails(steps);
-        var (inverses, paths, warnings, error) = Apply(steps);
+        var (inverses, paths, warnings, changes, error) = Apply(steps);
         if (error is not null)
         {
             var partial = RecordIfAny(description, inverses);
-            throw new FileOperationException(FailureMessage(description, inverses.Count, steps.Count, error), partial, error);
+            throw new FileOperationException(FailureMessage(description, inverses.Count, steps.Count, error), partial, error) { Changes = changes };
         }
 
         History.Record(new FileOperationEntry(description, inverses));
-        return new FileOperationResult(description, paths, warnings);
+        return new FileOperationResult(description, paths, warnings) { Changes = changes };
     }
 
     /// <summary>
@@ -282,7 +293,7 @@ public sealed class FileOperationService
             throw;
         }
 
-        var (inverses, paths, warnings, error) = Apply(entry.Steps);
+        var (inverses, paths, warnings, changes, error) = Apply(entry.Steps);
         if (inverses.Count > 0)
         {
             pushOpposite(new FileOperationEntry(entry.Description, inverses));
@@ -296,19 +307,20 @@ public sealed class FileOperationService
             throw new FileOperationException(
                 FailureMessage($"{verb}: {entry.Description}", inverses.Count, entry.Steps.Count, error),
                 inverses.Count > 0,
-                error);
+                error) { Changes = changes };
         }
 
         History.OnChanged();
-        return new FileOperationResult($"{verb}: {entry.Description}", paths, warnings);
+        return new FileOperationResult($"{verb}: {entry.Description}", paths, warnings) { Changes = changes };
     }
 
     /// <summary>Applies steps in order and returns the inverses in undo order (last applied first).</summary>
-    private (List<FileStep> Inverses, List<string> Paths, List<string> Warnings, Exception? Error) Apply(IReadOnlyList<FileStep> steps)
+    private (List<FileStep> Inverses, List<string> Paths, List<string> Warnings, List<PathChange> Changes, Exception? Error) Apply(IReadOnlyList<FileStep> steps)
     {
         var inverses = new List<FileStep>(steps.Count);
         var paths = new List<string>();
         var warnings = new List<string>();
+        var changes = new List<PathChange>();
         Exception? error = null;
         foreach (var step in steps)
         {
@@ -323,6 +335,7 @@ public sealed class FileOperationService
 
                 var inverse = step.Apply(_context);
                 inverses.Insert(0, inverse);
+                changes.Add(ChangeOf(step));
                 if (step.ResultPath is { } path)
                 {
                     paths.Add(path);
@@ -340,14 +353,267 @@ public sealed class FileOperationService
             }
         }
 
-        return (inverses, paths, warnings, error);
+        return (inverses, paths, warnings, changes, error);
+    }
+
+    private static PathChange ChangeOf(FileStep step) => step switch
+    {
+        MoveStep move => new PathChange.Moved(move.From, move.To),
+        RecycleStep recycle => new PathChange.Removed(recycle.Path),
+        RestoreStep restore => new PathChange.Created(restore.Ticket.OriginalPath),
+        _ => throw new InvalidOperationException($"Unknown step {step.GetType().Name}"),
+    };
+
+    /// <summary>
+    /// Checks a paste into <paramref name="targetDirectory"/> and lists name conflicts for the user to resolve.
+    /// Refuses a folder pasted into itself or a folder below it, and a folder moved to another drive.
+    /// </summary>
+    public PastePlan PlanPaste(IReadOnlyList<string> sources, string targetDirectory, bool isMove)
+    {
+        lock (_sync)
+        {
+            var target = RequireDirectory(targetDirectory);
+            var items = new List<PastePlanItem>();
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var source in NormalizeSources(sources))
+            {
+                var entry = Store.GetEntry(source) ?? throw new FileOperationException($"'{Path.GetFileName(source)}'이(가) 더 이상 없습니다: {source}");
+                if (entry.IsDirectory && (FilePaths.AreSame(target, source) || FilePaths.IsInside(target, source)))
+                {
+                    throw new FileOperationException($"폴더를 자기 자신이나 그 하위 폴더에 붙여넣을 수 없습니다: {source}");
+                }
+
+                var sameFolder = FilePaths.AreSame(Path.GetDirectoryName(source)!, target);
+                if (isMove && entry.IsDirectory && !sameFolder
+                    && !string.Equals(Path.GetPathRoot(source), Path.GetPathRoot(target), StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new FileOperationException($"폴더는 다른 드라이브로 이동할 수 없습니다. 복사한 뒤 원본을 삭제하세요: {source}");
+                }
+
+                var destination = Path.Combine(target, Path.GetFileName(source));
+                if (!sameFolder && !names.Add(Path.GetFileName(source)))
+                {
+                    throw new FileOperationException($"같은 이름의 항목 여러 개를 한 폴더에 붙여넣을 수 없습니다: {Path.GetFileName(source)}");
+                }
+
+                var existing = sameFolder ? null : Store.GetEntry(destination);
+                var kind = sameFolder ? (isMove ? PasteItemKind.AlreadyThere : PasteItemKind.SameFolder)
+                    : existing is null ? PasteItemKind.Free
+                    : PasteItemKind.Conflict;
+                items.Add(new PastePlanItem(source, destination, entry.IsDirectory, kind)
+                {
+                    CanOverwrite = kind == PasteItemKind.Conflict && !entry.IsDirectory && existing is { IsDirectory: false },
+                });
+            }
+
+            return new PastePlan(target, isMove, items);
+        }
+    }
+
+    /// <summary>
+    /// Runs a plan with the user's choice for each conflict (keyed by source path). Overwriting backs the old file up
+    /// (unless it is a secret file) and sends it to the recycle bin, so the whole paste is one undo step.
+    /// </summary>
+    public FileOperationResult Paste(PastePlan plan, IReadOnlyDictionary<string, ConflictChoice> choices)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(choices);
+        lock (_sync)
+        {
+            var verb = plan.IsMove ? "이동" : "붙여넣기";
+            var work = new List<(PastePlanItem Item, string Destination, bool Overwrite)>();
+            foreach (var item in plan.Items)
+            {
+                if (item.Kind == PasteItemKind.AlreadyThere)
+                {
+                    continue;
+                }
+
+                // The plan may be old (a dialog was open): the source must still be what was planned.
+                if (Store.GetEntry(item.Source) is not { } current)
+                {
+                    throw new FileOperationException($"'{Path.GetFileName(item.Source)}'이(가) 더 이상 없습니다: {item.Source}");
+                }
+
+                if (current.IsDirectory != item.IsDirectory
+                    || (current.IsDirectory && (FilePaths.AreSame(plan.TargetDirectory, item.Source) || FilePaths.IsInside(plan.TargetDirectory, item.Source))))
+                {
+                    throw new FileOperationException($"붙여넣는 사이에 항목이 바뀌었습니다. 다시 시도하세요: {item.Source}");
+                }
+
+                var taken = Store.GetEntry(item.Destination) is not null;
+                var choice = item.Kind == PasteItemKind.SameFolder ? ConflictChoice.KeepBoth
+                    : taken ? choices.TryGetValue(item.Source, out var c) && item.Kind == PasteItemKind.Conflict
+                        ? c
+                        : throw new FileOperationException($"붙여넣는 사이에 같은 이름의 항목이 생겼습니다. 다시 시도하세요: {item.Destination}")
+                    : ConflictChoice.KeepBoth;
+                if (choice == ConflictChoice.Skip)
+                {
+                    continue;
+                }
+
+                if (choice == ConflictChoice.Overwrite && !(item.CanOverwrite && Store.GetEntry(item.Destination) is { IsDirectory: false }))
+                {
+                    throw new FileOperationException($"폴더는 덮어쓸 수 없습니다: {item.Destination}");
+                }
+
+                var destination = choice == ConflictChoice.KeepBoth && taken
+                    ? Path.Combine(plan.TargetDirectory, FileNameRules.MakeCopyName(Path.GetFileName(item.Source), item.IsDirectory,
+                        n => Store.GetEntry(Path.Combine(plan.TargetDirectory, n)) is not null || work.Any(w => FilePaths.AreSame(w.Destination, Path.Combine(plan.TargetDirectory, n)))))
+                    : item.Destination;
+                work.Add((item, destination, choice == ConflictChoice.Overwrite));
+            }
+
+            if (work.Count == 0)
+            {
+                return new FileOperationResult(verb, [], []);
+            }
+
+            // Check before changing anything: overwritten files must be recyclable and backed up.
+            foreach (var (_, destination, overwrite) in work.Where(w => w.Overwrite))
+            {
+                if (new RecycleStep(destination).Check(_context) is { } problem)
+                {
+                    throw new FileOperationException(problem);
+                }
+            }
+
+            var warnings = new List<string>();
+            BackupOverwritten(work.Where(w => w.Overwrite).Select(w => w.Destination).ToList(), warnings);
+
+            var description = CountDescription(verb, work.Count);
+            var inverses = new List<FileStep>();
+            var changes = new List<PathChange>();
+            var paths = new List<string>();
+            try
+            {
+                foreach (var (item, destination, overwrite) in work)
+                {
+                    if (overwrite)
+                    {
+                        RunStep(new RecycleStep(destination), inverses, changes, warnings);
+                    }
+
+                    if (plan.IsMove)
+                    {
+                        RunStep(new MoveStep(item.Source, destination), inverses, changes, warnings);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            Store.Copy(item.Source, destination);
+                        }
+                        catch (PartialCopyException partial) when (Store.GetEntry(partial.Destination) is not null)
+                        {
+                            inverses.Insert(0, new RecycleStep(partial.Destination));
+                            changes.Add(new PathChange.Created(partial.Destination));
+                            throw;
+                        }
+
+                        inverses.Insert(0, new RecycleStep(destination));
+                        changes.Add(new PathChange.Created(destination));
+                    }
+
+                    paths.Add(destination);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FileOperationException)
+            {
+                var partial = RecordIfAny(description, inverses);
+                var cause = ex is FileOperationException { InnerException: { } inner } ? inner : ex;
+                throw new FileOperationException(FailureMessage(verb, paths.Count, work.Count, cause), partial, cause) { Changes = changes };
+            }
+
+            History.Record(new FileOperationEntry(description, inverses));
+            return new FileOperationResult(description, paths, warnings) { Changes = changes };
+        }
+    }
+
+    private void RunStep(FileStep step, List<FileStep> inverses, List<PathChange> changes, List<string> warnings)
+    {
+        if (step.Check(_context) is { } problem)
+        {
+            throw new FileOperationException(problem);
+        }
+
+        var inverse = step.Apply(_context);
+        inverses.Insert(0, inverse);
+        changes.Add(ChangeOf(step));
+        if (inverse is RestoreStep { Ticket.CanRestore: false } restore)
+        {
+            warnings.Add($"'{Path.GetFileName(restore.Ticket.OriginalPath)}'은(는) 휴지통에서 위치를 찾지 못해 DotDeck에서 되돌릴 수 없습니다. 백업 목록에서 복원하세요.");
+        }
+    }
+
+    /// <summary>SPEC 6: back up files before they are replaced. Secret files are not copied into backups.</summary>
+    private void BackupOverwritten(IReadOnlyList<string> paths, List<string> warnings)
+    {
+        if (_backups is null || paths.Count == 0)
+        {
+            return;
+        }
+
+        var sources = new List<BackupSource>();
+        foreach (var path in paths)
+        {
+            if (SecretFilePolicy.IsSecret(Path.GetFileName(path)))
+            {
+                warnings.Add($"비밀 파일은 백업하지 않고 휴지통에만 보관했습니다: {path}");
+                continue;
+            }
+
+            try
+            {
+                sources.Add(new BackupSource(path, Store.ReadAllBytes(path)));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                throw new FileOperationException($"덮어쓸 파일을 백업하지 못해 붙여넣지 않았습니다: {path}\n{ex.Message}", innerException: ex);
+            }
+        }
+
+        if (sources.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _backups.Create(sources, "붙여넣기 덮어쓰기");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new FileOperationException($"덮어쓸 파일을 백업하지 못해 붙여넣지 않았습니다.\n{ex.Message}", innerException: ex);
+        }
     }
 
     private void ThrowIfAnyCheckFails(IReadOnlyList<FileStep> steps)
     {
         var problems = new List<string>();
+
+        // Paths an earlier step of this list frees (e.g. undo of an overwrite: recycle the copy, then restore the
+        // original there). Steps that put something there are checked again right before they run (Apply).
+        var freed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var step in steps)
         {
+            var target = step switch { MoveStep m => m.To, RestoreStep r => r.Ticket.OriginalPath, _ => null };
+            var skip = target is not null && freed.Contains(FilePaths.Normalize(target));
+            switch (step)
+            {
+                case RecycleStep recycle:
+                    freed.Add(FilePaths.Normalize(recycle.Path));
+                    break;
+                case MoveStep move:
+                    freed.Add(FilePaths.Normalize(move.From));
+                    break;
+            }
+
+            if (skip)
+            {
+                continue;
+            }
+
             try
             {
                 if (step.Check(_context) is { } problem)

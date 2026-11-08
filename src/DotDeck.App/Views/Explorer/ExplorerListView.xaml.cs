@@ -287,7 +287,7 @@ public partial class ExplorerListView : UserControl
 
         // Drag the whole selection when the pressed row is part of it, otherwise just that row.
         var rows = _pressedRow.IsSelected ? _viewModel.SelectedRows : [_pressedRow];
-        var paths = rows.OfType<NodeRowViewModel>().Where(r => r.IsFileSystemItem).Select(r => r.Node.FullPath!).ToArray();
+        var paths = rows.OfType<NodeRowViewModel>().Where(r => r.IsFileSystemItem).Select(r => r.TargetNode.FullPath!).ToArray();
         _dragStart = null;
         _deferredSelection = false;
         if (paths.Length == 0)
@@ -314,6 +314,14 @@ public partial class ExplorerListView : UserControl
     private void OnTreeDragOver(object sender, DragEventArgs e)
     {
         AutoScroll(e);
+        if (FlatReorder(e) is not null)
+        {
+            e.Effects = DragDropEffects.Move & e.AllowedEffects;
+            SetDropTarget(FindRow(e.OriginalSource));
+            e.Handled = true;
+            return;
+        }
+
         var (paths, folder, row, copy) = Evaluate(e);
         e.Effects = folder is not null && ExplorerListViewModel.CanDrop(paths, folder, copy)
             ? (copy ? DragDropEffects.Copy : DragDropEffects.Move) & e.AllowedEffects
@@ -328,6 +336,13 @@ public partial class ExplorerListView : UserControl
     {
         SetDropTarget(null);
         e.Handled = true;
+        if (FlatReorder(e) is var (explorer, dragged, before) && _viewModel is { } list)
+        {
+            e.Effects = DragDropEffects.Move;
+            Dispatcher.BeginInvoke(() => list.ReorderFlatAsync(explorer, dragged, before));
+            return;
+        }
+
         var (paths, folder, _, copy) = Evaluate(e);
         if (_viewModel is null || folder is null || !ExplorerListViewModel.CanDrop(paths, folder, copy)
             || ((copy ? DragDropEffects.Copy : DragDropEffects.Move) & e.AllowedEffects) == 0)
@@ -341,6 +356,20 @@ public partial class ExplorerListView : UserControl
         // Run after the drag loop has returned, so the source is not blocked by the operation.
         var vm = _viewModel;
         Dispatcher.BeginInvoke(() => vm.DropAsync(paths, folder, copy));
+    }
+
+    /// <summary>A DotDeck drag of flat-view files onto a file of the same flat list sorted by the user's order: reorder.</summary>
+    private static (ExplorerViewModel Explorer, string[] Paths, NodeRowViewModel Before)? FlatReorder(DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(InternalDragFormat) || (e.KeyStates & DragDropKeyStates.ControlKey) != 0
+            || e.Data.GetData(DataFormats.FileDrop) is not string[] paths
+            || FindRow(e.OriginalSource) is not NodeRowViewModel row
+            || ExplorerListViewModel.FlatReorderTarget(paths, row) is not { } explorer)
+        {
+            return null;
+        }
+
+        return (explorer, paths, row);
     }
 
     /// <summary>What a drop at the mouse position would do: dragged paths, target folder, row to highlight, copy?</summary>

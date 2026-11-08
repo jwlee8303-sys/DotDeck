@@ -66,7 +66,6 @@ public static class BuiltinProjects
         Kind = ProjectKind.Builtin,
         Builtin = builtin,
         Name = NameOf(builtin),
-        Filter = ExplorerFilterMode.All,
         Order = order,
     };
 }

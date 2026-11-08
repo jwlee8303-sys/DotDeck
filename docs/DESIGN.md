@@ -207,9 +207,21 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 
 ## 사용자 요청 반영(Phase 4 이후)
 - 단일 클릭 미리보기 제거: 파일은 더블클릭·Enter로만 연다.
-- 보이는 항목: `ProjectDefinition.VisibleItems`(상대 경로). 비어 있으면 전체 표시. 체크한 항목, 체크한 폴더의 하위 전체, 체크한 항목의 상위 폴더가 보인다. 편집 모드에서는 `FolderProjectSource.ShowAllItems`로 전체를 보여 주고, 종료 시 레지스트리에 저장한다.
+- 보이는 항목: 아래 "탐색기 보이는 항목·보기 방식"으로 대체(`VisibleItems`·`filter`는 v1 마이그레이션에서만 읽음).
 - 백업 폴더: `settings.json`의 `BackupDirectory`(없으면 기본 경로). 바꾸면 이후 백업부터 새 폴더에 저장하고 기존 백업은 옮기지 않는다. 환경변수 변경 기록도 같은 폴더를 쓴다.
 - 프로젝트 백업: `ProjectBackup.CreateZip`이 선택한 프로젝트를 `DotDeck-projects-<시각>.zip` 하나로 저장(비밀 파일·링크·제외 폴더·출력 zip 자신 제외).
+
+## 탐색기 보이는 항목·보기 방식 (SPEC 2.3)
+- Core `Explorer/Visibility/`: `VisibilitySettings`(Rules: 상대 키 → Include/Exclude, `DefaultExtensions`(null = 전역 기본값), `ShowAllFiles`, 모르는 키 `Extra`), `ProjectViewSettings`(Mode 기본 Compact, FlatSort, FlatOrder, Pins). 메모리 키는 `\` 구분·루트 `""`·대소문자 무시(`RelativeKey`), 저장은 `/`.
+- `VisibilityEvaluator`: 파일 ① 자기 규칙 ② 확장자(ShowAllFiles 아니면) ③ 가장 가까운 조상 폴더 규칙 ④ 보임. 폴더 상태 = 자기/조상 규칙(없으면 Include). 체크 상태: 자기 상태 + 아래에 반대 규칙이 있으면 Partial. 확장자 때문에만 숨는 파일은 Partial을 만들지 않는다. 생성 시 규칙 아래 플래그를 미리 계산해 판정은 사전 조회와 부모 따라가기만 한다.
+- `VisibilityEditor`: 폴더 토글 = 아래 규칙 삭제 후 상속값과 다르면 자기 규칙, 파일 토글 = 상속값과 다르면 규칙. `PreviewFolder`가 지워질 "직접 체크한 파일" 수를 센다.
+- 보기 방식은 `VisibleProjectSource`(IProjectSource 래퍼)로 구현해 `ExplorerTreeBuilder`·확장 키를 그대로 쓴다. 압축 행의 키는 사슬 마지막 폴더(`NodeInfo.Chain`), 평면 행은 `FlatDirectory`, 고정은 `IsPinned`. "보일 것이 있는 폴더" 판정은 첫 발견에서 멈추고, 아래에 Include가 없는 Exclude 폴더(`IsSubtreeDead`)는 열지 않으며, 항목 예산(20만)을 넘으면 내용이 있다고 보고 상태줄에 알린다. 인스턴스는 한 번의 빌드에만 쓴다(캐시).
+- 편집 모드는 원본 `FolderProjectSource`(제외 폴더만 빠짐)를 쓰고 체크 상태만 계산한다. 펼친 폴더 목록에서 사라진 키를 지우는 일은 원본 목록을 볼 때만 한다(필터된 목록에서 숨은 폴더의 펼침 상태를 잃지 않도록).
+- 파일 작업 결과 `FileOperationResult.Changes`(`PathChange` Moved/Removed/Created, 실행 취소·다시 실행 포함)를 `ExplorerPathRewriter`가 규칙·고정·평면 순서에 반영하고, `VisibilityAutoInclude`가 새 항목을 보이게 한다. App은 모든 폴더 프로젝트에 `ProjectRegistry.UpdateAll` 한 번으로 저장하고 열린 편집 세션에도 같은 변경을 적용한다.
+- 붙여넣기: `PasteTargetResolver`(선택 → 대상 폴더) → `FileOperationService.PlanPaste`(자기·하위 폴더 금지, 다른 드라이브 폴더 이동 금지, 충돌 분류) → 충돌마다 덮어쓰기/둘 다 유지/건너뛰기 → `Paste`(실행 직전 재검증, 덮어쓰기는 파일만: 백업 → 휴지통 → 복사/이동, 기록 1건).
+- `projects.json` schemaVersion 2. v1은 읽을 때 `.v1-<시각>.bak`으로 보존 후 변환(쓰기는 다음 변경 때). 보존하지 못하면 읽기 전용으로 연다. 편집 모드 종료 저장이 실패하면 편집 모드를 유지하고, 앱 종료 때는 레지스트리 게이트(`TryRunNow`, 5초)를 거쳐 저장한다. 잘못된 `visibility`·`view` 값을 가진 항목은 원문 그대로 보존하고 불러오지 않는다.
+- 결정(설계 질문 기본값): 시스템 프로젝트·기타 파일 제외 / 기본 제공 Claude·Codex 포함(v1 `all` → ShowAllFiles) / 제외 폴더 우선 / 자기 Include 폴더는 비어 있어도 표시, 압축 사슬은 그 폴더에서 끝 / 고정 항목은 원래 자리에서 빠지고 고정 파일은 규칙 무시 / 폴더 충돌은 덮어쓰기 불가 / 편집 모드는 끝낼 때·앱 종료 때 저장 / 삭제하면 규칙도 지우고 실행 취소는 항목만 자동 포함(아래 규칙은 복원 안 함) / 다른 프로젝트로 이동하면 원본 프로젝트 규칙은 지우고 대상은 자동 포함 / 앱 밖에서 바꾼 이름의 고아 규칙은 자동 정리하지 않음.
+- 평면 보기 사용자 순서: 같은 프로젝트의 평면 파일을 다른 평면 파일 위에 끌어 놓으면 이동이 아니라 순서 변경(Ctrl을 누르면 복사). 이름순일 때는 기존처럼 그 파일의 폴더로 이동.
 
 ## Claude 파일 역할 판별 (SPEC 7.0, Phase 4 이후)
 - `Core/Roles/FileRoleResolver`: 입력은 절대경로, 출력은 `FileRole`(역할·범위·`.claude` 폴더·기준 루트·편집기·규칙 id·안내). 판별 순서: 관리형 폴더(샌드박스에서는 끔) → 가장 가까운 `.claude`(그 폴더의 규칙만 적용, 부모가 홈이면 전역) → 홈 바로 아래 파일 → 앵커 폴더(`.claude`·`.git`이 있거나 등록된 폴더 프로젝트 루트) 파일 → 모든 폴더 규칙. 파일 시스템은 앵커 확인(`DirectoryExists`)에만 쓴다.

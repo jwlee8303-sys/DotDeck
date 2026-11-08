@@ -3,6 +3,8 @@ using System.IO;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.ViewModels.Dialogs;
 using DotDeck.Core.Explorer;
+using DotDeck.Core.Explorer.Visibility;
+using DotDeck.Core.FileOperations;
 using DotDeck.Core.Logging;
 using DotDeck.Core.Projects;
 
@@ -54,28 +56,134 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
     /// Refreshes every explorer (attached or detached) that shows an involved path, and selects the operation's
     /// first result where it appears. Raised on the UI thread by <see cref="ExplorerFileOperations"/>.
     /// </summary>
-    private async void OnFileOperationCompleted(object? sender, FileOperationCompleted e)
+    private async Task OnFileOperationCompletedAsync(FileOperationCompleted e)
+    {
+        await ApplyPathChangesAsync(e);
+
+        var tasks = new List<Task>();
+        foreach (var explorer in _explorers.ToList())
+        {
+            if (!e.RefreshAll && !e.InvolvedPaths.Any(p => explorer.ContainsPath(p) || IsInside(explorer.Source.RootPath, p)))
+            {
+                continue;
+            }
+
+            var select = e.ResultPaths.FirstOrDefault(explorer.ContainsPath);
+            tasks.Add(explorer.RefreshAfterOperationAsync(select));
+        }
+
+        await Task.WhenAll(tasks);
+    }
+
+    /// <summary>
+    /// SPEC 2.3: visibility rules, pins and the flat order follow renamed, moved and deleted items, and new items
+    /// (created, pasted, duplicated, restored, moved in) become visible. Applied to every folder project in one
+    /// registry change, and to open edit sessions so leaving edit mode does not undo it.
+    /// </summary>
+    private async Task ApplyPathChangesAsync(FileOperationCompleted e)
+    {
+        var appeared = e.Changes
+            .Select(c => c switch
+            {
+                PathChange.Created created => created.Path,
+                PathChange.Moved moved => moved.To,
+                _ => null,
+            })
+            .OfType<string>()
+            .Concat(e.ResultPaths)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (e.Changes.Count == 0 && appeared.Count == 0)
+        {
+            return;
+        }
+
+        // Every folder project, hidden ones too (their rules must follow the paths as well).
+        var roots = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var project in Registry.Projects.Where(p => p.Builtin != BuiltinProject.System))
+        {
+            try
+            {
+                if (ProjectSources.Create(project, _context.Paths, _context.Store).RootPath is { } projectRoot)
+                {
+                    roots[project.Id] = projectRoot;
+                }
+            }
+            catch (ArgumentException)
+            {
+                // A project without a root has nothing to follow.
+            }
+        }
+
+        var global = _context.Preferences.GlobalExtensions;
+        var store = _context.Store;
+        var changes = e.Changes;
+
+        foreach (var explorer in _explorers.Where(x => x.IsEditingVisibility))
+        {
+            explorer.RewriteEditSession(changes, appeared);
+        }
+
+        try
+        {
+            await _context.Registry.RunAsync(r => r.UpdateAll(project =>
+            {
+                if (!roots.TryGetValue(project.Id, out var root))
+                {
+                    return project;
+                }
+
+                var (visibility, view) = ExplorerPathRewriter.Apply(project.Visibility, project.View, root, changes);
+                var extensions = visibility.EffectiveExtensions(global);
+                foreach (var path in appeared)
+                {
+                    if (RelativeKey.FromFullPath(root, path) is not { Length: > 0 } key)
+                    {
+                        continue;
+                    }
+
+                    var isDirectory = store.DirectoryExists(path);
+                    if (!isDirectory && !store.FileExists(path))
+                    {
+                        continue;
+                    }
+
+                    var hasContent = isDirectory ? HasVisibleContent(project, root, visibility, extensions, view, path, key) : (bool?)null;
+                    visibility = VisibilityAutoInclude.EnsureVisible(visibility, extensions, key, isDirectory, hasContent);
+                }
+
+                return visibility.ContentEquals(project.Visibility) && view.ContentEquals(project.View)
+                    ? project
+                    : project with { Visibility = visibility, View = view };
+            }));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectsConflictException or InvalidOperationException)
+        {
+            _context.Log.Warning("표시 규칙을 새 경로에 맞추지 못했습니다.", ex);
+            _context.SetStatus($"표시 규칙을 저장하지 못했습니다: {ex.Message}");
+        }
+    }
+
+    private bool HasVisibleContent(
+        ProjectDefinition project, string root, VisibilitySettings visibility, IReadOnlyList<string> extensions,
+        ProjectViewSettings view, string folder, string key)
     {
         try
         {
-            var tasks = new List<Task>();
-            foreach (var explorer in _explorers.ToList())
+            var all = new FolderProjectSource(project, root, _context.Store);
+            var visible = new VisibleProjectSource(all, _context.Store, new VisibilityEvaluator(visibility, extensions), view, entryBudget: 20_000);
+            return visible.HasVisibleContent(new NodeInfo
             {
-                if (!e.RefreshAll && !e.InvolvedPaths.Any(p => explorer.ContainsPath(p) || IsInside(explorer.Source.RootPath, p)))
-                {
-                    continue;
-                }
-
-                var select = e.ResultPaths.FirstOrDefault(explorer.ContainsPath);
-                tasks.Add(explorer.RefreshAfterOperationAsync(select));
-            }
-
-            await Task.WhenAll(tasks);
+                Id = folder,
+                Kind = NodeKind.Folder,
+                Name = Path.GetFileName(folder),
+                FullPath = folder,
+                RelativePath = key,
+            });
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // async void: never let a refresh failure escape to the dispatcher.
-            _context.Log.Error("파일 작업 후 트리를 새로 고치지 못했습니다.", ex);
+            return true;
         }
     }
 
@@ -104,7 +212,8 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
     {
         _initialized = true;
         Registry.Changed += OnRegistryChanged;
-        _context.FileOps.Completed += OnFileOperationCompleted;
+        _context.FileOps.Completed = OnFileOperationCompletedAsync;
+        _context.Preferences.Changed += OnPreferencesChanged;
         await SyncProjectsAsync();
 
         // Panes prepared for projects that did not come back (removed/hidden meanwhile) are dropped.
@@ -124,6 +233,24 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
         foreach (var explorer in _explorers)
         {
             _savedStates[explorer.Id] = explorer.GetState();
+
+            // An open visibility edit is saved on shutdown too (SPEC 2.3).
+            // Through the gate, after queued changes; the window is closing, so a short wait on the UI thread is fine.
+            if (explorer.PendingVisibility() is { } visibility)
+            {
+                var id = explorer.Id;
+                try
+                {
+                    if (!_context.Registry.TryRunNow(r => r.SetVisibility(id, visibility), TimeSpan.FromSeconds(5)))
+                    {
+                        _context.Log.Warning($"다른 프로젝트 목록 변경이 끝나지 않아 보이는 항목 편집 내용을 저장하지 못했습니다: {explorer.Project.Name}");
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectsConflictException or InvalidOperationException or KeyNotFoundException)
+                {
+                    _context.Log.Warning($"보이는 항목 편집 내용을 저장하지 못했습니다: {explorer.Project.Name}", ex);
+                }
+            }
         }
 
         // Keep hidden projects' state so showing them again restores it; drop removed projects.
@@ -147,9 +274,11 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
             "프로젝트 추가",
             existing: null,
             builtinRoot: null,
-            commit: result => ChangeRegistryForDialogAsync(r => r.AddFolder(result.Name, result.Root, result.Color, result.Filter)),
+            commit: result => ChangeRegistryForDialogAsync(r => r.AddFolder(result.Name, result.Root, result.Color, result.Visibility)),
             pickFolder: initial => _context.Dialogs.PickFolder("프로젝트 폴더 선택", initial),
-            directoryExists: _context.Store.DirectoryExists);
+            directoryExists: _context.Store.DirectoryExists,
+            globalExtensions: _context.Preferences.GlobalExtensions,
+            askKeepRules: AskKeepRules);
         if (_context.Dialogs.ShowProjectDialog(dialog))
         {
             _context.SetStatus($"프로젝트를 추가했습니다: {dialog.Name.Trim()}");
@@ -168,11 +297,43 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
                 project.IsBuiltin ? null : result.Name,
                 project.IsBuiltin ? null : result.Root,
                 result.Color,
-                result.Filter)),
+                result.Visibility)),
             pickFolder: initial => _context.Dialogs.PickFolder("프로젝트 폴더 선택", initial),
-            directoryExists: _context.Store.DirectoryExists);
+            directoryExists: _context.Store.DirectoryExists,
+            globalExtensions: _context.Preferences.GlobalExtensions,
+            askKeepRules: AskKeepRules);
         _context.Dialogs.ShowProjectDialog(dialog);
         return Task.CompletedTask;
+    }
+
+    private KeepRulesChoice AskKeepRules()
+    {
+        var (choice, _) = _context.Dialogs.AskChoice(
+            "기본 확장자 변경",
+            "기본 확장자가 바뀌었습니다. 편집 모드에서 직접 체크·해제한 항목을 어떻게 할까요?",
+            [
+                new DialogChoice("keep", "직접 체크한 항목 유지", IsDefault: true),
+                new DialogChoice("reset", "모두 기본값으로 초기화"),
+                new DialogChoice("cancel", "취소", IsCancel: true),
+            ]);
+        return choice switch
+        {
+            "keep" => KeepRulesChoice.Keep,
+            "reset" => KeepRulesChoice.Reset,
+            _ => KeepRulesChoice.Cancel,
+        };
+    }
+
+    private async void OnPreferencesChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            await Task.WhenAll(_explorers.Where(x => x.Project.Visibility.DefaultExtensions is null).Select(x => x.ReloadForSettingsAsync()));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _context.Log.Error("설정 변경 후 트리를 새로 고치지 못했습니다.", ex);
+        }
     }
 
     public async Task RemoveProjectAsync(ExplorerViewModel explorer)

@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using DotDeck.Core.Explorer.Visibility;
 using DotDeck.Core.Files;
 using DotDeck.Core.Projects;
 using DotDeck.Core.Tests.Support;
@@ -34,7 +35,8 @@ public sealed class ProjectRegistryTests : IDisposable
         Assert.Equal(ProjectRegistryLoadStatus.CreatedDefaults, result.Status);
         Assert.Equal(["builtin.claude", "builtin.codex", "builtin.system"], registry.Projects.Select(p => p.Id));
         Assert.True(File.Exists(FilePath));
-        Assert.All(registry.Projects, p => Assert.Equal(ExplorerFilterMode.All, p.Filter));
+        // New built-ins start from the global default extensions without rules.
+        Assert.All(registry.Projects, p => Assert.Equal(VisibilitySettings.Default, p.Visibility));
     }
 
     [Fact]
@@ -50,7 +52,8 @@ public sealed class ProjectRegistryTests : IDisposable
         Assert.Equal("DotDeck", project.Name);
         Assert.Equal(@"D:\project\DotDeck", project.Root);
         Assert.Equal("#68217A", project.Color);
-        Assert.Equal(ExplorerFilterMode.ConfigDocs, project.Filter);
+        Assert.Null(project.Visibility.DefaultExtensions);
+        Assert.False(project.Visibility.ShowAllFiles);
         Assert.Equal(3, project.Order);
     }
 
@@ -248,7 +251,7 @@ public sealed class ProjectRegistryTests : IDisposable
         registry.Changed += (_, _) => raised++;
 
         registry.AddFolder("A", @"D:\a");
-        registry.SetFilter("builtin.claude", ExplorerFilterMode.ConfigDocs);
+        registry.SetVisibility("builtin.claude", new VisibilitySettings { ShowAllFiles = true });
 
         Assert.Equal(2, raised);
     }
@@ -284,7 +287,7 @@ public sealed class ProjectRegistryTests : IDisposable
         var a = registry.AddFolder("A", @"D:\a");
         registry.AddFolder("B", @"D:\b");
 
-        var updated = registry.Update(a.Id, " A2 ", @"D:\a2\", "#00ff00", ExplorerFilterMode.All);
+        var updated = registry.Update(a.Id, " A2 ", @"D:\a2\", "#00ff00", new VisibilitySettings { ShowAllFiles = true });
 
         Assert.Equal("A2", updated.Name);
         Assert.Equal(@"D:\a2", updated.Root);
@@ -292,22 +295,23 @@ public sealed class ProjectRegistryTests : IDisposable
         Assert.Equal(updated, LoadNew().Find(a.Id));
 
         // Root clashes with B: name and color must not be saved either.
-        Assert.Throws<ArgumentException>(() => registry.Update(a.Id, "A3", @"D:\b", null, ExplorerFilterMode.All));
+        Assert.Throws<ArgumentException>(() => registry.Update(a.Id, "A3", @"D:\b", null, VisibilitySettings.Default));
         Assert.Equal(updated, LoadNew().Find(a.Id));
     }
 
     [Fact]
-    public void Update_of_builtin_accepts_only_color_and_filter()
+    public void Update_of_builtin_accepts_only_color_and_visibility()
     {
         var registry = LoadNew();
+        var visibility = new VisibilitySettings { DefaultExtensions = [".md"] };
 
-        registry.Update("builtin.claude", null, null, "#123456", ExplorerFilterMode.ConfigDocs);
+        registry.Update("builtin.claude", null, null, "#123456", visibility);
 
         var claude = LoadNew().Find("builtin.claude")!;
         Assert.Equal("#123456", claude.Color);
-        Assert.Equal(ExplorerFilterMode.ConfigDocs, claude.Filter);
-        Assert.Throws<InvalidOperationException>(() => registry.Update("builtin.claude", "X", null, null, ExplorerFilterMode.All));
-        Assert.Throws<InvalidOperationException>(() => registry.Update("builtin.claude", null, @"D:\x", null, ExplorerFilterMode.All));
+        Assert.Equal(visibility, claude.Visibility);
+        Assert.Throws<InvalidOperationException>(() => registry.Update("builtin.claude", "X", null, null, VisibilitySettings.Default));
+        Assert.Throws<InvalidOperationException>(() => registry.Update("builtin.claude", null, @"D:\x", null, VisibilitySettings.Default));
     }
 
     [Fact]
@@ -431,6 +435,8 @@ public sealed class ProjectRegistryTests : IDisposable
     [InlineData("\"excludedFolders\": { \"x\": 1 }")]
     [InlineData("\"hidden\": \"yes\"")]
     [InlineData("\"order\": \"first\"")]
+    [InlineData("\"visibility\": { \"rules\": { \"a\": \"maybe\" } }")]
+    [InlineData("\"view\": { \"mode\": \"grid\" }")]
     public void Entry_with_unsupported_known_field_value_is_preserved_verbatim(string field)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
@@ -478,7 +484,7 @@ public sealed class ProjectRegistryTests : IDisposable
             [project], [], new JsonObject { ["schemaVersion"] = 99, ["note"] = "x" }));
 
         var root = JsonNode.Parse(json)!.AsObject();
-        Assert.Equal(1, (int)root["schemaVersion"]!);
+        Assert.Equal(ProjectsFileSerializer.SchemaVersion, (int)root["schemaVersion"]!);
         Assert.Equal("x", (string?)root["note"]);
         var entry = root["projects"]![0]!;
         Assert.Equal(@"D:\a", (string?)entry["root"]);

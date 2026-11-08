@@ -30,6 +30,12 @@ public interface IDialogService
     /// <summary>Shows the backup list of a file. True when the user chose a backup to restore.</summary>
     bool ShowBackupRestore(BackupRestoreViewModel viewModel);
 
+    /// <summary>
+    /// Asks a question with several answers (<paramref name="applyToAllLabel"/> adds a check box). Returns the chosen
+    /// <see cref="DialogChoice.Id"/> (null when the window was closed) and whether the check box was checked.
+    /// </summary>
+    (string? Choice, bool ApplyToAll) AskChoice(string title, string message, IReadOnlyList<DialogChoice> choices, string? applyToAllLabel = null);
+
     /// <summary>Shows an informational message.</summary>
     void ShowInfo(string title, string message);
 

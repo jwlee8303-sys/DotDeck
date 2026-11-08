@@ -21,6 +21,12 @@ public sealed record AppSettings
     /// <summary>Last folder used by "project backup" (remembered for the next time).</summary>
     public string? ProjectBackupDirectory { get; init; }
 
+    /// <summary>
+    /// Global default file extensions of the explorer (projects that did not choose their own list use these);
+    /// null means the "설정·문서" preset.
+    /// </summary>
+    public IReadOnlyList<string>? DefaultExtensions { get; init; }
+
     /// <summary>Clamps out-of-range values (hand-edited files) to safe ones.</summary>
     public AppSettings Normalize() => this with
     {
@@ -29,6 +35,7 @@ public sealed record AppSettings
         BackupRetention = Math.Clamp(BackupRetention, 1, 1000),
         BackupDirectory = FullOrNull(BackupDirectory),
         ProjectBackupDirectory = FullOrNull(ProjectBackupDirectory),
+        DefaultExtensions = DefaultExtensions is null ? null : Explorer.Visibility.ExtensionRules.NormalizeAll(DefaultExtensions),
     };
 
     private static string? FullOrNull(string? path) =>

@@ -1,4 +1,5 @@
 using DotDeck.Core.Explorer;
+using DotDeck.Core.Explorer.Visibility;
 using DotDeck.Core.Projects;
 
 namespace DotDeck.Core.Tests.Explorer;
@@ -89,12 +90,19 @@ public sealed class SecretAndFilterTests
     [InlineData("Tools.psm1")]
     [InlineData(".gitignore")]
     [InlineData(".editorconfig")]
+    public void Migrated_configDocs_list_keeps_config_and_documents(string name)
+    {
+        Assert.True(ExtensionRules.Matches(name, ProjectsFileSerializer.LegacyConfigDocsExtensions));
+    }
+
+    /// <summary>Spec change (SPEC 2.3): extension-less dotfiles and .env* are no longer shown by default; check them one by one.</summary>
+    [Theory]
     [InlineData(".npmrc")]
     [InlineData(".env")]
     [InlineData(".env.example")]
-    public void ConfigDocs_filter_shows_config_and_documents(string name)
+    public void Migrated_configDocs_list_no_longer_shows_other_dotfiles(string name)
     {
-        Assert.True(ExplorerFilter.IsFileVisible(name, ExplorerFilterMode.ConfigDocs));
+        Assert.False(ExtensionRules.Matches(name, ProjectsFileSerializer.LegacyConfigDocsExtensions));
     }
 
     [Theory]
@@ -104,17 +112,18 @@ public sealed class SecretAndFilterTests
     [InlineData("App.targets")]
     [InlineData(".eslintrc.cjs")]
     [InlineData("cert.pem")]
-    public void ConfigDocs_filter_hides_other_files(string name)
+    public void Migrated_configDocs_list_hides_other_files(string name)
     {
-        Assert.False(ExplorerFilter.IsFileVisible(name, ExplorerFilterMode.ConfigDocs));
+        Assert.False(ExtensionRules.Matches(name, ProjectsFileSerializer.LegacyConfigDocsExtensions));
     }
 
     [Theory]
     [InlineData("photo.png")]
     [InlineData("Makefile")]
     [InlineData("cert.pem")]
-    public void All_filter_shows_everything(string name)
+    public void Show_all_files_passes_every_name(string name)
     {
-        Assert.True(ExplorerFilter.IsFileVisible(name, ExplorerFilterMode.All));
+        var evaluator = new VisibilityEvaluator(new VisibilitySettings { ShowAllFiles = true }, ExtensionRules.ConfigDocsPreset);
+        Assert.True(evaluator.IsFileVisible(name));
     }
 }

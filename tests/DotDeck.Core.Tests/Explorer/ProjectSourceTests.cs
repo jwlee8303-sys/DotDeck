@@ -1,4 +1,5 @@
 using DotDeck.Core.Explorer;
+using DotDeck.Core.Explorer.Visibility;
 using DotDeck.Core.Files;
 using DotDeck.Core.Paths;
 using DotDeck.Core.Projects;
@@ -12,14 +13,12 @@ public sealed class ProjectSourceTests : IDisposable
 
     public void Dispose() => _temp.Dispose();
 
-    private static ProjectDefinition Folder(string root, ExplorerFilterMode filter = ExplorerFilterMode.All,
-        IReadOnlyList<string>? excluded = null) => new()
+    private static ProjectDefinition Folder(string root, IReadOnlyList<string>? excluded = null) => new()
     {
         Id = "p1",
         Kind = ProjectKind.Folder,
         Name = "P",
         Root = root,
-        Filter = filter,
         ExcludedFolders = excluded,
     };
 
@@ -45,17 +44,20 @@ public sealed class ProjectSourceTests : IDisposable
     }
 
     [Fact]
-    public void ConfigDocs_filter_hides_files_but_keeps_folders()
+    public void Default_extensions_hide_other_files_and_folders_without_visible_files()
     {
         Touch("CLAUDE.md");
         Touch("photo.png");
         Touch("assets", "logo.png");
-        var source = new FolderProjectSource(Folder(_temp.Path, ExplorerFilterMode.ConfigDocs), _temp.Path, PhysicalFileStore.Instance);
+        var all = new FolderProjectSource(Folder(_temp.Path), _temp.Path, PhysicalFileStore.Instance);
+        var source = new VisibleProjectSource(all, PhysicalFileStore.Instance,
+            new VisibilityEvaluator(VisibilitySettings.Default, ExtensionRules.ConfigDocsPreset), new ProjectViewSettings { Mode = ExplorerViewMode.Tree });
 
         var root = source.GetChildren(null);
 
-        Assert.Equal(["assets", "CLAUDE.md"], root.Select(n => n.Name));
-        Assert.Empty(source.GetChildren(root[0]));
+        // Spec change (SPEC 2.3): a folder with nothing to show is hidden (it used to stay visible and empty).
+        Assert.Equal(["CLAUDE.md"], root.Select(n => n.Name));
+        Assert.Equal(["assets", "CLAUDE.md", "photo.png"], all.GetChildren(null).Select(n => n.Name));
     }
 
     [Fact]

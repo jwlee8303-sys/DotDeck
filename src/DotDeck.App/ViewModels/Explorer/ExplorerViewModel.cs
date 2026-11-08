@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.Services;
 using DotDeck.Core.Explorer;
+using DotDeck.Core.Explorer.Visibility;
+using DotDeck.Core.FileOperations;
 using DotDeck.Core.Files;
 using DotDeck.Core.Logging;
 using DotDeck.Core.Paths;
@@ -23,6 +25,7 @@ public sealed record ExplorerContext(
     IAppLog Log,
     Action<string> SetStatus,
     IFolderWatcherFactory Watchers,
+    ExplorerPreferences Preferences,
     Func<string, bool, Task> OpenFile,
     Action<string>? OpenSystemNode = null,
     Func<Task>? RegisterOtherFile = null,
@@ -113,18 +116,24 @@ public sealed partial class ExplorerViewModel : ObservableObject
         var old = Project;
         Project = project;
         ApplyHeader();
-        var treeChanged = old.Filter != project.Filter
-            || !string.Equals(old.Root, project.Root, StringComparison.OrdinalIgnoreCase)
-            || !SameList(old.ExcludedFolders, project.ExcludedFolders)
-            || !SameList(old.VisibleItems, project.VisibleItems);
-        if (treeChanged)
+        var sourceChanged = !string.Equals(old.Root, project.Root, StringComparison.OrdinalIgnoreCase)
+            || !SameList(old.ExcludedFolders, project.ExcludedFolders);
+        var treeChanged = sourceChanged
+            || !old.Visibility.ContentEquals(project.Visibility)
+            || !old.View.ContentEquals(project.View);
+        if (sourceChanged)
         {
             Source = ProjectSources.Create(project, _context.Paths, _context.Store);
-            if (IsEditingVisibility && Source is FolderProjectSource folder)
-            {
-                folder.ShowAllItems = true;
-            }
+        }
 
+        // An open edit session keeps its (unsaved) checks; extension settings changed elsewhere apply to it.
+        if (_editor is not null && !old.Visibility.ContentEquals(project.Visibility))
+        {
+            _editor = new VisibilityEditor(project.Visibility with { Rules = _editor.Current.Rules }, Extensions);
+        }
+
+        if (treeChanged)
+        {
             ApplyHeader();
             await LoadAsync();
         }
@@ -145,10 +154,11 @@ public sealed partial class ExplorerViewModel : ObservableObject
         try
         {
             TreeBuildResult result;
+            IProjectSource source;
             while (true)
             {
                 var expanded = new HashSet<string>(_expanded, ExplorerTreeBuilder.KeyComparer);
-                var source = Source;
+                source = BuildSource();
                 result = await Task.Run(() => ExplorerTreeBuilder.Build(source, expanded));
                 if (version != _loadVersion)
                 {
@@ -193,8 +203,18 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 _pendingSelectionKey = selected.Key;
             }
 
-            _expanded.ExceptWith(result.StaleExpandedKeys);
-            ReplaceBody(CreateBody(result));
+            // A filtered layout does not list every folder: only an unfiltered listing tells which keys are gone.
+            if (source is not VisibleProjectSource)
+            {
+                _expanded.ExceptWith(result.StaleExpandedKeys);
+            }
+
+            ReplaceBody(CreateBody(result, source is VisibleProjectSource));
+            if (source is VisibleProjectSource { IsTruncated: true })
+            {
+                _context.SetStatus($"{Project.Name}: 항목이 너무 많아 일부 폴더는 내용을 확인하지 않고 표시했습니다.");
+            }
+
             RestoreSelection();
             UpdateWatcher();
         }
@@ -267,9 +287,13 @@ public sealed partial class ExplorerViewModel : ObservableObject
     /// Inserts a row for typing a new item's name inside <paramref name="parent"/> (a folder row, or null for the
     /// project root). The folder is expanded first so the new row appears among its children.
     /// </summary>
-    public async Task<NewItemRowViewModel?> BeginNewItemAsync(NodeRowViewModel? parent, bool isFolder)
+    /// <param name="sibling">
+    /// A row the placeholder goes right after when <paramref name="directory"/> has no row of its own (a file of the
+    /// flat view, a pinned file, a folder inside a merged compact row).
+    /// </param>
+    public async Task<NewItemRowViewModel?> BeginNewItemAsync(NodeRowViewModel? parent, bool isFolder, string? directory = null, NodeRowViewModel? sibling = null)
     {
-        var directory = parent?.Node.FullPath ?? Source.RootPath;
+        directory ??= parent?.TargetNode.FullPath ?? Source.RootPath;
         // Off the UI thread: a disconnected network folder can block for a long time.
         var store = _context.Store;
         if (directory is null || !await Task.Run(() => store.DirectoryExists(directory)))
@@ -298,7 +322,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
             Rows.Remove(pending);
         }
 
-        var anchor = parent is null ? Rows.IndexOf(Header) : Rows.IndexOf(parent);
+        var anchor = sibling is not null && Rows.IndexOf(sibling) is >= 0 and var at ? at
+            : parent is null ? Rows.IndexOf(Header) : Rows.IndexOf(parent);
         if (anchor < 0)
         {
             return null;
@@ -310,7 +335,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
             Rows.Remove(message);
         }
 
-        var row = new NewItemRowViewModel(this, parent is null ? 0 : parent.Depth + 1, directory, isFolder);
+        var depth = sibling is not null ? sibling.Depth : parent is null ? 0 : parent.Depth + 1;
+        var row = new NewItemRowViewModel(this, depth, directory, isFolder);
         Rows.Insert(anchor + 1, row);
         List.Select(row);
         List.RequestEditorFocus(row);
@@ -355,14 +381,18 @@ public sealed partial class ExplorerViewModel : ObservableObject
         {
             var expanded = new HashSet<string>(_expanded, ExplorerTreeBuilder.KeyComparer);
             var stale = new HashSet<string>(ExplorerTreeBuilder.KeyComparer);
-            var source = Source;
+            var source = BuildSource();
             var children = await Task.Run(() => ExplorerTreeBuilder.BuildChildren(source, row.Node, row.Depth, expanded, stale));
             if (version != _loadVersion || row.IsExpanded || Rows.IndexOf(row) is var index && index < 0)
             {
                 return;
             }
 
-            _expanded.ExceptWith(stale);
+            if (source is not VisibleProjectSource)
+            {
+                _expanded.ExceptWith(stale);
+            }
+
             row.Error = null;
             row.IsExpanded = true;
             row.IsKnownEmpty = children.Count == 0;
@@ -439,14 +469,6 @@ public sealed partial class ExplorerViewModel : ObservableObject
         {
             Collapse(row);
         }
-    }
-
-    [RelayCommand]
-    private Task ToggleFilterAsync()
-    {
-        var next = Project.Filter == ExplorerFilterMode.All ? ExplorerFilterMode.ConfigDocs : ExplorerFilterMode.All;
-        var id = Project.Id;
-        return _owner.ChangeRegistryAsync(r => r.SetFilter(id, next));
     }
 
     // Project management (header context menu); the project area owns dialogs and ordering.
@@ -677,10 +699,13 @@ public sealed partial class ExplorerViewModel : ObservableObject
         Header.Name = Project.Name;
         Header.Color = Project.Color;
         Header.RootPath = Source?.RootPath;
-        Header.IsConfigDocsFilter = Project.Filter == ExplorerFilterMode.ConfigDocs;
+        OnPropertyChanged(nameof(IsTreeMode));
+        OnPropertyChanged(nameof(IsCompactMode));
+        OnPropertyChanged(nameof(IsFlatMode));
+        OnPropertyChanged(nameof(IsCustomFlatSort));
     }
 
-    private List<ExplorerRowViewModel> CreateBody(TreeBuildResult result)
+    private List<ExplorerRowViewModel> CreateBody(TreeBuildResult result, bool filtered)
     {
         if (result.RootState == ProjectRootState.Missing)
         {
@@ -694,7 +719,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
         if (result.Rows.Count == 0)
         {
-            return [new MessageRowViewModel(this, Project.Filter == ExplorerFilterMode.ConfigDocs ? "(표시할 설정·문서 파일 없음)" : "(비어 있음)")];
+            return [filtered
+                ? new MessageRowViewModel(this, "(보이는 항목 없음)", actionText: "보일 항목 고르기", action: ToggleVisibilityEditCommand)
+                : new MessageRowViewModel(this, "(비어 있음)")];
         }
 
         return [.. result.Rows.Select(CreateNodeRow)];
@@ -702,66 +729,297 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
     private NodeRowViewModel CreateNodeRow(TreeRow row) => new(this, row.Node, row.Depth, row.IsExpanded, row.Error)
     {
-        ShowsVisibilityCheck = IsEditingVisibility && row.Node.RelativePath is not null,
-        IsVisibilityChecked = IsEditingVisibility && row.Node.RelativePath is { } relative && _checkedItems.Contains(relative),
+        CheckState = _editor is not null && row.Node.RelativePath is { } key ? _editor.Evaluator.CheckStateOf(key, row.Node.Kind == NodeKind.Folder) : null,
     };
 
-    private readonly HashSet<string> _checkedItems = new(StringComparer.OrdinalIgnoreCase);
+    // ===== Visibility (SPEC 2.3) =====
 
-    /// <summary>
-    /// Visibility edit mode (folder projects): every file and folder is listed with a check box; leaving the mode
-    /// saves the checked items and shows only them (a checked folder shows its whole content).
-    /// </summary>
+    private VisibilityEditor? _editor;
+
+    /// <summary>Edit mode (✎): every item is listed with a three-state check box; leaving it saves the checks.</summary>
     [ObservableProperty]
     private bool _isEditingVisibility;
 
-    public bool CanEditVisibility => Source is FolderProjectSource;
+    /// <summary>Folder projects (the built-in Claude/Codex ones too) have visibility rules and layouts; the System project does not.</summary>
+    public bool SupportsVisibility => Source is FolderProjectSource;
 
-    internal void SetVisibilityChecked(string relativePath, bool isChecked)
+    public bool IsTreeMode => SupportsVisibility && Project.View.Mode == ExplorerViewMode.Tree;
+
+    public bool IsCompactMode => SupportsVisibility && Project.View.Mode == ExplorerViewMode.Compact;
+
+    public bool IsFlatMode => SupportsVisibility && Project.View.Mode == ExplorerViewMode.Flat;
+
+    public bool IsCustomFlatSort => Project.View.FlatSort == FlatSort.Custom;
+
+    /// <summary>The extensions in effect for this project (its own list or the global default).</summary>
+    public IReadOnlyList<string> Extensions => Project.Visibility.EffectiveExtensions(_context.Preferences.GlobalExtensions);
+
+    /// <summary>Normal mode: a fresh filtered layout per build (it caches listings); edit mode and the System project: everything.</summary>
+    private IProjectSource BuildSource()
     {
-        if (isChecked)
+        var source = Source;
+        if (source is not FolderProjectSource || _editor is not null)
         {
-            _checkedItems.Add(relativePath);
+            return source;
         }
-        else
+
+        return new VisibleProjectSource(source, _context.Store, new VisibilityEvaluator(Project.Visibility, Extensions), Project.View);
+    }
+
+    /// <summary>The unsaved edit-mode rules (for saving on shutdown), or null.</summary>
+    public VisibilitySettings? PendingVisibility() =>
+        _editor?.Current is { } current && !current.ContentEquals(Project.Visibility) ? current : null;
+
+    /// <summary>A file operation renamed, moved or deleted items: the open edit session follows (like the saved rules).</summary>
+    /// <param name="appeared">New items (created, pasted, moved in): kept visible after the session is saved.</param>
+    public void RewriteEditSession(IReadOnlyList<PathChange> changes, IReadOnlyList<string> appeared)
+    {
+        if (_editor is null || Source.RootPath is not { } root)
         {
-            _checkedItems.Remove(relativePath);
+            return;
         }
+
+        var (visibility, _) = ExplorerPathRewriter.Apply(_editor.Current, Project.View, root, changes);
+        foreach (var path in appeared)
+        {
+            if (RelativeKey.FromFullPath(root, path) is { Length: > 0 } key)
+            {
+                var isDirectory = _context.Store.DirectoryExists(path);
+                visibility = VisibilityAutoInclude.EnsureVisible(visibility, Extensions, key, isDirectory);
+            }
+        }
+
+        _editor = new VisibilityEditor(visibility, Extensions);
+    }
+
+    /// <summary>The global default extensions changed.</summary>
+    public async Task ReloadForSettingsAsync()
+    {
+        if (_editor is not null)
+        {
+            _editor = new VisibilityEditor(_editor.Current, Extensions);
+        }
+
+        await LoadAsync();
     }
 
     [RelayCommand]
     private async Task ToggleVisibilityEditAsync()
     {
-        if (Source is not FolderProjectSource folder)
+        if (!SupportsVisibility)
         {
             return;
         }
 
-        if (!IsEditingVisibility)
+        if (_editor is null)
         {
-            _checkedItems.Clear();
-            _checkedItems.UnionWith(Project.VisibleItems ?? []);
+            _editor = new VisibilityEditor(Project.Visibility, Extensions);
             IsEditingVisibility = true;
-            folder.ShowAllItems = true;
+            Header.CheckState = _editor.Evaluator.CheckStateOf(string.Empty, isDirectory: true);
             Header.IsCollapsed = false;
-            _context.SetStatus($"{Project.Name}: 보일 파일·폴더를 체크한 뒤 '보이는 항목 편집 끝내기'를 누르세요. 아무것도 체크하지 않으면 모두 보입니다.");
+            _context.SetStatus($"{Project.Name}: 보일 파일·폴더를 체크하세요. 흐린 항목은 숨겨집니다. ✎를 다시 누르면 저장하고 끝납니다.");
             await LoadAsync();
             return;
         }
 
-        IsEditingVisibility = false;
-        folder.ShowAllItems = false;
-        var items = _checkedItems.ToList();
-        if (SameList(Project.VisibleItems, items.Count == 0 ? null : items))
+        await EndVisibilityEditAsync();
+    }
+
+    private async Task EndVisibilityEditAsync()
+    {
+        if (_editor is not { } editor)
         {
-            await LoadAsync();
-        }
-        else if (!await _owner.ChangeRegistryAsync(r => r.SetVisibleItems(Id, items)))
-        {
-            await LoadAsync();
+            return;
         }
 
-        _context.SetStatus(items.Count == 0 ? $"{Project.Name}: 모든 항목을 표시합니다." : $"{Project.Name}: 체크한 {items.Count}개 항목만 표시합니다.");
+        var settings = editor.Current;
+        if (!settings.ContentEquals(Project.Visibility))
+        {
+            var id = Id;
+            if (!await _owner.ChangeRegistryAsync(r => r.SetVisibility(id, settings)))
+            {
+                // Not saved (status shows why): stay in edit mode so the checks are not lost.
+                return;
+            }
+        }
+
+        // A file operation rewrote the session while saving: save that version too.
+        if (_editor != editor)
+        {
+            await EndVisibilityEditAsync();
+            return;
+        }
+
+        _editor = null;
+        IsEditingVisibility = false;
+        Header.CheckState = null;
+        await LoadAsync();
+        _context.SetStatus($"{Project.Name}: 보이는 항목을 저장했습니다.");
+    }
+
+    /// <summary>Check box click: checked → unchecked; unchecked or partial → checked.</summary>
+    [RelayCommand]
+    private void ToggleCheck(ExplorerRowViewModel? row)
+    {
+        if (_editor is not { } editor || Source.RootPath is not { } root)
+        {
+            return;
+        }
+
+        string key;
+        bool isFolder;
+        switch (row)
+        {
+            case ProjectHeaderRowViewModel:
+                key = string.Empty;
+                isFolder = true;
+                break;
+            case NodeRowViewModel { Node.RelativePath: { } relative } node:
+                key = relative;
+                isFolder = node.IsFolder;
+                break;
+            default:
+                return;
+        }
+
+        var check = editor.Evaluator.CheckStateOf(key, isFolder) != CheckState.Checked;
+        if (isFolder)
+        {
+            var impact = editor.PreviewFolder(key, k => _context.Store.DirectoryExists(Path.Combine(root, k)));
+            if (impact.ClearedDirectFiles > 0
+                && !_context.Dialogs.Confirm("보이는 항목", $"직접 체크한 파일 {impact.ClearedDirectFiles}개도 해제됩니다. 계속할까요?"))
+            {
+                return;
+            }
+
+            editor.SetFolder(key, check);
+        }
+        else
+        {
+            editor.SetFile(key, check);
+        }
+
+        RefreshChecks();
+    }
+
+    private void RefreshChecks()
+    {
+        if (_editor is not { } editor)
+        {
+            return;
+        }
+
+        var evaluator = editor.Evaluator;
+        Header.CheckState = evaluator.CheckStateOf(string.Empty, isDirectory: true);
+        foreach (var node in BodyRows.OfType<NodeRowViewModel>())
+        {
+            if (node.Node.RelativePath is { } key)
+            {
+                node.CheckState = evaluator.CheckStateOf(key, node.IsFolder);
+            }
+        }
+    }
+
+    [RelayCommand]
+    private Task SetViewModeAsync(string? mode)
+    {
+        if (!SupportsVisibility || !Enum.TryParse<ExplorerViewMode>(mode, ignoreCase: true, out var next) || next == Project.View.Mode)
+        {
+            return Task.CompletedTask;
+        }
+
+        var id = Id;
+        var view = Project.View with { Mode = next };
+        return _owner.ChangeRegistryAsync(r => r.SetView(id, view));
+    }
+
+    [RelayCommand]
+    private Task SetFlatSortAsync(string? sort)
+    {
+        if (!Enum.TryParse<FlatSort>(sort, ignoreCase: true, out var next) || next == Project.View.FlatSort)
+        {
+            return Task.CompletedTask;
+        }
+
+        var id = Id;
+        var view = Project.View with { FlatSort = next };
+        return _owner.ChangeRegistryAsync(r => r.SetView(id, view));
+    }
+
+    public bool IsPinned(NodeInfo node) => node.RelativePath is { Length: > 0 } key && Project.View.IsPinned(key);
+
+    /// <summary>"최상위에 고정/해제": pinned items come first in every layout (SPEC 2.3).</summary>
+    public Task TogglePinAsync(NodeInfo node)
+    {
+        if (!SupportsVisibility || node.RelativePath is not { Length: > 0 } key)
+        {
+            return Task.CompletedTask;
+        }
+
+        var pins = Project.View.IsPinned(key)
+            ? Project.View.Pins.Where(p => !RelativeKey.Comparer.Equals(p, key)).ToList()
+            : [.. Project.View.Pins, key];
+        var id = Id;
+        var view = Project.View with { Pins = pins };
+        return _owner.ChangeRegistryAsync(r => r.SetView(id, view));
+    }
+
+    /// <summary>
+    /// Flat view with the user's order: puts <paramref name="moved"/> before <paramref name="before"/> (null: at the end).
+    /// Files not in the stored order keep their name order after it.
+    /// </summary>
+    public Task ReorderFlatAsync(IReadOnlyList<string> moved, string? before)
+    {
+        if (Source.RootPath is not { } root)
+        {
+            return Task.CompletedTask;
+        }
+
+        var movedKeys = moved.Select(p => RelativeKey.FromFullPath(root, p)).OfType<string>().Where(k => k.Length > 0).ToList();
+        if (movedKeys.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        // Start from what is shown now, so the drop lands where the user saw it.
+        var shown = BodyRows.OfType<NodeRowViewModel>()
+            .Where(r => r.Depth == 0 && !r.IsFolder && !r.Node.IsPinned && r.Node.RelativePath is not null)
+            .Select(r => r.Node.RelativePath!)
+            .ToList();
+        var order = shown.Where(k => !movedKeys.Contains(k, RelativeKey.Comparer)).ToList();
+        var beforeKey = before is null ? null : RelativeKey.FromFullPath(root, before);
+        var index = beforeKey is null ? -1 : order.FindIndex(k => RelativeKey.Comparer.Equals(k, beforeKey));
+        order.InsertRange(index < 0 ? order.Count : index, movedKeys);
+
+        // Keep stored keys of files that are not shown right now (other folders hidden meanwhile) after the shown ones.
+        order.AddRange(Project.View.FlatOrder.Where(k => !order.Contains(k, RelativeKey.Comparer)));
+        var id = Id;
+        var view = Project.View with { FlatSort = FlatSort.Custom, FlatOrder = order };
+        return _owner.ChangeRegistryAsync(r => r.SetView(id, view));
+    }
+
+    /// <summary>"트리에서 위치 보기": the full tree of edit mode, with the item expanded to and selected.</summary>
+    public async Task RevealInTreeAsync(NodeInfo node)
+    {
+        if (!SupportsVisibility || node.RelativePath is not { } key)
+        {
+            return;
+        }
+
+        for (var parent = RelativeKey.Parent(key); !string.IsNullOrEmpty(parent); parent = RelativeKey.Parent(parent))
+        {
+            _expanded.Add(parent);
+        }
+
+        _selectionOverride = key.Length == 0 ? null : key;
+        if (_editor is null)
+        {
+            await ToggleVisibilityEditAsync();
+        }
+        else
+        {
+            await LoadAsync();
+        }
     }
 
     private void RestoreSelection()
@@ -773,10 +1031,34 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
         var row = BodyRows.OfType<NodeRowViewModel>().FirstOrDefault(r => ExplorerTreeBuilder.KeyComparer.Equals(r.Key, key));
         _pendingSelectionKey = null;
+        if (row is null && FindChainRow(key) is { } found)
+        {
+            found.Row.ActiveSegment = found.Segment;
+            row = found.Row;
+        }
+
         if (row is not null)
         {
             List.RequestSelection(this, row);
         }
+    }
+
+    /// <summary>A merged compact row containing the folder <paramref name="key"/> (not as its last part).</summary>
+    private (NodeRowViewModel Row, int Segment)? FindChainRow(string key)
+    {
+        foreach (var row in BodyRows.OfType<NodeRowViewModel>())
+        {
+            if (row.Node.Chain is { } chain)
+            {
+                var index = chain.ToList().FindIndex(n => n.RelativePath is { } k && ExplorerTreeBuilder.KeyComparer.Equals(k, key));
+                if (index >= 0 && index < chain.Count - 1)
+                {
+                    return (row, index);
+                }
+            }
+        }
+
+        return null;
     }
 
     private void ReplaceBody(IReadOnlyList<ExplorerRowViewModel> body)

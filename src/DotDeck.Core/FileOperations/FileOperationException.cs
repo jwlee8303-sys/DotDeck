@@ -11,4 +11,7 @@ public sealed class FileOperationException : Exception
 
     /// <summary>Some items were processed before the failure; that part is in the history and can be undone.</summary>
     public bool PartiallyCompleted { get; }
+
+    /// <summary>What the processed part changed on disk (so rules and tabs can follow it).</summary>
+    public IReadOnlyList<PathChange> Changes { get; init; } = [];
 }

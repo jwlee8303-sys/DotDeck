@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using DotDeck.Core.Explorer.Visibility;
 using DotDeck.Core.Files;
 using DotDeck.Core.Logging;
 
@@ -131,6 +132,8 @@ public sealed partial class ProjectRegistry
             }
 
             var content = ProjectsFileSerializer.Parse(text);
+            var preserved = content.FileVersion >= ProjectsFileSerializer.SchemaVersion || PreserveOldSchema(text, content.FileVersion);
+
             _lastKnownText = text;
             _projects = Normalize(EnsureBuiltins(content.Projects));
             _unrecognized = content.UnrecognizedEntries;
@@ -138,6 +141,15 @@ public sealed partial class ProjectRegistry
             if (_unrecognized.Count > 0)
             {
                 _log.Warning($"projects.json에서 해석할 수 없는 항목 {_unrecognized.Count}개는 그대로 보존합니다.");
+            }
+
+            if (!preserved)
+            {
+                // Saving would replace the only copy of the old format: show it, but never write it.
+                IsReadOnly = true;
+                return new ProjectRegistryLoadResult(
+                    ProjectRegistryLoadStatus.ReadOnlyUnreadable,
+                    $"이전 형식(v{content.FileVersion})의 프로젝트 목록을 백업하지 못해 읽기 전용으로 엽니다. 변경 사항은 저장하지 않습니다.\n{_filePath}");
             }
 
             return new ProjectRegistryLoadResult(ProjectRegistryLoadStatus.Loaded);
@@ -175,7 +187,8 @@ public sealed partial class ProjectRegistry
         }
     }
 
-    public ProjectDefinition AddFolder(string name, string root, string? color = null, ExplorerFilterMode filter = ExplorerFilterMode.ConfigDocs)
+    /// <param name="visibility">Null: no rules and the global default extensions.</param>
+    public ProjectDefinition AddFolder(string name, string root, string? color = null, VisibilitySettings? visibility = null)
     {
         var validName = ValidateName(name, exceptId: null);
         var validRoot = ValidateRoot(root, exceptId: null);
@@ -186,7 +199,7 @@ public sealed partial class ProjectRegistry
             Name = validName,
             Root = validRoot,
             Color = ValidateColor(color),
-            Filter = filter,
+            Visibility = visibility ?? VisibilitySettings.Default,
             Order = _projects.Count,
         };
 
@@ -228,12 +241,13 @@ public sealed partial class ProjectRegistry
 
     /// <summary>
     /// Changes the editable settings in one validated commit (nothing is saved if any value is invalid).
-    /// Built-in projects accept only color and filter; their name and root must be passed unchanged or null.
+    /// Built-in projects accept only color and visibility; their name and root must be passed unchanged or null.
     /// </summary>
-    public ProjectDefinition Update(string id, string? name, string? root, string? color, ExplorerFilterMode filter)
+    public ProjectDefinition Update(string id, string? name, string? root, string? color, VisibilitySettings visibility)
     {
+        ArgumentNullException.ThrowIfNull(visibility);
         var project = Require(id);
-        var updated = project with { Color = ValidateColor(color), Filter = filter };
+        var updated = project with { Color = ValidateColor(color), Visibility = visibility };
         if (project.IsBuiltin)
         {
             if ((name is not null && name != project.Name) || root is not null)
@@ -256,7 +270,47 @@ public sealed partial class ProjectRegistry
 
     public void SetHidden(string id, bool hidden) => Replace(Require(id) with { Hidden = hidden });
 
-    public void SetFilter(string id, ExplorerFilterMode filter) => Replace(Require(id) with { Filter = filter });
+    public void SetVisibility(string id, VisibilitySettings visibility)
+    {
+        ArgumentNullException.ThrowIfNull(visibility);
+        var project = Require(id);
+        if (!project.Visibility.ContentEquals(visibility))
+        {
+            Replace(project with { Visibility = visibility });
+        }
+    }
+
+    public void SetView(string id, ProjectViewSettings view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        var project = Require(id);
+        if (!project.View.ContentEquals(view))
+        {
+            Replace(project with { View = view });
+        }
+    }
+
+    /// <summary>
+    /// Applies <paramref name="update"/> to every project and saves once if any project came back as a different
+    /// instance (path changes after a file operation touch several projects). Returns whether anything was saved.
+    /// </summary>
+    public bool UpdateAll(Func<ProjectDefinition, ProjectDefinition> update)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        var changed = false;
+        var next = _projects.Select(p =>
+        {
+            var updated = update(p);
+            changed |= !ReferenceEquals(updated, p);
+            return updated;
+        }).ToList();
+        if (changed)
+        {
+            Commit(next);
+        }
+
+        return changed;
+    }
 
     public void SetColor(string id, string? color) => Replace(Require(id) with { Color = ValidateColor(color) });
 
@@ -269,18 +323,6 @@ public sealed partial class ProjectRegistry
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         Replace(Require(id) with { ExcludedFolders = cleaned });
-    }
-
-    /// <summary>Sets the "show only these" list (relative paths). Null or empty shows everything.</summary>
-    public void SetVisibleItems(string id, IReadOnlyList<string>? items)
-    {
-        var cleaned = items?
-            .Select(Explorer.VisibleItemsPolicy.Normalize)
-            .Where(f => f.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        Replace(Require(id) with { VisibleItems = cleaned is { Count: > 0 } ? cleaned : null });
     }
 
     /// <summary>Moves a project to a new display index (clamped).</summary>
@@ -384,6 +426,31 @@ public sealed partial class ProjectRegistry
         _projects = Normalize(EnsureBuiltins([]));
         _unrecognized = [];
         _rootExtra = null;
+    }
+
+    /// <summary>
+    /// Keeps a copy of a file in an older schema before it is first saved in the new one. False when the copy could
+    /// not be written (the registry then stays read-only so the old file is never replaced).
+    /// </summary>
+    private bool PreserveOldSchema(string text, int version)
+    {
+        var stamp = _time.GetLocalNow().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var target = $"{_filePath}.v{version}-{stamp}.bak";
+        try
+        {
+            if (!_store.FileExists(target))
+            {
+                _store.WriteAllBytes(target, Encoding.UTF8.GetBytes(text));
+                _log.Info($"이전 형식(v{version})의 프로젝트 목록을 보존했습니다: {target}");
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Error($"이전 형식의 프로젝트 목록을 보존하지 못했습니다: {target}", ex);
+            return false;
+        }
     }
 
     private string? PreserveCorruptFile()

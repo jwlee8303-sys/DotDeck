@@ -49,6 +49,15 @@ public sealed record NodeInfo
 
     public DateTime LastWriteTimeUtc { get; init; }
 
+    /// <summary>Compact tree: the folders merged into this row, first to last (this node is the last). Null otherwise.</summary>
+    public IReadOnlyList<NodeInfo>? Chain { get; init; }
+
+    /// <summary>Flat view: the folder of the file relative to the project root ("" at the root). Null otherwise.</summary>
+    public string? FlatDirectory { get; init; }
+
+    /// <summary>Pinned to the top of the project section.</summary>
+    public bool IsPinned { get; init; }
+
     public bool CanExpand => Kind == NodeKind.Folder;
 
     public bool CanOpen => Kind == NodeKind.File && !IsSecret;

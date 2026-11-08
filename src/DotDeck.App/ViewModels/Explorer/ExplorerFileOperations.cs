@@ -9,7 +9,12 @@ namespace DotDeck.App.ViewModels.Explorer;
 /// <param name="InvolvedPaths">Paths whose folders may have changed (sources, targets, results).</param>
 /// <param name="ResultPaths">Items to select after refreshing.</param>
 /// <param name="RefreshAll">Undo/redo: the touched folders are not known here, so every explorer refreshes.</param>
-public sealed record FileOperationCompleted(IReadOnlyList<string> InvolvedPaths, IReadOnlyList<string> ResultPaths, bool RefreshAll);
+/// <param name="Changes">What moved, appeared or went away (visibility rules, pins and flat order follow them).</param>
+public sealed record FileOperationCompleted(
+    IReadOnlyList<string> InvolvedPaths,
+    IReadOnlyList<string> ResultPaths,
+    bool RefreshAll,
+    IReadOnlyList<PathChange> Changes);
 
 /// <summary>
 /// UI side of <see cref="FileOperationService"/>: runs operations off the UI thread, reports failures,
@@ -30,7 +35,11 @@ public sealed class ExplorerFileOperations
         _setStatus = setStatus;
     }
 
-    public event EventHandler<FileOperationCompleted>? Completed;
+    /// <summary>
+    /// Runs on the UI thread after an operation changed the disk (explorers update rules and refresh); awaited, so
+    /// the caller of <see cref="RunAsync"/> sees the refreshed trees.
+    /// </summary>
+    public Func<FileOperationCompleted, Task>? Completed { get; set; }
 
     public FileOperationHistory History => _service.History;
 
@@ -61,7 +70,7 @@ public sealed class ExplorerFileOperations
                 _dialogs.ShowError("파일 작업", warning);
             }
 
-            Completed?.Invoke(this, new FileOperationCompleted([.. involvedPaths, .. result.Paths], result.Paths, refreshAll));
+            await NotifyAsync(new FileOperationCompleted([.. involvedPaths, .. result.Paths], result.Paths, refreshAll, result.Changes));
             return result;
         }
         catch (FileOperationException ex)
@@ -73,7 +82,7 @@ public sealed class ExplorerFileOperations
             // A partial result changed the disk: show it.
             if (ex.PartiallyCompleted || refreshAll)
             {
-                Completed?.Invoke(this, new FileOperationCompleted(involvedPaths, [], refreshAll));
+                await NotifyAsync(new FileOperationCompleted(involvedPaths, [], refreshAll, ex.Changes));
             }
 
             return null;
@@ -82,8 +91,26 @@ public sealed class ExplorerFileOperations
         {
             _log.Error("파일 작업 중 오류가 발생했습니다.", ex);
             _dialogs.ShowError("파일 작업", ex.Message);
-            Completed?.Invoke(this, new FileOperationCompleted(involvedPaths, [], refreshAll));
+            await NotifyAsync(new FileOperationCompleted(involvedPaths, [], refreshAll, []));
             return null;
+        }
+    }
+
+    private async Task NotifyAsync(FileOperationCompleted completed)
+    {
+        if (Completed is not { } handler)
+        {
+            return;
+        }
+
+        try
+        {
+            await handler(completed);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // The operation itself succeeded: a refresh failure is only logged.
+            _log.Error("파일 작업 후 트리를 새로 고치지 못했습니다.", ex);
         }
     }
 

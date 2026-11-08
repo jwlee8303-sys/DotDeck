@@ -3,12 +3,14 @@ using DotDeck.Core.Projects;
 
 namespace DotDeck.Core.Explorer;
 
-/// <summary>Tree of a folder-backed project, applying its display filter and excluded folders.</summary>
+/// <summary>
+/// Every item of a folder-backed project except excluded folders (the edit-mode tree). Normal mode wraps it in
+/// <see cref="Visibility.VisibleProjectSource"/>.
+/// </summary>
 public sealed class FolderProjectSource : IProjectSource
 {
     private readonly IFileStore _store;
     private readonly ExcludedFolderPolicy _excluded;
-    private readonly VisibleItemsPolicy _visible;
 
     public FolderProjectSource(ProjectDefinition project, string rootPath, IFileStore store)
     {
@@ -19,11 +21,7 @@ public sealed class FolderProjectSource : IProjectSource
         RootPath = ProjectsFileSerializer.NormalizeRoot(rootPath);
         _store = store;
         _excluded = ExcludedFolderPolicy.For(project);
-        _visible = new VisibleItemsPolicy(project.VisibleItems);
     }
-
-    /// <summary>Visibility edit mode: ignore the "show only these" list so every item can be checked.</summary>
-    public bool ShowAllItems { get; set; }
 
     public ProjectDefinition Project { get; }
 
@@ -58,14 +56,7 @@ public sealed class FolderProjectSource : IProjectSource
         foreach (var entry in _store.GetChildren(directory))
         {
             var relative = parentRelative.Length == 0 ? entry.Name : parentRelative + Path.DirectorySeparatorChar + entry.Name;
-            if (entry.IsDirectory
-                ? _excluded.IsExcluded(relative)
-                : !ExplorerFilter.IsFileVisible(entry.Name, Project.Filter))
-            {
-                continue;
-            }
-
-            if (!ShowAllItems && !_visible.IsVisible(relative, entry.IsDirectory))
+            if (entry.IsDirectory && _excluded.IsExcluded(relative))
             {
                 continue;
             }

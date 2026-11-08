@@ -1,7 +1,8 @@
 <Window x:Class="DotDeck.App.Views.Dialogs.SettingsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="설정" Width="420" SizeToContent="Height" ResizeMode="NoResize"
+        xmlns:ctl="clr-namespace:DotDeck.App.Views.Controls"
+        Title="설정" Width="480" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
         Background="{DynamicResource DD.Brush.Panel.Background}"
@@ -36,6 +37,10 @@
                 <TextBox x:Name="BackupDirBox" AutomationProperties.Name="백업 폴더" />
             </DockPanel>
         </Grid>
+        <TextBlock Margin="0,10,0,4" Text="탐색기 기본 확장자" />
+        <ctl:ExtensionChoicesView x:Name="ExtensionsView" />
+        <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Style="{StaticResource DD.Text.Secondary}"
+                   Text="자기 목록을 정하지 않은 프로젝트(전역 기본값 사용)에 적용됩니다." />
         <TextBlock x:Name="ErrorText" Margin="0,6,0,0" TextWrapping="Wrap" Visibility="Collapsed" Foreground="{DynamicResource DD.Brush.Error}" />
         <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Style="{StaticResource DD.Text.Secondary}"
                    Text="백업 폴더를 바꾸면 이후 백업부터 새 폴더에 저장됩니다(기존 백업은 옮기지 않음). 라이트 테마에서도 구문 강조와 Markdown 미리보기 색은 아직 다크 기준입니다." />

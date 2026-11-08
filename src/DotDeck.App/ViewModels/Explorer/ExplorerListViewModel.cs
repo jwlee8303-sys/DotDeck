@@ -2,13 +2,17 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DotDeck.App.ViewModels.Dialogs;
 using DotDeck.Core.Explorer;
+using DotDeck.Core.Explorer.Visibility;
+using DotDeck.Core.FileOperations;
 using DotDeck.Core.Logging;
 
 namespace DotDeck.App.ViewModels.Explorer;
 
 /// <summary>One clickable part of the breadcrumb above the tree.</summary>
-public sealed record BreadcrumbSegment(string Name, ExplorerRowViewModel Target);
+/// <param name="Target">The row to select, or null when that folder has no row of its own (hidden or merged).</param>
+public sealed record BreadcrumbSegment(string Name, ExplorerRowViewModel? Target);
 
 /// <summary>
 /// A flattened, virtualized list of explorer sections with selection, breadcrumb and keyboard behavior.
@@ -166,6 +170,21 @@ public sealed partial class ExplorerListViewModel : ObservableObject
     [RelayCommand]
     private void SelectBreadcrumb(BreadcrumbSegment? segment) => Select(segment?.Target);
 
+    /// <summary>Click on one folder of a merged compact row: that folder becomes the target of commands.</summary>
+    [RelayCommand]
+    private void SelectSegment(ChainSegment? segment)
+    {
+        if (segment is null)
+        {
+            return;
+        }
+
+        segment.Row.ActiveSegment = segment.IsLast ? null : segment.Index;
+        Select(segment.Row);
+        UpdateBreadcrumb(segment.Row);
+        RefreshCommandStates();
+    }
+
     [RelayCommand]
     private void CopySelectedPath()
     {
@@ -190,12 +209,12 @@ public sealed partial class ExplorerListViewModel : ObservableObject
         return [.. rows.OfType<NodeRowViewModel>().Where(r => r.IsFileSystemItem)];
     }
 
-    private static List<string> PathsOf(IEnumerable<NodeRowViewModel> rows) => [.. rows.Select(r => r.Node.FullPath!)];
+    private static List<string> PathsOf(IEnumerable<NodeRowViewModel> rows) => [.. rows.Select(r => r.TargetNode.FullPath!)];
 
     /// <summary>Folder that a paste or drop onto <paramref name="row"/> goes into, or null if it cannot take items.</summary>
     public static string? TargetFolderOf(ExplorerRowViewModel? row) => row switch
     {
-        NodeRowViewModel { IsFileSystemItem: true, IsFolder: true } folder => folder.Node.FullPath,
+        NodeRowViewModel { IsFileSystemItem: true, IsFolder: true } folder => folder.TargetNode.FullPath,
         NodeRowViewModel { IsFileSystemItem: true } file => Path.GetDirectoryName(file.Node.FullPath),
         ProjectHeaderRowViewModel or MessageRowViewModel or NewItemRowViewModel => row.Explorer.Source.RootPath,
         _ => null,
@@ -206,11 +225,13 @@ public sealed partial class ExplorerListViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(UndoText));
         OnPropertyChanged(nameof(RedoText));
+        OnPropertyChanged(nameof(PinText));
+        OnPropertyChanged(nameof(IsVisibilityTarget));
         foreach (var command in new IRelayCommand[]
                  {
                      OpenSelectedCommand, NewFileCommand, NewFolderCommand, RenameCommand, DeleteCommand, CutCommand, CopyCommand,
                      PasteCommand, DuplicateCommand, UndoCommand, RedoCommand, CopyFullPathsCommand, CopyRelativePathsCommand,
-                     RevealSelectedCommand, OpenInVsCodeCommand, OpenTerminalCommand, OpenAsCommand,
+                     RevealSelectedCommand, OpenInVsCodeCommand, OpenTerminalCommand, OpenAsCommand, TogglePinCommand, RevealInTreeCommand,
                  })
         {
             command.NotifyCanExecuteChanged();
@@ -246,19 +267,39 @@ public sealed partial class ExplorerListViewModel : ObservableObject
     private async Task BeginNewItemAsync(bool isFolder)
     {
         var row = SelectedRow;
-        var parent = row switch
-        {
-            NodeRowViewModel { IsFileSystemItem: true, IsFolder: true } folder => folder,
-            NodeRowViewModel { IsFileSystemItem: true } file => FindParent(file) as NodeRowViewModel,
-            _ => null,
-        };
-
-        if (row is null || TargetFolderOf(row) is null)
+        if (row is null || TargetFolderOf(row) is not { } directory)
         {
             return;
         }
 
-        await row.Explorer.BeginNewItemAsync(parent, isFolder);
+        switch (row)
+        {
+            case NodeRowViewModel { IsFileSystemItem: true, IsFolder: true } folder when folder.TargetNode == folder.Node:
+                await row.Explorer.BeginNewItemAsync(folder, isFolder);
+                break;
+            case NodeRowViewModel { IsFileSystemItem: true } item:
+                // A file (or a folder inside a merged row): its folder may have no row of its own (flat view,
+                // pinned item), so the placeholder goes right after the selected row.
+                var parent = FindParent(item) as NodeRowViewModel;
+                if (parent is not null && string.Equals(parent.TargetNode.FullPath, directory, StringComparison.OrdinalIgnoreCase))
+                {
+                    await row.Explorer.BeginNewItemAsync(parent, isFolder);
+                }
+                else if (item.Explorer.Source.RootPath is { } root && string.Equals(Path.TrimEndingDirectorySeparator(root), Path.TrimEndingDirectorySeparator(directory), StringComparison.OrdinalIgnoreCase)
+                         && item.Depth == 0 && !item.Node.IsPinned)
+                {
+                    await row.Explorer.BeginNewItemAsync(null, isFolder);
+                }
+                else
+                {
+                    await row.Explorer.BeginNewItemAsync(null, isFolder, directory, sibling: item);
+                }
+
+                break;
+            default:
+                await row.Explorer.BeginNewItemAsync(null, isFolder);
+                break;
+        }
     }
 
     /// <summary>F2: edit the name in place.</summary>
@@ -267,10 +308,15 @@ public sealed partial class ExplorerListViewModel : ObservableObject
     {
         if (TargetNodes() is [var row])
         {
-            row.EditText = row.Name;
-            row.IsEditing = true;
-            RequestEditorFocus(row);
+            BeginRename(row);
         }
+    }
+
+    private void BeginRename(NodeRowViewModel row)
+    {
+        row.EditText = row.TargetNode.Name;
+        row.IsEditing = true;
+        RequestEditorFocus(row);
     }
 
     /// <summary>Enter (or focus leaving the box) in an inline name editor.</summary>
@@ -286,12 +332,12 @@ public sealed partial class ExplorerListViewModel : ObservableObject
         switch (row)
         {
             case NodeRowViewModel node:
-                if (string.IsNullOrEmpty(name) || string.Equals(name, node.Name, StringComparison.Ordinal))
+                if (string.IsNullOrEmpty(name) || string.Equals(name, node.TargetNode.Name, StringComparison.Ordinal))
                 {
                     return;
                 }
 
-                var path = node.Node.FullPath!;
+                var path = node.TargetNode.FullPath!;
                 var renamed = await _context.FileOps.RunAsync(s => s.Rename(path, name), [path]);
                 if (renamed is null)
                 {
@@ -395,11 +441,33 @@ public sealed partial class ExplorerListViewModel : ObservableObject
             : "클립보드를 사용할 수 없습니다.");
     }
 
-    [RelayCommand(CanExecute = nameof(HasTargetFolder))]
+    /// <summary>What the focused row means as a paste target (SPEC 2.3 paste rules).</summary>
+    private static PasteSelection SelectionOf(ExplorerRowViewModel? row) => row switch
+    {
+        NodeRowViewModel { IsFileSystemItem: true, IsFolder: true } folder => new PasteSelection(
+            PasteSelectionKind.Folder,
+            folder.Node.FullPath,
+            folder.Node.Chain?.Select(n => n.FullPath!).ToList(),
+            folder.ActiveSegment),
+        NodeRowViewModel { IsFileSystemItem: true } file => new PasteSelection(PasteSelectionKind.File, file.Node.FullPath),
+        ProjectHeaderRowViewModel or MessageRowViewModel or NewItemRowViewModel when row.Explorer.Source.RootPath is { } root =>
+            new PasteSelection(PasteSelectionKind.ProjectRoot, root),
+        _ => new PasteSelection(PasteSelectionKind.None, null),
+    };
+
+    /// <summary>Ctrl+V: into the selected folder, next to the selected file; conflicts are asked one by one.</summary>
+    [RelayCommand]
     private async Task PasteAsync()
     {
-        if (TargetFolderOf(SelectedRow) is not { } target)
+        string target;
+        try
         {
+            target = PasteTargetResolver.Resolve(SelectionOf(SelectedRow));
+        }
+        catch (FileOperationException ex)
+        {
+            _context.SetStatus(ex.Message);
+            _context.Dialogs.ShowError("붙여넣기", ex.Message);
             return;
         }
 
@@ -410,9 +478,26 @@ public sealed partial class ExplorerListViewModel : ObservableObject
         }
 
         var paths = files.Paths;
-        var result = await _context.FileOps.RunAsync(
-            s => files.IsCut ? s.Move(paths, target) : s.Copy(paths, target),
-            [.. paths, target]);
+        var service = _context.FileOps.Service;
+        PastePlan plan;
+        try
+        {
+            plan = await Task.Run(() => service.PlanPaste(paths, target, files.IsCut));
+        }
+        catch (FileOperationException ex)
+        {
+            _context.SetStatus(ex.Message.Split('\n')[0]);
+            _context.Dialogs.ShowError("붙여넣기", ex.Message);
+            return;
+        }
+
+        if (AskConflicts(plan) is not { } choices)
+        {
+            _context.SetStatus("붙여넣기를 취소했습니다.");
+            return;
+        }
+
+        var result = await _context.FileOps.RunAsync(s => s.Paste(plan, choices), [.. paths, target]);
         if (result is not null && files.IsCut)
         {
             // Like Explorer: cut items are moved once, then the clipboard no longer offers them.
@@ -420,12 +505,89 @@ public sealed partial class ExplorerListViewModel : ObservableObject
         }
     }
 
+    /// <summary>"덮어쓰기 / 둘 다 유지 / 건너뛰기" for each conflict ("모든 항목에 적용" answers the rest). Null: cancelled.</summary>
+    private Dictionary<string, ConflictChoice>? AskConflicts(PastePlan plan)
+    {
+        var choices = new Dictionary<string, ConflictChoice>(StringComparer.OrdinalIgnoreCase);
+        ConflictChoice? forAll = null;
+        var conflicts = plan.Conflicts.ToList();
+        for (var i = 0; i < conflicts.Count; i++)
+        {
+            var item = conflicts[i];
+            if (forAll is { } all && (all != ConflictChoice.Overwrite || item.CanOverwrite))
+            {
+                choices[item.Source] = all;
+                continue;
+            }
+
+            List<DialogChoice> buttons = [];
+            if (item.CanOverwrite)
+            {
+                buttons.Add(new DialogChoice("overwrite", "덮어쓰기"));
+            }
+
+            buttons.Add(new DialogChoice("keep", "둘 다 유지", IsDefault: true));
+            buttons.Add(new DialogChoice("skip", "건너뛰기"));
+            buttons.Add(new DialogChoice("cancel", "취소", IsCancel: true));
+            var name = Path.GetFileName(item.Destination);
+            var message = item.CanOverwrite
+                ? $"'{name}' 파일이 이미 있습니다.\n덮어쓰면 기존 파일은 백업한 뒤 휴지통으로 보냅니다."
+                : $"'{name}' 폴더가 이미 있습니다. 폴더는 덮어쓸 수 없습니다.";
+            var (choice, applyToAll) = _context.Dialogs.AskChoice(
+                $"붙여넣기 — 이름 충돌 ({i + 1}/{conflicts.Count})",
+                message,
+                buttons,
+                conflicts.Count - i > 1 ? "남은 충돌 모두에 적용" : null);
+            ConflictChoice? picked = choice switch
+            {
+                "overwrite" => ConflictChoice.Overwrite,
+                "keep" => ConflictChoice.KeepBoth,
+                "skip" => ConflictChoice.Skip,
+                _ => null,
+            };
+            if (picked is not { } value)
+            {
+                return null;
+            }
+
+            choices[item.Source] = value;
+            if (applyToAll)
+            {
+                forAll = value;
+            }
+        }
+
+        return choices;
+    }
+
+    /// <summary>Ctrl+D: a copy next to each item ("이름 - 복사본"); a single copy is selected for renaming (F2).</summary>
     [RelayCommand(CanExecute = nameof(HasTargets))]
-    private Task DuplicateAsync()
+    private async Task DuplicateAsync()
     {
         var paths = PathsOf(TargetNodes());
-        return _context.FileOps.RunAsync(s => s.Duplicate(paths), paths);
+        var result = await _context.FileOps.RunAsync(s => s.Duplicate(paths), paths);
+        if (result?.Paths is [var copy]
+            && Rows.OfType<NodeRowViewModel>().FirstOrDefault(r => string.Equals(r.Node.FullPath, copy, StringComparison.OrdinalIgnoreCase)) is { } row)
+        {
+            Select(row);
+            BeginRename(row);
+        }
     }
+
+    /// <summary>
+    /// Flat view sorted by the user's order: dragging files of the same project onto a file reorders them
+    /// instead of moving them (SPEC 2.3). Returns the explorer when that applies.
+    /// </summary>
+    public static ExplorerViewModel? FlatReorderTarget(IReadOnlyList<string> paths, ExplorerRowViewModel? row) =>
+        row is NodeRowViewModel { IsFolder: false, Depth: 0, Node.IsPinned: false } file
+        && file.Explorer is { IsFlatMode: true, IsCustomFlatSort: true, IsEditingVisibility: false } explorer
+        && paths.Count > 0
+        && paths.All(p => explorer.BodyRows.OfType<NodeRowViewModel>().Any(r => r is { IsFolder: false, Depth: 0 } && string.Equals(r.Node.FullPath, p, StringComparison.OrdinalIgnoreCase)))
+            ? explorer
+            : null;
+
+    public Task ReorderFlatAsync(ExplorerViewModel explorer, IReadOnlyList<string> paths, NodeRowViewModel before) =>
+        explorer.ReorderFlatAsync(paths, before.Node.FullPath);
 
     /// <summary>Drop from a drag (inside DotDeck or from Windows Explorer) into <paramref name="targetFolder"/>.</summary>
     public async Task DropAsync(IReadOnlyList<string> paths, string targetFolder, bool copy)
@@ -544,6 +706,31 @@ public sealed partial class ExplorerListViewModel : ObservableObject
         }
     }
 
+    partial void OnSelectedRowChanged(ExplorerRowViewModel? oldValue, ExplorerRowViewModel? newValue)
+    {
+        if (oldValue is NodeRowViewModel { ActiveSegment: not null } old && old != newValue)
+        {
+            old.ActiveSegment = null;
+        }
+    }
+
+    /// <summary>A file system item of a folder project (pin, "트리에서 위치 보기").</summary>
+    public bool IsVisibilityTarget => SelectedRow is NodeRowViewModel { IsFileSystemItem: true, Explorer.SupportsVisibility: true };
+
+    private bool CanPin() => IsVisibilityTarget;
+
+    public string PinText => SelectedRow is NodeRowViewModel { IsFileSystemItem: true } row && row.Explorer.IsPinned(row.TargetNode)
+        ? "고정 해제(_N)"
+        : "최상위에 고정(_N)";
+
+    [RelayCommand(CanExecute = nameof(CanPin))]
+    private Task TogglePinAsync() =>
+        SelectedRow is NodeRowViewModel { IsFileSystemItem: true } row ? row.Explorer.TogglePinAsync(row.TargetNode) : Task.CompletedTask;
+
+    [RelayCommand(CanExecute = nameof(CanPin))]
+    private Task RevealInTreeAsync() =>
+        SelectedRow is NodeRowViewModel { IsFileSystemItem: true } row ? row.Explorer.RevealInTreeAsync(row.TargetNode) : Task.CompletedTask;
+
     partial void OnSelectedRowChanged(ExplorerRowViewModel? value)
     {
         UpdateBreadcrumb(value);
@@ -584,19 +771,26 @@ public sealed partial class ExplorerListViewModel : ObservableObject
             return;
         }
 
-        // Ancestors of a visible row are always visible (expanded) rows just above it.
-        var chain = new Stack<NodeRowViewModel>();
-        for (NodeRowViewModel? current = node; current is not null; current = FindParent(current) as NodeRowViewModel)
+        // Built from the path, not the row layout: merged, flat and pinned rows show their full path too.
+        var target = node.TargetNode;
+        if (target.RelativePath is { Length: > 0 } relative)
         {
-            chain.Push(current);
+            var parts = relative.Split(RelativeKey.Separator);
+            for (var i = 0; i < parts.Length; i++)
+            {
+                var key = string.Join(RelativeKey.Separator, parts.Take(i + 1));
+                var rowOfKey = i == parts.Length - 1
+                    ? node
+                    : explorer.BodyRows.OfType<NodeRowViewModel>().FirstOrDefault(r => ExplorerTreeBuilder.KeyComparer.Equals(r.Key, key));
+                Breadcrumb.Add(new BreadcrumbSegment(parts[i], rowOfKey));
+            }
+        }
+        else
+        {
+            Breadcrumb.Add(new BreadcrumbSegment(node.Name, node));
         }
 
-        foreach (var part in chain)
-        {
-            Breadcrumb.Add(new BreadcrumbSegment(part.Name, part));
-        }
-
-        SelectedPath = node.Node.FullPath ?? node.Name;
+        SelectedPath = target.FullPath ?? node.Name;
     }
 
     /// <summary>The nearest row above with a smaller depth, or the project header.</summary>

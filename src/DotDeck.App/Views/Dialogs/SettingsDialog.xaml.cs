@@ -3,6 +3,8 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using DotDeck.App.Infrastructure.Windows;
+using DotDeck.App.ViewModels.Dialogs;
+using DotDeck.Core.Explorer.Visibility;
 using DotDeck.Core.Settings;
 
 namespace DotDeck.App.Views.Dialogs;
@@ -10,6 +12,7 @@ namespace DotDeck.App.Views.Dialogs;
 public partial class SettingsDialog : Window
 {
     private readonly string _defaultBackupDirectory;
+    private readonly ExtensionChoicesViewModel _extensions;
 
     public SettingsDialog(AppSettings current, string defaultBackupDirectory)
     {
@@ -20,6 +23,8 @@ public partial class SettingsDialog : Window
         FontSizeBox.Text = current.EditorFontSize.ToString("0.##", CultureInfo.InvariantCulture);
         RetentionBox.Text = current.BackupRetention.ToString(CultureInfo.InvariantCulture);
         BackupDirBox.Text = current.BackupDirectory ?? defaultBackupDirectory;
+        _extensions = new ExtensionChoicesViewModel(current.DefaultExtensions, ExtensionRules.ConfigDocsPreset, showAllFiles: false, isProject: false);
+        ExtensionsView.DataContext = _extensions;
         Result = current;
     }
 
@@ -79,8 +84,17 @@ public partial class SettingsDialog : Window
                 ? null
                 : backupDir,
         };
+        var extensions = _extensions.Checked;
+        if (extensions.Count == 0)
+        {
+            ShowError("기본 확장자를 하나 이상 선택하세요.");
+            return;
+        }
+
         Result = Result with
         {
+            // The preset itself is stored as "no choice" so a future preset update applies.
+            DefaultExtensions = extensions.SequenceEqual(ExtensionRules.NormalizeAll(ExtensionRules.ConfigDocsPreset), StringComparer.Ordinal) ? null : extensions,
             Theme = (ThemeBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "Dark",
             EditorFontSize = size,
             BackupRetention = retention,

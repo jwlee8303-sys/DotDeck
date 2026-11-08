@@ -68,6 +68,12 @@ public sealed class DialogService : IDialogService
         return Modal(dialog.ShowDialog) == true && viewModel.Chosen is not null;
     }
 
+    public (string? Choice, bool ApplyToAll) AskChoice(string title, string message, IReadOnlyList<DialogChoice> choices, string? applyToAllLabel = null)
+    {
+        var dialog = new ChoiceDialog(title, message, choices, applyToAllLabel) { Owner = Owner };
+        return Modal(() => dialog.ShowDialog() == true) ? (dialog.Chosen, dialog.ApplyToAll) : (null, false);
+    }
+
     public void ShowInfo(string title, string message)
     {
         if (Owner is { } owner)

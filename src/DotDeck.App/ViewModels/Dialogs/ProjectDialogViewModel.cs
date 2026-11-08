@@ -1,18 +1,27 @@
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DotDeck.Core.Explorer.Visibility;
 using DotDeck.Core.Projects;
 
 namespace DotDeck.App.ViewModels.Dialogs;
 
 /// <summary>Values entered in the project dialog.</summary>
-public sealed record ProjectDialogResult(string Name, string Root, string? Color, ExplorerFilterMode Filter);
+public sealed record ProjectDialogResult(string Name, string Root, string? Color, VisibilitySettings Visibility);
+
+/// <summary>Answer to "keep the items checked by hand?" when the extensions change.</summary>
+public enum KeepRulesChoice
+{
+    Keep,
+    Reset,
+    Cancel,
+}
 
 /// <summary>A selectable accent color (null = none).</summary>
 public sealed record ColorChoice(string? Hex, string Label);
 
 /// <summary>
-/// "프로젝트 추가" / "프로젝트 편집" (SPEC 2.2: name + folder; optional color and filter).
+/// "프로젝트 추가" / "프로젝트 편집" (SPEC 2.2: name + folder; optional color and default extensions, SPEC 2.3).
 /// The commit callback saves through the registry and returns an error message to show, or null on success;
 /// the dialog stays open on error so the user can correct the input.
 /// </summary>
@@ -21,6 +30,8 @@ public sealed partial class ProjectDialogViewModel : ObservableObject
     private readonly Func<ProjectDialogResult, Task<string?>> _commit;
     private readonly Func<string?, string?> _pickFolder;
     private readonly Func<string, bool> _directoryExists;
+    private readonly Func<KeepRulesChoice> _askKeepRules;
+    private readonly VisibilitySettings _visibility;
     private bool _nameEditedByUser;
 
     public ProjectDialogViewModel(
@@ -29,17 +40,21 @@ public sealed partial class ProjectDialogViewModel : ObservableObject
         string? builtinRoot,
         Func<ProjectDialogResult, Task<string?>> commit,
         Func<string?, string?> pickFolder,
-        Func<string, bool> directoryExists)
+        Func<string, bool> directoryExists,
+        IReadOnlyList<string> globalExtensions,
+        Func<KeepRulesChoice> askKeepRules)
     {
         Title = title;
         _commit = commit;
         _pickFolder = pickFolder;
         _directoryExists = directoryExists;
+        _askKeepRules = askKeepRules;
+        _visibility = existing?.Visibility ?? VisibilitySettings.Default;
+        Extensions = new ExtensionChoicesViewModel(_visibility.DefaultExtensions, globalExtensions, _visibility.ShowAllFiles, isProject: true);
         IsBuiltin = existing?.IsBuiltin == true;
         _name = existing?.Name ?? string.Empty;
         _root = existing?.Root ?? builtinRoot ?? string.Empty;
         _nameEditedByUser = existing is not null;
-        _isConfigDocs = existing is null || existing.Filter == ExplorerFilterMode.ConfigDocs;
         _selectedColor = Colors.FirstOrDefault(c => string.Equals(c.Hex, existing?.Color, StringComparison.OrdinalIgnoreCase))
             ?? (existing?.Color is { } custom ? new ColorChoice(custom, custom) : Colors[0]);
     }
@@ -79,8 +94,7 @@ public sealed partial class ProjectDialogViewModel : ObservableObject
     [ObservableProperty]
     private ColorChoice? _selectedColor;
 
-    [ObservableProperty]
-    private bool _isConfigDocs;
+    public ExtensionChoicesViewModel Extensions { get; }
 
     [ObservableProperty]
     private string? _error;
@@ -133,8 +147,20 @@ public sealed partial class ProjectDialogViewModel : ObservableObject
         }
 
         // Capture the input before going async so later edits cannot mix into this commit.
-        var filter = IsConfigDocs ? ExplorerFilterMode.ConfigDocs : ExplorerFilterMode.All;
-        var result = new ProjectDialogResult(Name.Trim(), root, SelectedColor?.Hex, filter);
+        var visibility = _visibility with { DefaultExtensions = Extensions.OwnList, ShowAllFiles = Extensions.ShowAllFiles };
+        if (!visibility.ContentEquals(_visibility) && visibility.Rules.Count > 0)
+        {
+            switch (_askKeepRules())
+            {
+                case KeepRulesChoice.Cancel:
+                    return;
+                case KeepRulesChoice.Reset:
+                    visibility = visibility with { Rules = VisibilitySettings.Default.Rules };
+                    break;
+            }
+        }
+
+        var result = new ProjectDialogResult(Name.Trim(), root, SelectedColor?.Hex, visibility);
         IsBusy = true;
         try
         {

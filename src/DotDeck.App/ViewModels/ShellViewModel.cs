@@ -88,11 +88,12 @@ public sealed partial class ShellViewModel : ObservableObject
             includeManaged: !services.Paths.IsHomeOverridden);
         _editorOverrides = new EditorOverrideStore(services.Store, services.Paths.EditorOverridesFile);
 
+        ExplorerPreferences.SetGlobalExtensions(new DotDeck.Core.Settings.AppSettingsStore(services.Store, services.Paths.SettingsFile).Load().DefaultExtensions);
         var explorerContext = new ExplorerContext(
             new ProjectRegistryGateway(services.Registry), services.Paths, services.Store, services.Clipboard,
             services.Shell, services.Dialogs,
             new ExplorerFileOperations(services.FileOperations, services.Dialogs, services.Log, message => StatusMessage = message),
-            services.Log, message => StatusMessage = message, new FolderWatcherFactory(), OpenFileAsync, OpenSystemNode,
+            services.Log, message => StatusMessage = message, new FolderWatcherFactory(), ExplorerPreferences, OpenFileAsync, OpenSystemNode,
             RegisterOtherFileAsync, RemoveOtherFileAsync, OpenFileAsAsync);
         Properties = new PropertiesPaneViewModel { DescribeRole = DescribeRole };
         Output = new OutputPaneViewModel(services.Log);
@@ -127,6 +128,9 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     public AppPaths Paths { get; }
+
+    /// <summary>Explorer settings changed by the settings dialog (global default extensions).</summary>
+    public ExplorerPreferences ExplorerPreferences { get; } = new();
 
     /// <summary>Dialogs for view-level commands (layout menu) that need no view model of their own.</summary>
     public IDialogService Dialogs => _dialogs;

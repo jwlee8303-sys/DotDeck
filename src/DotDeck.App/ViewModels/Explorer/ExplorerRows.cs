@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.Core.Explorer;
+using DotDeck.Core.Explorer.Visibility;
 
 namespace DotDeck.App.ViewModels.Explorer;
 
@@ -56,11 +57,15 @@ public sealed partial class ProjectHeaderRowViewModel : ExplorerRowViewModel
     private string? _rootPath;
 
     [ObservableProperty]
-    private bool _isConfigDocsFilter;
-
-    [ObservableProperty]
     private bool _isLoading;
+
+    /// <summary>Edit mode: the project root's check box (null outside edit mode).</summary>
+    [ObservableProperty]
+    private CheckState? _checkState;
 }
+
+/// <summary>One folder of a merged compact-tree row ("src/App/Themes"); clicking it targets that folder.</summary>
+public sealed record ChainSegment(int Index, string Name, NodeRowViewModel Row, bool IsLast);
 
 /// <summary>A file, folder or virtual node.</summary>
 public sealed partial class NodeRowViewModel : ExplorerRowViewModel, IEditableRow
@@ -89,6 +94,30 @@ public sealed partial class NodeRowViewModel : ExplorerRowViewModel, IEditableRo
 
     public string Name => Node.Name;
 
+    public bool HasSegments => Node.Chain is { Count: > 1 };
+
+    /// <summary>Compact tree: the merged folders as clickable parts; null for an ordinary row.</summary>
+    public IReadOnlyList<ChainSegment>? Segments => Node.Chain is { Count: > 1 } chain
+        ? [.. chain.Select((n, i) => new ChainSegment(i, n.Name, this, i == chain.Count - 1))]
+        : null;
+
+    /// <summary>Flat view: the file's folder relative to the root (shown dimmed); null at the root or in other views.</summary>
+    public string? FlatDirectoryText => Node.FlatDirectory is { Length: > 0 } directory ? directory : null;
+
+    /// <summary>The clicked part of a merged compact row (null: the last folder, which is the row itself).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TargetNode))]
+    private int? _activeSegment;
+
+    /// <summary>The item commands act on: the clicked folder of a merged row, else <see cref="Node"/>.</summary>
+    public NodeInfo TargetNode => ActiveSegment is { } index && Node.Chain is { } chain && index >= 0 && index < chain.Count
+        ? chain[index]
+        : Node;
+
+    /// <summary>Edit mode: check box state (null outside edit mode). Unchecked rows are shown dimmed.</summary>
+    [ObservableProperty]
+    private CheckState? _checkState;
+
     public bool IsFolder => Node.Kind == NodeKind.Folder;
 
     public bool IsEnabled => Node.IsEnabled;
@@ -111,19 +140,6 @@ public sealed partial class NodeRowViewModel : ExplorerRowViewModel, IEditableRo
     [NotifyPropertyChangedFor(nameof(ToolTipText))]
     private string? _error;
 
-    /// <summary>True in visibility edit mode: the row shows a check box.</summary>
-    public bool ShowsVisibilityCheck { get; init; }
-
-    [ObservableProperty]
-    private bool _isVisibilityChecked;
-
-    partial void OnIsVisibilityCheckedChanged(bool value)
-    {
-        if (ShowsVisibilityCheck && Node.RelativePath is { } relative)
-        {
-            Explorer.SetVisibilityChecked(relative, value);
-        }
-    }
 }
 
 /// <summary>Placeholder row where the name of a new file or folder is typed (removed on commit or cancel).</summary>

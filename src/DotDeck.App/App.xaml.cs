@@ -79,7 +79,7 @@ public partial class App : Application
                 new ClipboardService(),
                 new ShellLauncher(),
                 new DialogService(),
-                new FileOperationService(store, new WindowsRecycleBin(_log), new FileOperationHistory()),
+                new FileOperationService(store, new WindowsRecycleBin(_log), new FileOperationHistory(), backups),
                 new TextFileReader(store),
                 new SafeWriter(store, backups),
                 backups,

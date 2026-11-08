@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using DotDeck.Core.Explorer.Visibility;
 
 namespace DotDeck.Core.Projects;
 
@@ -13,16 +14,6 @@ public enum BuiltinProject
     Claude,
     Codex,
     System,
-}
-
-/// <summary>Explorer display filter (SPEC 2.3).</summary>
-public enum ExplorerFilterMode
-{
-    /// <summary>Every file.</summary>
-    All,
-
-    /// <summary>Configuration and document files only.</summary>
-    ConfigDocs,
 }
 
 /// <summary>
@@ -47,8 +38,6 @@ public sealed record ProjectDefinition
     /// <summary>Optional accent color (#RRGGBB) shown next to the project header.</summary>
     public string? Color { get; init; }
 
-    public ExplorerFilterMode Filter { get; init; }
-
     public int Order { get; init; }
 
     public bool Hidden { get; init; }
@@ -56,8 +45,11 @@ public sealed record ProjectDefinition
     /// <summary>Folder names excluded from the tree. Null means "use defaults".</summary>
     public IReadOnlyList<string>? ExcludedFolders { get; init; }
 
-    /// <summary>"Show only these" relative paths chosen in visibility edit mode; null/empty shows everything.</summary>
-    public IReadOnlyList<string>? VisibleItems { get; init; }
+    /// <summary>What the explorer shows (rules, default extensions). Ignored for the System project.</summary>
+    public VisibilitySettings Visibility { get; init; } = VisibilitySettings.Default;
+
+    /// <summary>Normal-mode layout and pinned items.</summary>
+    public ProjectViewSettings View { get; init; } = ProjectViewSettings.Default;
 
     public JsonObject? Extra { get; init; }
 

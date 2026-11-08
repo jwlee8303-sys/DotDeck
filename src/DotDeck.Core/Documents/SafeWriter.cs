@@ -89,6 +89,10 @@ public sealed class SafeWriter(IFileStore store, BackupStore backups)
         {
             blocking = "Secret files cannot be saved.";
         }
+        else if (baseline?.IsReadOnly == true)
+        {
+            blocking = baseline.ReadOnlyReason;
+        }
         else if (baseline is { HasDecodingErrors: true } && encoding is null && !isUnchanged)
         {
             blocking = "The file contains bytes that could not be decoded; saving would corrupt them. Choose an encoding explicitly.";

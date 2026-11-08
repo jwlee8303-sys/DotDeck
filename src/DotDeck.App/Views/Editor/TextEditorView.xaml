@@ -84,6 +84,7 @@
                 </StackPanel>
                 <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource DD.Brush.Error}" Text="{Binding FormError}" ToolTip="{Binding FormError}" />
+                <TextBlock Text="{Binding Buffer.ReadOnlyReason}" TextWrapping="Wrap" Foreground="{DynamicResource DD.Brush.Warning}" />
             </DockPanel>
         </Border>
 
@@ -158,6 +159,7 @@
             </Grid.ColumnDefinitions>
         <ae:TextEditor x:Name="Editor" Grid.Column="0"
                        Document="{Binding Buffer.Document}"
+                       IsReadOnly="{Binding Buffer.IsReadOnly}"
                        FontFamily="{DynamicResource DD.Font.Editor}"
                        FontSize="{DynamicResource DD.FontSize.Editor}"
                        Background="{DynamicResource DD.Brush.Editor.Background}"

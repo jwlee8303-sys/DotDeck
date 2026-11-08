@@ -38,7 +38,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
         ViewNumber = viewNumber;
         _host = host;
         _isPreview = isPreview;
-        Find = new FindReplaceViewModel(buffer.Document);
+        Find = new FindReplaceViewModel(buffer.Document) { CanEdit = () => !buffer.IsReadOnly };
         Role = role;
         _kind = kind ?? (FileRoleResolver.IsMarkdown(buffer.Path) ? EditorKind.Markdown : EditorKind.Text);
         _isKindOverridden = isKindOverridden;
@@ -141,7 +141,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     }
 
     /// <summary>Agents, skills and Claude settings have a form view besides the text.</summary>
-    public bool HasForm => FormRegistry.HasForm(Kind);
+    public bool HasForm => !Buffer.IsReadOnly && FormRegistry.HasForm(Kind);
 
     [ObservableProperty]
     private bool _isFormView;
@@ -223,6 +223,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     [RelayCommand(CanExecute = nameof(HasForm))]
     private void ShowForm()
     {
+        if (Buffer.IsReadOnly) return;
         Form ??= FormRegistry.Create(Kind, new FormContext(ApplyFormText, FilePath, Role, _host));
         if (Form is null)
         {
@@ -238,6 +239,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     // The form writes whole text; one Replace keeps it a single undo step in the editor.
     private void ApplyFormText(string text)
     {
+        if (Buffer.IsReadOnly) return;
         var document = Buffer.Document;
         if (document.Text == text)
         {
@@ -282,6 +284,12 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 
     private void OnBufferPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(DocumentBuffer.IsReadOnly))
+        {
+            OnPropertyChanged(nameof(HasForm));
+            ShowFormCommand.NotifyCanExecuteChanged();
+            if (Buffer.IsReadOnly) IsFormView = false;
+        }
         if (e.PropertyName == nameof(DocumentBuffer.IsDirty))
         {
             UpdateTitle();

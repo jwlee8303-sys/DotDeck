@@ -33,7 +33,11 @@ public sealed partial class DocumentBuffer : ObservableObject
     /// <summary>What is on disk as far as DotDeck knows: the baseline for diffs and external change checks.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EncodingText), nameof(LineEndingText))]
+    [NotifyPropertyChangedFor(nameof(IsReadOnly), nameof(ReadOnlyReason))]
     private TextFileSnapshot _snapshot;
+
+    public bool IsReadOnly => Snapshot.IsReadOnly;
+    public string? ReadOnlyReason => Snapshot.ReadOnlyReason;
 
     [ObservableProperty]
     private bool _isDirty;

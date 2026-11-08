@@ -87,6 +87,9 @@
                           Command="{Binding ToggleToolCommand}" CommandParameter="{Binding SearchResults}" />
                 <MenuItem Header="훅 테스트" IsCheckable="True" IsChecked="{Binding HookTest.IsVisible, Mode=OneWay}"
                           Command="{Binding ToggleToolCommand}" CommandParameter="{Binding HookTest}" />
+                <Separator />
+                <MenuItem Header="화면 공유 모드(_S)" IsCheckable="True" IsChecked="{Binding IsScreenShareMode, Mode=OneWay}"
+                          Command="{Binding ToggleScreenShareModeCommand}" ToolTip="켜면 비밀값을 화면에서 가립니다" />
             </MenuItem>
             <MenuItem Header="프로젝트(_P)">
                 <MenuItem Header="프로젝트 추가(_A)..." Command="{Binding Projects.AddProjectCommand}" />
@@ -176,6 +179,12 @@
                 </ItemsPanelTemplate>
             </StatusBar.ItemsPanel>
             <StatusBarItem DockPanel.Dock="Right" Content="{Binding PrivilegeStatusText}" />
+            <Separator DockPanel.Dock="Right" />
+            <StatusBarItem DockPanel.Dock="Right" Padding="0">
+                <Button Content="{Binding ScreenShareStatusText}" Command="{Binding ToggleScreenShareModeCommand}"
+                        ToolTip="화면 공유 모드 전환 (켜면 비밀값을 화면에서 가립니다)" AutomationProperties.Name="화면 공유 모드"
+                        Background="Transparent" BorderThickness="0" Foreground="{DynamicResource DD.Brush.Text.OnAccent}" Padding="6,0" />
+            </StatusBarItem>
             <Separator DockPanel.Dock="Right" />
             <StatusBarItem DockPanel.Dock="Right" Content="{Binding HomeStatusText}" />
             <Separator DockPanel.Dock="Right" />

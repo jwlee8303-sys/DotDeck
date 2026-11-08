@@ -1,5 +1,11 @@
 # 인수인계 (2026-11-08) — Claude Code → Codex
 
+## Codex 리뷰 반영 진행 기록 (2026-11-08, 사용자 확정 범위 A→B→C)
+- Codex 교차 검증(379d697..HEAD) 지적 5건 모두 반영 결정: P1 #1 파싱 실패 시 평문, P1 #2 링크로 마스킹 우회, P2 #3 rename 충돌 병합, P2 #4 배열 테이블 부모 rename 실패, P2 #5 MCP 혼합 args 타입 변경.
+- **A `fix(security)` 완료**: 화면 값 기본 평문. `SecretPresentation.ScreenShareMode`(AppSettings `ScreenShareMode`, 기본 false, 상태줄 버튼·보기 메뉴)일 때만 가림, 공유 모드 파싱 실패 시 문서 전체 가림. 로그 필터용 `CollectSecrets`를 표시와 분리(열기·다시 읽기·저장 시점만 수집, 입력 중 접두어 등록 방지). `SecretFileResolver`가 파일 링크·폴더 링크·정션을 구간별로 끝까지 추적(최대 40홉, 순환·검사 실패는 비밀로 간주). `IFileStore.GetLinkTarget`(기본 구현 = ResolveLinkTarget) 추가. 탐색기 자물쇠(`NodeInfo.FromEntry(store)`·사용자 지정 파일)와 문서 가림이 같은 판정 사용. 설정 대화상자 "비밀값 기본 가림" 제거(옛 키 무시). SPEC §0·§2.3·§6·§7.5·§8 문구 수정.
+- 알려진 제한: **하드링크는 일반 파일과 구분할 수 없어 이름으로만 판정**. 공유 모드 상태는 프로세스 전역 static이며 테스트는 `ScreenShareCollection`(병렬 비활성)으로 격리.
+- A 검증: Debug `dotnet build DotDeck.slnx` 경고 0·오류 0, `dotnet test --solution DotDeck.slnx` 총 757 / 성공 755 / 실패 0 / 건너뜀 2(심볼릭 링크 권한). 실제 정션 생성 테스트 통과.
+
 ## 최신 인수인계 메모 (다음 담당자용, 2026-11-08)
 
 ### 현재 완료 상태

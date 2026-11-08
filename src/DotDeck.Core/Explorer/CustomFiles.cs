@@ -103,7 +103,7 @@ public static class CustomFileRules
                 FullPath = path,
                 RelativePath = null,
                 FileKind = FileKindClassifier.Classify(name),
-                IsSecret = SecretFilePolicy.IsSecret(name),
+                IsSecret = entry is { IsReparsePoint: true } ? SecretFileResolver.IsSecretFile(store, path) : SecretFilePolicy.IsSecret(name),
                 IsReadOnly = entry?.IsReadOnly ?? false,
                 IsCustomFile = true,
                 Length = entry?.Length ?? 0,

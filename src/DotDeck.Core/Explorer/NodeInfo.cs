@@ -65,7 +65,11 @@ public sealed record NodeInfo
 
     public bool CanOpen => Kind == NodeKind.File;
 
-    public static NodeInfo FromEntry(FileSystemEntry entry, string relativePath)
+    /// <summary>
+    /// Builds a node. With <paramref name="store"/>, a link entry is judged by its final target
+    /// (<see cref="SecretFileResolver"/>) so a link named "notes.txt" to a key file still shows the lock.
+    /// </summary>
+    public static NodeInfo FromEntry(FileSystemEntry entry, string relativePath, IFileStore? store = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentNullException.ThrowIfNull(relativePath);
@@ -78,7 +82,9 @@ public sealed record NodeInfo
             FullPath = entry.FullPath,
             RelativePath = relativePath,
             FileKind = isFile ? FileKindClassifier.Classify(entry.Name) : FileKind.Other,
-            IsSecret = isFile && SecretFilePolicy.IsSecret(entry.Name),
+            IsSecret = isFile && (store is not null && entry.IsReparsePoint
+                ? SecretFileResolver.IsSecretFile(store, entry.FullPath)
+                : SecretFilePolicy.IsSecret(entry.Name)),
             IsHidden = entry.IsHidden,
             IsReadOnly = entry.IsReadOnly,
             IsLink = entry.IsReparsePoint,

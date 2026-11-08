@@ -24,6 +24,10 @@ public sealed class ProtectedBackupTests
             var store = new BackupStore(PhysicalFileStore.Instance, Path.Combine(root, "backups"), TimeProvider.System, protector: new DpapiBackupProtector());
             var snapshot = new TextFileReader(PhysicalFileStore.Instance).Read(file);
             Assert.DoesNotContain(secret, SecretPresentation.MaskDocument(file, snapshot.Text), StringComparison.Ordinal);
+            Assert.True(snapshot.IsSecretFile);
+
+            // Opening a document collects its secrets for the log filter (as TextDocumentViewModel does).
+            SecretPresentation.CollectSecrets(file, snapshot.Text, snapshot.IsSecretFile);
             var result = new SafeWriter(PhysicalFileStore.Instance, store).Commit(SafeWriter.Prepare(file, snapshot, "{\"API_KEY\":\"updated-fake\"}\r\n"));
             Assert.True(result.Written);
             var set = Assert.Single(store.List());

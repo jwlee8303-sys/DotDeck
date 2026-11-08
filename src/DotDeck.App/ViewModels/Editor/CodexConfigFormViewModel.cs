@@ -203,7 +203,6 @@ public sealed partial class CodexConfigFormViewModel : DocumentFormViewModel
             var next = TomlEditDocument.Parse(_doc.ToBytes()); edit(next); _doc = next;
             if (refresh) Refresh();
             var text = Encoding.UTF8.GetString(next.ToBytes());
-            _ = Core.Security.SecretPresentation.MaskDocument("config.toml", text);
             Apply(text);
             Message = null;
         }

@@ -16,7 +16,6 @@ public sealed partial class DiffReviewItem : ObservableObject
     {
         Path = path;
         _raw = diff.Compact();
-        _ = DotDeck.Core.Security.SecretPresentation.MaskDocument(path, string.Join("\n", diff.Lines.Select(l => l.Text)));
         Summary = $"+{diff.InsertedCount} −{diff.DeletedCount}" + (note is null ? string.Empty : $" · {note}");
     }
 
@@ -26,9 +25,12 @@ public sealed partial class DiffReviewItem : ObservableObject
 
     public string Summary { get; }
 
+    /// <summary>Screen share mode hides the whole diff body until the eye button is pressed.</summary>
+    public bool CanReveal { get; } = DotDeck.Core.Security.SecretPresentation.ScreenShareMode;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Lines))]
-    private bool _isRevealed = !DotDeck.Core.Security.SecretPresentation.MaskByDefault;
+    private bool _isRevealed = !DotDeck.Core.Security.SecretPresentation.ScreenShareMode;
     public IReadOnlyList<DiffLine> Lines => IsRevealed ? _raw : [.. _raw.Select(l => l.Kind == DiffLineKind.Gap ? l : l with { Text = DotDeck.Core.Security.SecretMasker.Mask })];
     [RelayCommand]
     private void Reveal() => IsRevealed = !IsRevealed;

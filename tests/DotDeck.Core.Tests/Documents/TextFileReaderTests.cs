@@ -216,7 +216,14 @@ public sealed class TextFileReaderTests : IDisposable
         var path = Write(name, Encoding.UTF8.GetBytes("SECRET=1"));
 
         Assert.Equal("SECRET=1", _reader.Read(path).Text);
+        Assert.True(_reader.Read(path).IsSecretFile);
         Assert.False(_reader.Probe(path).IsBinary);
+    }
+
+    [Fact]
+    public void Ordinary_file_is_not_flagged_secret()
+    {
+        Assert.False(_reader.Read(Write("notes.txt", "x"u8.ToArray())).IsSecretFile);
     }
 
     [Fact]
@@ -234,6 +241,7 @@ public sealed class TextFileReaderTests : IDisposable
         }
 
         Assert.Equal("SECRET=1", _reader.Read(link).Text);
+        Assert.True(_reader.Read(link).IsSecretFile);
         Assert.False(_reader.Probe(link).IsBinary);
     }
 

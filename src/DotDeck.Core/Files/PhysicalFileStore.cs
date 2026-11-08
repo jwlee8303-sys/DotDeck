@@ -40,6 +40,24 @@ public sealed class PhysicalFileStore : IFileStore
     public string? ResolveLinkTarget(string path) =>
         File.Exists(path) || Directory.Exists(path) ? File.ResolveLinkTarget(path, returnFinalTarget: true)?.FullName : null;
 
+    public string? GetLinkTarget(string path)
+    {
+        var full = Path.GetFullPath(path);
+        FileSystemInfo info = Directory.Exists(full) ? new DirectoryInfo(full) : new FileInfo(full);
+        if (info.LinkTarget is not { Length: > 0 } target)
+        {
+            return null;
+        }
+
+        // Junction targets may come back in NT form: \??\C:\real
+        if (target.StartsWith(@"\??\", StringComparison.Ordinal))
+        {
+            target = target[4..];
+        }
+
+        return Path.GetFullPath(target, Path.GetDirectoryName(full.TrimEnd(Path.DirectorySeparatorChar)) ?? full);
+    }
+
     public byte[] ReadHead(string path, int maxBytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maxBytes);

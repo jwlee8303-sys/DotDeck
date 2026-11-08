@@ -5,6 +5,7 @@ using DotDeck.App.ViewModels.Editor;
 using DotDeck.Core.Editors;
 using DotDeck.Core.Editors.Registry;
 using DotDeck.Core.Roles;
+using DotDeck.Core.Security;
 
 namespace DotDeck.App.ViewModels.Documents;
 
@@ -45,17 +46,46 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
         Buffer.PropertyChanged += OnBufferPropertyChanged;
         Buffer.TextChanged += OnBufferTextChanged;
         UpdateTitle();
-        _ = MaskedText;
+        CollectSecrets();
     }
 
+    private string? _maskedText;
+
+    /// <summary>Screen share mode only: the user revealed this view's secret values.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsMaskedDisplay))]
-    private bool _isSecretsRevealed = !DotDeck.Core.Security.SecretPresentation.MaskByDefault;
-    public string MaskedText => DotDeck.Core.Security.SecretPresentation.MaskDocument(FilePath, Buffer.Document.Text);
-    public bool HasSecrets => MaskedText != Buffer.Document.Text;
+    private bool _isSecretsRevealed;
+
+    /// <summary>Masked copy for screen share mode (empty when the mode is off). Never written back.</summary>
+    public string MaskedText => !SecretPresentation.ScreenShareMode
+        ? string.Empty
+        : _maskedText ??= SecretPresentation.MaskDocument(FilePath, Buffer.Document.Text, Buffer.IsSecretFile);
+
+    /// <summary>Screen share mode is on and the document has something to mask.</summary>
+    public bool HasSecrets => SecretPresentation.ScreenShareMode && MaskedText != Buffer.Document.Text;
+
     public bool IsMaskedDisplay => HasSecrets && !IsSecretsRevealed;
+
     [RelayCommand]
     private void RevealSecrets() => IsSecretsRevealed = !IsSecretsRevealed;
+
+    /// <summary>Screen share mode was switched: revealed views are hidden again and the masked copy is rebuilt.</summary>
+    public void OnScreenShareModeChanged()
+    {
+        IsSecretsRevealed = false;
+        RefreshMask();
+    }
+
+    private void RefreshMask()
+    {
+        _maskedText = null;
+        OnPropertyChanged(nameof(MaskedText));
+        OnPropertyChanged(nameof(HasSecrets));
+        OnPropertyChanged(nameof(IsMaskedDisplay));
+    }
+
+    // Only disk versions (open, reload, save) are collected: collecting while typing would register every prefix.
+    private void CollectSecrets() => SecretPresentation.CollectSecrets(FilePath, Buffer.Snapshot.Text, Buffer.IsSecretFile);
 
     public static string CreateContentId(string path, int viewNumber) => $"doc:{path}#{viewNumber}";
 
@@ -282,10 +312,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 
     private void OnBufferTextChanged(object? sender, EventArgs e)
     {
-        _ = MaskedText;
-        OnPropertyChanged(nameof(MaskedText));
-        OnPropertyChanged(nameof(HasSecrets));
-        OnPropertyChanged(nameof(IsMaskedDisplay));
+        RefreshMask();
         Promote();
 
         // Text changed outside the form (reload, undo, restore): refresh the form, or fall back to text.
@@ -307,6 +334,10 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
         if (e.PropertyName == nameof(DocumentBuffer.IsDirty))
         {
             UpdateTitle();
+        }
+        if (e.PropertyName == nameof(DocumentBuffer.Snapshot))
+        {
+            CollectSecrets();
         }
     }
 

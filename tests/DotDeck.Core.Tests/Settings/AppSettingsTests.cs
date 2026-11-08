@@ -25,6 +25,20 @@ public sealed class AppSettingsTests : IDisposable
     }
 
     [Fact]
+    public void Screen_share_mode_is_off_by_default_round_trips_and_ignores_the_old_mask_setting()
+    {
+        var path = _temp.Combine("settings.json");
+        var store = new AppSettingsStore(PhysicalFileStore.Instance, path);
+        Assert.False(new AppSettings().ScreenShareMode);
+
+        File.WriteAllText(path, "{ \"MaskSecretsByDefault\": true }");
+        Assert.False(store.Load().ScreenShareMode);
+
+        store.Save(new AppSettings { ScreenShareMode = true });
+        Assert.True(store.Load().ScreenShareMode);
+    }
+
+    [Fact]
     public void Normalize_clamps_bad_values()
     {
         var s = new AppSettings { Theme = "Neon", EditorFontSize = 200, BackupRetention = 0 }.Normalize();

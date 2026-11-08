@@ -60,7 +60,7 @@ public sealed class TextFileReader(IFileStore store)
             var after = GetFileEntry(path);
             if (before.LastWriteTimeUtc == after.LastWriteTimeUtc && before.Length == bytes.Length && after.Length == bytes.Length)
             {
-                return Decode(path, bytes, after.LastWriteTimeUtc);
+                return Decode(path, bytes, after.LastWriteTimeUtc) with { IsSecretFile = SecretFileResolver.IsSecretFile(_store, path) };
             }
 
             if (attempt == MaxReadAttempts)

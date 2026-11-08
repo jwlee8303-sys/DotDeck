@@ -80,6 +80,9 @@ public sealed record TextFileSnapshot(
 
     public bool IsReadOnly => ReadOnlyReason is not null;
 
+    /// <summary>The file or the final target of its links is a secret file (set by <see cref="TextFileReader.Read"/>).</summary>
+    public bool IsSecretFile { get; init; }
+
     public string? ReadOnlyReason => string.Equals(System.IO.Path.GetExtension(Path), ".toml", StringComparison.OrdinalIgnoreCase)
         && (Encoding is not (TextEncodingKind.Utf8 or TextEncodingKind.Utf8Bom) || HasDecodingErrors)
         ? "UTF-8이 아닌 TOML 파일은 읽기 전용으로 열립니다. 원본 인코딩을 확인하세요."

@@ -268,6 +268,50 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 
 ---
 
+## Codex 편집기 확장 설계 (SPEC 7.5, 2026-11-08)
+
+상태: HANDOFF의 승인된 결정 1~7을 반영한 구현 계획. 아래 타입·기능은 구현 전이다. 외부 제품 동작은 HANDOFF의 조사 기록을 기준으로 하며 구현 단계에서 공식 문서와 대조한다.
+
+### 2a: 기존 편집기 공통화
+- `EditorKind` enum과 기존 저장 이름(`settingsForm` 등)을 유지한다. Core `Editors/Registry/EditorRegistry`는 `EditorDescriptor`(Kind, 저장 이름, 라벨, 제품, HasForm/HasOutline, Validate, CanShowForm)를 관리한다. App `FormRegistry`는 폼 생성 책임을 갖는다. 역할 카탈로그·수동 지정·문서 VM·메뉴·검증의 종류별 분기를 등록소로 모은다.
+- 추가 종류와 저장 이름: `CodexConfig` → `codexConfigForm`, `CodexHooks` → `codexHooksForm`, `CodexAgent` → `codexAgentForm`, `CodexSkillMetadata` → `openaiYamlForm`, `CodexRules` → `codexRulesForm`. SKILL.md는 기존 `Skill`, AGENTS.md는 `Markdown`을 사용하며 `Role.Product`로 검증을 구분한다.
+- `ITextDocumentHost`는 공통 멤버만 유지하고 제품 의존 서비스를 `IClaudeFormServices` / `ICodexFormServices`로 분리한다. ViewModel은 View 타입을 참조하지 않는다.
+- `Core/Hooks/HookHandlerModel`과 `HookTableViewModel`·`HookTable.xaml`을 공용으로 만들고 저장은 어댑터로 분리한다. 어댑터는 `ClaudeSettingsHookStore`, `CodexHooksJsonStore`, `CodexInlineHookStore` 세 종류다. 기존 Claude의 원문·알 수 없는 데이터 보존과 실행 동작을 유지한다.
+- 키-값 표·문자열 목록은 `KeyValueTableViewModel`·`StringListViewModel`로 공통화한다. frontmatter 필드·검증은 제품 프로필로 분리한다. 2a 완료 후 기존 Claude 폼 동작을 사용자에게 확인받는다.
+
+### 2b-0: TOML 위치 패처
+- 승인된 Tomlyn은 파서(위치·trivia)로만 사용하고 `Core/Toml/TomlEditDocument`가 원본 텍스트에 패치를 적용한다. 기존 값 토큰만 교체하며 루트 키는 첫 테이블 앞, 테이블 키는 해당 테이블 마지막 줄 뒤에 삽입한다.
+- 기존 따옴표 스타일 유지, 새 Windows 경로는 literal `'...'`, 여러 줄은 `"""`를 사용한다. TOML 1.1 전용 구문은 생성하지 않는다. 파싱 오류는 줄·열을 반환하고 폼 전환을 막는다.
+- 패치 후 재파싱해 의도한 값·구조와 대조하고 불일치하면 버퍼 반영·저장을 거부한다. 무편집 왕복 바이트 동일, 한 값 변경 시 비대상 영역 동일을 검증한다. BOM·CRLF·주석·`[projects.'d:\project\dotdeck']`·점 키·인라인 테이블·배열 테이블을 포함한다. 시험 실패 시 자체 파서로 전환하고 보고한다.
+- YAML은 패키지 추가 없이 자체 `YamlBlockDocument`로 구현한다. 승인된 패키지 버전도 추가 시 실제 배포 여부·호환성을 확인하고 CPM에서만 관리한다.
+
+### 2b-1: 경로·역할·보호·연결 노드
+- `AppPaths`에 해석된 Codex 홈을 둔다. 실제 모드에서는 절대경로 CODEX_HOME 또는 사용자 홈의 `.codex`, 샌드박스에서는 실제 CODEX_HOME을 무시한 `<home>\.codex`. `--codex-home`으로 테스트용 경로를 지정하며 기존 데이터 폴더 격리를 유지한다. 환경변수는 기존 추상화를 통해 읽기만 한다.
+- `FileRoleResolver`에 `[claude, codex, agents]` 카탈로그와 `configDirAliases`를 전달해 이름이 `.codex`가 아닌 CODEX_HOME도 전역으로 판별한다. `Catalogs/Codex/file-roles.json`·`agents-file-roles.json`을 추가한다. 기존 Claude 판별 규칙과 저장된 수동 편집기 지정은 호환성을 유지한다.
+- `LinkedFolders`는 `CustomFilesProjectSource`와 같은 래퍼 패턴으로 해석된 홈의 `.agents/skills`를 Codex 트리의 계산된 가상 노드로 연결한다. 프로젝트 정의에 저장하지 않는다.
+- `RuntimeFilePolicy`는 SPEC 7.5의 런타임 경로·파일을 기본 숨김·읽기 전용으로 분류한다. 표시 여부와 쓰기 가능 여부를 분리해 보이게 설정해도 편집·삭제·이동으로 보호를 우회하지 못하게 한다. `/plugins`는 표시·읽기 전용, `/skills/.system`은 "Codex 내장" 안내.
+- `ISecretFileClassifier`를 읽기·검색·쓰기·백업·복원 경로에 일관되게 적용해 `auth.json`과 기존 비밀 파일을 차단한다. 기존 링크 최종 대상 검사도 유지한다. 수동 테스트는 임시 홈만 사용한다.
+
+### 2b-2~3: 스키마 폼·신뢰·비밀값
+- 내장 `Catalogs/Codex/config-schema.json`, `Core/Schema/*`, `CodexConfigDocument`, `CodexConfigFormViewModel`, `SchemaGrid.xaml`로 스키마 기반 폼을 만든다. 탭 구성은 SPEC 7.5를 따른다. 모르는 키·복잡한 값은 기타 읽기 전용 트리로 보존한다. 카탈로그 덮어쓰기는 `%APPDATA%\DotDeck\catalogs\Codex\`를 사용하며 잘못된 파일은 경고와 함께 내장본으로 대체한다.
+- `CodexTrustResolver`는 사용자 config의 `[projects.<key>] trust_level`을 비교한다. 따옴표·구분자·대소문자·`\\?\` 차이를 정규화하고 `project_root_markers`를 고려한다. 문서로 확정하지 못하는 상태는 "확인 불가"다. 계층·신뢰 배너는 실제 Codex 실행 결과를 단정하지 않는다.
+- `CodexSecretRules`는 SPEC 7.5의 비밀값 위치와 이름 패턴을 판정한다. `*_env_var`·`env_vars`·`env_http_headers`의 변수 이름은 예외다. `DiffReviewViewModel`, 로그·변경 기록·백업 목록까지 같은 정책을 적용한다. MCP 서버 실행·연결은 하지 않는다.
+- 백업 보호기는 Windows App 구현에서 DPAPI(CurrentUser)를 사용하고 Core에는 인터페이스만 둔다. 승인된 `System.Security.Cryptography.ProtectedData`를 CPM으로 추가한다. 비밀값 포함 파일은 원본 바이트를 암호화하고 manifest에 `protected: true`를 남긴다. 복원은 복호화 후 기존 안전 저장 흐름을 따른다. 복호화 실패 시 평문으로 우회하지 않는다. 기존 Claude settings.json env의 평문 백업 문제도 함께 해결한다.
+- config.toml 폼·MCP·보호 구현 후 임시 홈 실행 방법과 스크린샷을 제공해 사용자 확인을 받는다.
+
+### 2b-4~8: 나머지 Codex 편집기
+- 훅: 공용 모델에 저장 어댑터를 연결한다. 원래 표현으로 저장하고 명시적 변환 메뉴만 `CrossFileEdit`(두 파일 diff·한 백업 세트)을 사용한다. 구현 시 부분 실패·외부 변경 경로도 검증한다. 저장 후 `/hooks` 재신뢰 안내. 실행기는 Windows `commandWindows` 우선, 카탈로그 sample stdin, 실행 전 확인·제한 시간·출력 상한·프로세스 트리 종료를 유지한다.
+- 에이전트: `CodexAgentDocument`와 `Templates/Codex/*.toml`. `sandbox_mode`, `approval_policy`, `model_provider`, `mcp_servers`는 폼 입력에서 제외하되 기존 값 보존·경고. 문서에 없는 이름·중첩·탐색 규칙을 임의로 강제하지 않는다.
+- 스킬: 기존 스킬 폼의 Codex 프로필, `YamlBlockDocument`·`OpenAiYamlFormViewModel`, 비활성화 토글. `[[skills.config]]` 경로 비교 등 확인되지 않은 동작은 구현 시 별도 검증한다.
+- 문서: AGENTS.md·AGENTS.override.md는 Markdown과 제품별 검증 공급자로 override·크기 경고를 제공한다.
+- rules: `StarlarkRuleFile`은 최상위 `prefix_rule(...)`과 주석만 폼으로 처리한다. 지원하지 않는 구문은 줄·이유를 표시하고 텍스트 편집으로 남긴다. `codex execpolicy check --pretty --rules <file> -- <cmd>`는 명령 미리보기·사용자 확인 후 셸 없이 ArgumentList, 10초 제한으로 실행한다.
+
+### 검증·커밋 경계
+- 단계 0(사양·설계) → 2a-1(등록소) → 2a-2(훅) → 2a-3(폼 공통화) → 사용자 확인 → 2b-0~3 → config 폼 사용자 확인 → 2b-4~8 순서다. 상세 파일 목록·진행 상태는 HANDOFF를 따른다.
+- 각 단계는 빌드 → 전체 테스트 → 변경 검증 → Conventional Commits 커밋 → HANDOFF 갱신. CHANGELOG Unreleased에 누적하며 버전 파일은 변경하지 않는다. main 직접 커밋·merge·push와 승인 없는 PR·태그를 금지한다.
+- 테스트는 임시 폴더·가짜 구현만 사용한다. 기존 Claude 폼·저장 이름·미지 값 보존 회귀, TOML 바이트 왕복, 샌드박스 CODEX_HOME 격리, 런타임 보호 우회, 비밀값 표시·암호화·복원 실패를 중점 검증한다.
+- HANDOFF의 공식 문서 차이·미확인 사항은 구현 단계에서 확인하며, 이번 문서 반영을 새로운 외부 검증으로 간주하지 않는다. 출처는 HANDOFF §6과 공식 스키마 `https://developers.openai.com/codex/config-schema.json`이다.
+
 ## 5. App 아키텍처 (`src/DotDeck.App`)
 
 **셸·도킹 VM**

@@ -2,6 +2,8 @@
 이 프로젝트의 주요 변경사항을 기록합니다. 형식: Keep a Changelog, 버전: SemVer.
 
 ## [Unreleased]
+### Documentation
+- Codex 전용 편집기 사양(SPEC 7.5)과 확장 설계 추가: 편집기 공통화, TOML 무손실 편집, 경로·런타임 파일 보호, 설정·훅·에이전트·스킬·문서·rules 폼, 비밀값 마스킹·DPAPI 백업의 승인된 구현 계획
 ### Changed
 - 권한 규칙 인수 칸이 도구의 인수 형식(공식 문서 기준)을 따름: WebFetch는 `domain:` 접두어 표시, 인수 없는 도구는 칸 비활성, Agent는 기본 에이전트(Explore·Plan)와 이 범위의 agents/*.md 이름 선택, MCP 규칙은 인수 대신 서버 전체·모든 도구(`__*`)·특정 도구 선택. PowerShell은 명령, Skill은 스킬 이름, NotebookEdit는 Edit 규칙 사용으로 분류
 - 도구·matcher 메뉴의 MCP 그룹 이름을 "MCP 도구"로 바꾸고 툴팁에 출처 파일 표시. "MCP 서버 N개"를 누르면 서버 이름·출처·읽지 못한 파일 목록 표시

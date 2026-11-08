@@ -23,7 +23,7 @@ UI와 사용감은 **Visual Studio 2022(다크 테마)** 를 기준으로 한다
 | 이름 | 루트 | 설명 |
 |---|---|---|
 | Claude 전역 | `%USERPROFILE%\.claude\` | CLAUDE.md, settings.json, agents, skills, commands, rules, output-styles (역할은 7.0 판별기가 결정) |
-| Codex 전역 | `%USERPROFILE%\.codex\` | AGENTS.md, config.toml |
+| Codex 전역 | `CODEX_HOME` 또는 `%USERPROFILE%\.codex\` | config.toml, hooks.json, agents, rules, AGENTS.md 및 가상 스킬 노드(7.5절). 샌드박스에서는 실제 CODEX_HOME 무시 |
 | 시스템 | (가상 트리) | `환경변수(사용자)`, `환경변수(시스템)`, `PATH`, `사용자 지정 파일`(8절) 노드로 구성 |
 - 루트 폴더가 없으면 트리에 "폴더 없음 — 만들기" 안내를 표시한다.
 
@@ -114,6 +114,7 @@ docs/                          SPEC.md, 설계 문서
 - 저장 전 **diff 미리보기** 대화상자 (설정에서 끌 수 있음, 기본 켬).
 - 저장 시 원본을 `%LOCALAPPDATA%\DotDeck\backups\<yyyyMMdd-HHmmss>\<원래 경로 구조>`에 백업. 백업 목록에서 복원. 보관 개수 설정(기본 50).
 - 원자적 쓰기(임시 파일 → 교체). 기존 인코딩(BOM 유무)과 줄바꿈(CRLF/LF) 보존.
+- 비밀값이 든 설정 파일은 DPAPI(CurrentUser)로 암호화해 백업하고 복원 시 복호화한다. 로그·백업 목록·변경 기록·diff 표시에 비밀값 평문 금지. Codex `auth.json`은 열기·백업 금지(7.5절).
 - 외부 변경 감지 → 미저장 변경이 있으면 "다시 불러오기 / 내 버전 유지 / diff 보기".
 - 대용량 파일(1MB 초과)은 열기 전 경고. 바이너리 파일은 열지 않고 정보만 표시.
 - 새로 만들기 템플릿: 에이전트, 스킬(폴더+SKILL.md), 훅 스크립트(Python), 프로젝트 CLAUDE.md(web/csharp/python). 템플릿은 `%APPDATA%\DotDeck\templates\`에 두고 앱에서 수정 가능.
@@ -121,9 +122,9 @@ docs/                          SPEC.md, 설계 문서
 ## 7. 타입별 전용 편집기
 문서 탭 상단에서 `텍스트 | 미리보기 | 폼 | 분할` 보기를 전환한다(해당 타입만).
 ### 7.0 파일 역할 판별
-- 파일 이름이 아니라 Claude Code가 설정을 읽는 위치로 판별한다. 가장 가까운 `.claude` 폴더 기준 상대 경로 → `.claude` 밖 규칙(CLAUDE.md, CLAUDE.local.md, .mcp.json, ~/.claude.json 등) 순서. `.claude`의 부모가 홈(`DOTDECK_HOME`/`--home` 해석 결과)이면 전역, 아니면 프로젝트. `settings.local.json`은 로컬(Git 제외).
+- 파일 이름이 아니라 제품이 설정을 읽는 위치로 판별한다. Claude는 가장 가까운 `.claude` 폴더 기준 상대 경로 → `.claude` 밖 규칙(CLAUDE.md, CLAUDE.local.md, .mcp.json, ~/.claude.json 등) 순서. `.claude`의 부모가 홈(`DOTDECK_HOME`/`--home` 해석 결과)이면 전역, 아니면 프로젝트. `settings.local.json`은 로컬(Git 제외). Codex는 해석된 CODEX_HOME과 `.codex`, 스킬은 `.agents/skills` 기준으로 판별한다(7.5절).
 - `.claude` 밖 프로젝트 파일은 "앵커 폴더"(`.claude` 또는 `.git`이 있거나 등록된 프로젝트 루트) 기준으로 판별한다. 앵커가 아닌 폴더의 CLAUDE.md는 "하위 폴더"(필요 시 로드) 범위.
-- 규칙은 `DotDeck.Core/Catalogs/<제품>/file-roles.json` 데이터로 관리한다(제품 단위로 확장, Codex는 이후).
+- 규칙은 `DotDeck.Core/Catalogs/<제품>/file-roles.json` 데이터로 관리한다. Claude·Codex·agents 카탈로그를 함께 사용하며, 사용자 덮어쓰기는 `%APPDATA%\DotDeck\catalogs\<제품>\`에 둔다. Codex 스킬 위치 규칙은 `Catalogs/Codex/agents-file-roles.json`에 둔다.
 - 파일 내용은 보조 신호로만 쓴다. 기본 제공 프로젝트와 사용자 프로젝트에 같은 판별기를 쓴다.
 ### agents/*.md (`.claude/agents/` 아래, 하위 폴더 포함)
 - 폼: `name`, `description`(여러 줄), `tools`(체크 목록 + 직접 입력, 도구 카탈로그 공유), `model`(opus/sonnet/haiku/fable/inherit/직접 입력) + 본문.
@@ -146,6 +147,38 @@ docs/                          SPEC.md, 설계 문서
 - **JSON 모드**와 폼 양방향 동기화. 폼이 모르는 키는 반드시 보존. JSON 오류 시 폼 전환 차단.
 ### CLAUDE.md / AGENTS.md / 일반 md
 - 편집 + 미리보기 분할 보기, 헤더 목차 탐색.
+
+### 7.5 Codex 전용 편집기 (승인된 구현 범위, 2026-11-08)
+이 절은 HANDOFF의 사용자 결정과 조사 기록을 정식 사양으로 옮긴 것이다. 아직 구현 전이며, 공식 스키마·문서는 각 구현 단계에서 다시 대조한다. 앱 자체는 네트워크를 사용하지 않는다.
+
+#### 경로·파일 역할·보호 정책
+- 실제 홈 모드: 절대경로 `CODEX_HOME`을 사용하고, 없으면 `%USERPROFILE%\.codex`. `--home`/`DOTDECK_HOME` 모드에서는 실제 CODEX_HOME을 무시하고 `<home>\.codex`를 사용한다. 테스트용 `--codex-home` 옵션을 제공하며 데이터 폴더 격리를 유지한다.
+- Codex 전역 트리에 계산된 가상 노드 `스킬 (~/.agents/skills)`를 둔다. 경로는 해석된 홈 기준이고 프로젝트 목록에 별도로 저장하지 않는다. 실제 사용자 설정은 개발·테스트 중 수정하지 않는다.
+- `auth.json`은 비밀 파일로 열기·백업·검색 대상에서 제외한다. 런타임 데이터는 기본 숨김 + 읽기 전용, `/plugins`는 표시 + 읽기 전용, `/skills/.system`은 표시 + "Codex 내장" 안내.
+- 기본 숨김·읽기 전용 폴더: `/sessions`, `/log`, `/cache`, `/.sandbox`, `/app-server-control`, `/app-server-daemon`, `/packages`, `/thread-writer-locks`, `/tmp`, `/tui-thread-reference-capabilities`.
+- 기본 숨김·읽기 전용 파일: `*.sqlite*`, `*.lock`, `.sandbox_migration`, `installation_id`, `version.json`, `models_cache.json`, `history.jsonl`, `session_index.jsonl`, `config.toml.bak-*`. 표시 설정을 바꿔도 쓰기 보호는 유지한다.
+- Codex 카탈로그·내장 스키마는 `Catalogs/Codex/`, 사용자 덮어쓰기는 `%APPDATA%\DotDeck\catalogs\Codex\`에 둔다(`schemas\` 아님). 설명·형식·문서 주소·확인 날짜를 데이터로 관리한다.
+
+#### config.toml·TOML 편집
+- 탭: 일반 / 권한·샌드박스 / MCP 서버 / 기능 플래그 / 에이전트 / 스킬 / 훅(인라인) / TUI·기록 / 기타(읽기 전용 트리). 스키마 기반 입력·검증, 설정 계층과 신뢰 상태 배너를 제공한다.
+- 사용자 config의 `[projects.<key>] trust_level`을 경로 기준으로 해석한다. 따옴표·구분자·대소문자·Windows `\\?\` 접두어 차이를 고려하고 `project_root_markers`를 반영한다. 문서로 확정할 수 없는 경우 "확인 불가"로 표시한다.
+- Tomlyn(추가 승인됨)은 위치·trivia 파싱에만 사용하고, 자체 패처로 값 토큰 범위만 수정한다. 모르는 키·값·주석·기존 따옴표 스타일·BOM·줄바꿈을 보존한다. 새 Windows 경로는 literal 문자열, 여러 줄은 기본 문자열을 사용한다. TOML 1.1 전용 구문은 생성하지 않는다.
+- 패치 후 재파싱 검증이 실패하면 저장하지 않는다. 파싱 오류는 줄·열과 함께 표시하고 폼 전환을 막는다. CRLF·BOM·주석·`[projects.'d:\project\dotdeck']`·점 키·인라인 테이블·배열 테이블의 바이트 단위 왕복 테스트가 필수다. 시험 구현이 실패하면 자체 파서로 전환하고 보고한다.
+- MCP 서버는 설정 편집만 제공하고 실제 실행·연결하지 않는다. 비밀값 대상: `mcp_servers.*.env`, `http_headers`, `oauth.client_secret`, `model_providers.*.experimental_bearer_token`, 이름에 KEY/TOKEN/SECRET/PASSWORD/PWD/CREDENTIAL이 포함된 값. `*_env_var`, `env_vars`, `env_http_headers`의 변수 이름은 가리지 않는다.
+- 비밀값 포함 파일은 DPAPI(CurrentUser) 암호화 백업(ProtectedData 패키지 승인됨), manifest에 `protected: true` 표시, 복원 시 복호화. 기존 Claude settings.json의 env 비밀값에도 같은 보호를 적용한다.
+
+#### 훅·에이전트·스킬·문서·규칙
+- `hooks.json`과 config.toml 인라인 훅은 공용 훅 표로 편집하되 원래 표현으로 저장한다. 표현 간 변환은 명시적 메뉴로만 수행하고 두 파일 diff·한 백업 세트로 검토한다. 저장 후 "`/hooks`에서 다시 신뢰 필요" 배너를 표시한다.
+- 훅 이벤트·matcher·timeout·종료 코드 설명과 샘플 stdin은 Codex 전용 카탈로그로 관리한다. 테스트는 실행 전 확인, Windows `commandWindows` 우선, 제한 시간·출력 상한·프로세스 트리 종료를 적용하고 실제 Codex와 셸이 다를 수 있음을 표시한다.
+- 사용자 지정 에이전트 TOML 폼·템플릿을 제공한다. 덮어쓸 수 없는 키 `sandbox_mode`, `approval_policy`, `model_provider`, `mcp_servers`는 폼에 노출하지 않고 기존 값은 보존하며 경고한다.
+- SKILL.md는 기존 스킬 폼에 Codex 검증 프로필을 적용한다. `agents/openai.yaml` 메타데이터 폼과 스킬 비활성화 토글을 제공한다. YAML은 새 패키지 없이 자체 `YamlBlockDocument`로 수정하며 모르는 내용을 보존한다.
+- AGENTS.md·AGENTS.override.md는 Markdown 편집기에서 override와 크기 경고를 제공한다. 제품별 검증은 역할의 제품 정보로 분기한다.
+- `.rules`는 최상위 `prefix_rule(...)`과 주석만 있을 때 폼으로 편집한다. 그 밖의 구문은 "폼 사용 불가: N행 이유"를 표시한다. 검사는 `codex execpolicy check --pretty --rules <file> -- <cmd>` 미리보기 → 사용자 확인 → 셸 없이 ArgumentList로 실행, 10초 제한.
+
+#### 구현 순서·확인 지점
+1. 2a: 편집기 등록소, 공용 훅 모델·표·실행기, 키-값 표·문자열 목록·frontmatter 프로필 공통화. 기존 저장 이름과 Claude 편집 동작을 유지하고 사용자 확인을 받는다.
+2. 2b-0~3: TOML 무손실 편집 기반 → 경로·역할·파일 보호 → config.toml 폼 → MCP·마스킹·DPAPI 백업. config.toml 폼 실행 방법·스크린샷을 제공하고 사용자 확인을 받는다.
+3. 2b-4~8: 훅 → 에이전트 → 스킬 → AGENTS 문서 → rules. 단계마다 빌드·테스트·검증·Conventional Commits 커밋·HANDOFF 갱신. 버전 파일은 변경하지 않는다.
 
 ## 8. 시스템 프로젝트
 ### 환경변수

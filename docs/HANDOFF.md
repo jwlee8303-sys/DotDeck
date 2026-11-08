@@ -1,5 +1,45 @@
 # 인수인계 (2026-11-08) — Claude Code → Codex
 
+## 최신 인수인계 메모 (다음 담당자용, 2026-11-08)
+
+### 현재 완료 상태
+- 현재 작업 브랜치: `feat/codex-editors`. Codex 설정 전용 폼 재설계의 승인된 단계 ②~⑤ 구현을 마쳤다.
+- 완료 커밋(작업 브랜치에 있음):
+  - `e42795a feat(security): 비밀 파일 편집 허용과 기본 가림 및 표시 전환`
+  - `a9c1bc2 feat(backups): DPAPI 투명 암호화와 자동 복호화 복원`
+  - `f42f233 feat(codex-config): 전용 폼 5개 탭과 카탈로그 및 자동 연결`
+  - `ee37a12 feat(codex-config): 고급 테이블 트리와 타입별 무손실 편집`
+- 마지막 전체 검증: `dotnet build DotDeck.slnx -c Release` 성공(경고/오류 0), `dotnet test --solution DotDeck.slnx -c Release` 성공(총 739, 성공 737, 실패 0, 기존 심볼릭 링크 권한 이슈로 skip 2). Debug 구성은 당시 실행 중인 앱이 DLL을 잠가 실행하지 못했다. 앱을 강제 종료하지 않았다.
+- 현재 git 상태 확인: 작업 변경은 커밋 완료. `?? .claude/`만 미추적 로컬 설정으로 남아 있으므로 열람·수정·추가·커밋하지 않는다. 버전 파일은 변경하지 않았다.
+- 새 NuGet 의존성은 추가되지 않았다. ProtectedData 10.0.14는 확인했으나 Windows 타깃 프레임워크에서 제공되는 API이므로 불필요한 패키지 참조를 제거했다. 승인된 Tomlyn은 기존 단계에서 사용 중이다.
+
+### 다음 담당자의 진행 순서
+1. 먼저 `CLAUDE.md`, `docs/SPEC.md`, 이 파일의 최신 승인·인수인계 절 및 관련 `docs/` 설계 문서를 읽고, `git status --short`, 브랜치, 최근 커밋을 확인한다. `.claude/`는 사용자 로컬 설정이다.
+2. 임시 홈의 fake fixture로 앱을 실행해 시각 확인한다(경로/명령은 아래 “수동 확인용 임시 홈” 참고). 특히 6탭 전환, 비밀 기본 가림 및 눈 표시/편집, MCP args/env 행 관리, 프로젝트 폴더 선택, auth.json 편집·저장·복원, 고급 트리, 문법 오류 시 텍스트 편집을 확인한다. 실사용자 홈·실제 비밀 파일은 읽거나 변경하지 않는다.
+3. 확인된 결함과 남은 경계를 해결한다. 주요 후속 후보는 아래 “남은 확인/제한”에 기록되어 있다. 각 독립 단계는 테스트 우선으로 수정하고, 단계별 `dotnet build` → 전체 `dotnet test` → diff 검토 → Conventional Commit → 이 파일의 진행 기록 갱신 순으로 처리한다. 빌드/테스트는 Debug와 Release 중 현재 실행 프로세스가 잠그지 않는 구성을 사용하고, 사용자의 앱 프로세스를 임의로 종료하지 않는다.
+4. 기능이 안정되면 릴리스 준비를 진행한다: 최신 SPEC·CHANGELOG·버전 정책 및 저장소 release 절차/스킬을 다시 확인하고, 릴리스 후보의 전체 검증과 publish 산출물을 점검한다. SemVer·태그 지침을 지키며 버전 파일은 사용자 지시 없이 수정하지 않는다. 릴리스 완료 여부와 산출물은 HANDOFF에 기록한다.
+5. Git 작업은 `feat/codex-editors`에서만 한다. main에 직접 커밋하거나 merge하지 않는다. **push, PR, 태그 생성/공개 릴리스는 사용자 승인이 필요하다**. 현재 승인된 작업은 구현 및 인수인계까지이며 push/merge/release 승인은 받은 것으로 간주하지 않는다. 승인 전에는 로컬 브랜치와 검증 결과만 준비한다.
+
+### 남은 확인/제한
+- 제품 앱을 임시 홈으로 사람이 직접 실행한 시각적 확인은 아직 완료 기록이 없다(자동 STA 리소스/바인딩/Undo 검사는 통과).
+- 다른 Windows 계정에서 복원하는 실계정 전환 확인은 하지 않았다. 읽을 수 없는 DPAPI payload에서 “복원 불가” 안내가 나오는 자동 검사는 통과했다.
+- `config.toml` 자동 폼 연결은 현재 파일명 fallback 중심이다. 완전한 CODEX_HOME 별칭 및 실제 Codex 경로 기반 역할 판별(기존 2b-1)은 별도 작업이다. 동명 파일을 여는 다른 제품에서 오탐 가능성을 평가한다.
+- 앱이 만든 새 파일 백업은 DPAPI(CurrentUser)로 암호화한다. 기존 평문 백업은 자동 변환하지 않는다. Core `BackupStore`의 protector는 선택 인자이므로 새로운 제품 Composition Root가 생기면 DPAPI 구현 주입 여부를 점검한다.
+- 프로젝트 ZIP 내보내기는 기존 비밀 파일 제외 정책을 유지한다. 이번 DPAPI는 파일 저장/덮어쓰기/복원 백업에 적용된다.
+- 카탈로그는 앱 시작 시 읽는다(실행 중 hot reload 없음). JSON 비밀 미리보기는 표시용 재직렬화이며 원본 편집 버퍼와 분리된다. diff 본문은 기본 전체 가림, 눈 버튼으로 표시한다. 알려진 비밀값 필터는 프로세스 메모리에 등록값을 유지한다.
+
+### 임시 수동 확인 fixture
+- 임시 홈: `C:\Users\jwlee\AppData\Local\Temp\DotDeck-codex-review-f79f9e5a`
+- 실행: `dotnet run --project src/DotDeck.App -c Release -- --home "C:\Users\jwlee\AppData\Local\Temp\DotDeck-codex-review-f79f9e5a"`
+- `.codex/config.toml`에는 fake API_KEY, 주석/프로필/MCP/projects/고급 값이 있고 `.codex/auth.json`에는 가짜 토큰만 들어 있다. 재생성 필요 시 실제 사용자 경로를 사용하지 말고 임시 홈만 쓴다.
+
+### 관련 문서/코드 위치
+- 최신 제품 원칙 및 동작 요구: `docs/SPEC.md`의 최신 보안 원칙과 Codex 설정 폼 절, 설계: `docs/DESIGN.md`.
+- Core TOML/카탈로그/백업: `src/DotDeck.Core/Toml/TomlEditDocument.cs`, `Codex/ConfigFormCatalog.cs`, `Documents/BackupStore.cs`.
+- Codex 폼: `src/DotDeck.App/ViewModels/Editor/CodexConfigFormViewModel.cs`, `AdvancedTomlViewModel.cs`, 대응 `Views/Editor/` XAML.
+- 비밀 표시/DPAPI: `Security/SecretPresentation.cs`, `SecretMasker.cs`, `Views/Editor/SecretValueEditor.*`, `Infrastructure/Windows/DpapiBackupProtector.cs`.
+- 회귀 테스트: `tests/DotDeck.Core.Tests/`와 `tests/DotDeck.App.Tests/`의 CodexConfigForm, AdvancedToml, SecretPresentation, ProtectedBackup, FormXaml 관련 테스트.
+
 ## 최신 사용자 승인 (Codex 전용 폼 재설계)
 - 최신 요청이 과거 보안 결정보다 우선한다. 관리 도구인 DotDeck은 비밀 파일·값이라는 이유로 열기·편집·저장을 막지 않는다. auth.json도 자물쇠·기본 마스킹으로 열고 눈으로 즉시 편집한다. 사용자 지정 파일 등록 허용. 로그·출력·diff 요약·백업 목록 평문 금지, diff 본문은 눈으로 표시 가능. DPAPI(CurrentUser) 투명 백업, 다른 계정 복원 실패 안내. 실제 사용자 설정은 개발 중 수정하지 않는다.
 - 화면 구성안 승인 완료. 단계별 커밋: ② 원칙/마스킹 → ③ DPAPI → ④ 모델·권한·프로필·MCP·신뢰 전용 탭 → ⑤ 고급 트리. `[profiles.*]`는 요청대로 편집하되 Codex 0.134.0+ 별도 프로필 파일 정책 경고만 표시. 기존 범용 폼 대체.

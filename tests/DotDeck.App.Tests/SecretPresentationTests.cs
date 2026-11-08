@@ -54,6 +54,30 @@ public sealed class SecretPresentationTests : IDisposable
         Assert.DoesNotContain(value, SecretMasker.MaskText("output: started with " + value), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(".env", "# comment\nexport FAKE_ONE=fake-env-value-1111\nOTHER=\"fake-env-value-2222\"\n", "fake-env-value-2222", false)]
+    [InlineData("notes.txt", "FAKE_ONE=fake-alias-env-3333\n", "fake-alias-env-3333", true)]
+    [InlineData("notes.txt", "{\"refresh\": \"fake-alias-json-4444\"}", "fake-alias-json-4444", true)]
+    [InlineData("notes.txt", "-----BEGIN PRIVATE KEY-----\nZmFrZS1wZW0tYm9keS1saW5lLTU1NTU1NTU1\n-----END PRIVATE KEY-----\n", "ZmFrZS1wZW0tYm9keS1saW5lLTU1NTU1NTU1", true)]
+    public void Unstructured_or_aliased_secret_files_register_values_for_the_log_filter(string name, string text, string value, bool isSecretFile)
+    {
+        SecretPresentation.CollectSecrets(name, text, isSecretFile);
+        Assert.DoesNotContain(value, SecretMasker.MaskText("output: " + value), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Reload_that_turns_the_file_into_a_secret_refreshes_the_masked_view()
+    {
+        SecretPresentation.ScreenShareMode = true;
+        var document = Open("notes.txt", "plain words only");
+        Assert.False(document.IsMaskedDisplay);
+        var secret = TextFileReader.Decode(@"C:\fake\notes.txt", System.Text.Encoding.UTF8.GetBytes("plain words only"), DateTime.UtcNow)
+            with { IsSecretFile = true };
+        document.Buffer.Reload(secret);
+        Assert.True(document.IsMaskedDisplay);
+        Assert.Equal(SecretMasker.Mask, document.MaskedText);
+    }
+
     [Fact]
     public void Text_document_shows_plain_text_by_default_and_masks_in_screen_share_mode()
     {

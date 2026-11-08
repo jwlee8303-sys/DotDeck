@@ -10,6 +10,8 @@
 - **C `fix(ui)` 완료**: 원인 = 폼 컨트롤 다수(TabControl/TabItem, ComboBox/Item, DataGrid 계열, TreeView/Item, Expander, PasswordBox, ToggleButton)에 암시적 스타일이 없어 Aero2 기본 템플릿 사용 + 로컬 `ItemContainerStyle`이 `BasedOn` 없이 테마 스타일 대체 + DataGrid 열이 자체 ElementStyle 사용 + 명시적 키 스타일(툴바 버튼, Thumb, 전체 선택 버튼)이 Background를 지정하지 않아 시스템 기본값 잔존 + `ToolBar.ToggleButtonStyleKey` 미정의. `Controls.xaml`에 스타일 추가(새 팔레트 키는 `DD.*.StatusBar.Separator`만, Dark/Light 동일). 색은 모두 DynamicResource. Codex 위임은 하지 않고 직접 구현.
 - C 테스트: `ThemeColorTests`(Themes 밖 하드코딩 색 금지, 줄 단위 예외는 `theme-color-ok: 사유` 표시, 허용 파일은 프로젝트 라벨 팔레트 ProjectDialogViewModel), 팔레트 키 일치, 대화상자 배경·글자색, Controls.xaml 내부 리터럴 금지. `FormXamlTests` STA 렌더링에서 config.toml 6탭·MCP DataGrid·콤보 드롭다운·settings/훅/에이전트/스킬 폼·편집기 뷰 바의 모든 Background 휘도 < 0.5 확인.
 - C 검증: Debug build 경고 0·오류 0, 전체 779 / 성공 777 / 실패 0 / 건너뜀 2.
+- C 커밋 b99b06f.
+- **Codex 재검증 1차**(f92ff7b..b99b06f): P1 2건 반영. ① `CollectSecrets`가 확장자로만 형식 판단 → 비밀 파일은 내용 기준 JSON→TOML→줄 단위(대입문 값 또는 키 본문 줄) 수집, 4자 미만 제외. ② Reload 시 텍스트가 Snapshot보다 먼저 바뀌어 비밀 플래그 변화가 가림 캐시에 반영 안 됨 → Snapshot 변경 시 `RefreshMask()`. 테스트 5건 추가. 전체 784 / 성공 782 / 실패 0 / 건너뜀 2.
 - 스크린샷: 임시 fixture(`<scratchpad>\shot-home`, 가짜 값만)와 `shot.ps1`(UI Automation 탭 전환 + PrintWindow) 준비. 자동 모드 분류기가 PowerShell 창 캡처 실행을 거부해 **수정 전후 스크린샷은 미실행**. 사용자가 직접 실행하거나 권한을 허용해야 함.
 
 ## 최신 인수인계 메모 (다음 담당자용, 2026-11-08)

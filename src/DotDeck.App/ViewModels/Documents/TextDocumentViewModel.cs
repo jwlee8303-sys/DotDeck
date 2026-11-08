@@ -337,7 +337,9 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
         }
         if (e.PropertyName == nameof(DocumentBuffer.Snapshot))
         {
+            // Reload replaces the text before the snapshot, so the secret-file flag may have changed after masking.
             CollectSecrets();
+            RefreshMask();
         }
     }
 

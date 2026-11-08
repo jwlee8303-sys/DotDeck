@@ -39,25 +39,67 @@ public static class SecretPresentation
     public static void CollectSecrets(string path, string text, bool isSecretFile = false)
     {
         var all = isSecretFile || SecretFilePolicy.IsSecret(Path.GetFileName(path));
+
+        // A secret file may be a link alias ("notes.txt" -> auth.json / .env): judge its format by content, not name.
+        if ((IsJson(path) || all) && TryCollectJson(text, all)) return;
+        if ((IsToml(path) || all) && TryCollectToml(text, all)) return;
+        if (all) CollectLines(text);
+    }
+
+    // Values shorter than this are not registered: masking "1" or "on" everywhere would make logs unreadable.
+    private const int MinCollectedLength = 4;
+
+    private static bool TryCollectJson(string text, bool all)
+    {
         try
         {
-            if (IsJson(path))
-            {
-                Collect(JsonNode.Parse(text), all);
-            }
-            else if (IsToml(path))
-            {
-                var doc = TomlEditDocument.Parse(System.Text.Encoding.UTF8.GetBytes(text));
-                foreach (var entry in doc.Entries.Where(e => all || SensitivePath(e.Path)))
-                {
-                    if (entry.Literal.Length > 2) SecretMasker.RegisterSecret(DecodeLiteral(entry.Literal));
-                }
-            }
+            Collect(JsonNode.Parse(text), all);
+            return true;
         }
-        catch (Exception ex) when (ex is System.Text.Json.JsonException or TomlEditException or ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or ArgumentException or InvalidOperationException)
         {
-            // Nothing structured to collect; MaskText still filters secret-looking assignments in logs.
+            return false;
         }
+    }
+
+    private static bool TryCollectToml(string text, bool all)
+    {
+        try
+        {
+            var doc = TomlEditDocument.Parse(System.Text.Encoding.UTF8.GetBytes(text));
+            foreach (var entry in doc.Entries.Where(e => all || SensitivePath(e.Path)))
+            {
+                if (entry.Literal.Length > 2) Register(DecodeLiteral(entry.Literal));
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is TomlEditException or ArgumentException or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Unstructured secret files (.env, keys): each assignment value, or each whole line for key material.</summary>
+    private static void CollectLines(string text)
+    {
+        foreach (var raw in text.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0 || line.StartsWith('#') || line.StartsWith("-----", StringComparison.Ordinal)) continue;
+            var assignment = s_assignment.Match(line);
+            Register(assignment.Success ? assignment.Groups["value"].Value.Trim().Trim('"', '\'') : line);
+        }
+    }
+
+    // NAME=value / export NAME=value / name: value. Key material lines (base64, may end with '=') do not match.
+    private static readonly System.Text.RegularExpressions.Regex s_assignment = new(
+        @"^(?:export\s+)?[A-Za-z_][\w.\-]*\s*[=:]\s*(?<value>.+)$",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+
+    private static void Register(string value)
+    {
+        if (value.Length >= MinCollectedLength) SecretMasker.RegisterSecret(value);
     }
 
     /// <summary>
@@ -113,7 +155,7 @@ public static class SecretPresentation
             foreach (var (key, child) in obj)
             {
                 var mask = sensitive || SensitivePath([key]);
-                if (child is JsonValue value && mask) SecretMasker.RegisterSecret(value.ToString());
+                if (child is JsonValue value && mask) Register(value.ToString());
                 else Collect(child, mask);
             }
         }
@@ -121,7 +163,7 @@ public static class SecretPresentation
         {
             foreach (var child in array)
             {
-                if (child is JsonValue value && sensitive) SecretMasker.RegisterSecret(value.ToString());
+                if (child is JsonValue value && sensitive) Register(value.ToString());
                 else Collect(child, sensitive);
             }
         }

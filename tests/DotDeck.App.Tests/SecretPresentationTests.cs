@@ -65,6 +65,44 @@ public sealed class SecretPresentationTests : IDisposable
         Assert.DoesNotContain(value, SecretMasker.MaskText("output: " + value), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("export SESSION=\"fake-review-token-9034\" # local", "fake-review-token-9034")]
+    [InlineData("SESSION='fake-review-token-9035' # local", "fake-review-token-9035")]
+    [InlineData("SESSION=fake-review-token-9036 # local", "fake-review-token-9036")]
+    [InlineData("SESSION=\"fake-#hash-token-9037\"", "fake-#hash-token-9037")]
+    public void Env_values_with_quotes_and_inline_comments_register_only_the_value(string line, string value)
+    {
+        SecretPresentation.CollectSecrets(".env", line + "\n");
+        Assert.DoesNotContain(value, SecretMasker.MaskText("output: " + value), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Json_root_scalar_of_a_secret_file_is_collected_and_masked()
+    {
+        const string value = "fake-root-scalar-7781";
+        SecretPresentation.CollectSecrets("auth.json", "\"" + value + "\"");
+        Assert.DoesNotContain(value, SecretMasker.MaskText("output: " + value), StringComparison.Ordinal);
+        SecretPresentation.ScreenShareMode = true;
+        Assert.DoesNotContain(value, SecretPresentation.MaskDocument("auth.json", "\"" + value + "\""), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Backup_restore_diff_follows_screen_share_mode()
+    {
+        var entry = new BackupEntry(new BackupSet("id", @"C:\fake\backups\1", DateTimeOffset.UtcNow, "save", []), new BackupFile(@"C:\fake\auth.json", "auth.json", 1, "x"));
+        var text = "{\"access_token\":\"" + Secret + "\"}";
+        var plain = new BackupRestoreViewModel(@"C:\fake\auth.json", [entry], "{}", _ => text);
+        Assert.False(plain.CanReveal);
+        Assert.Contains(plain.Lines, l => l.Text.Contains(Secret, StringComparison.Ordinal));
+
+        SecretPresentation.ScreenShareMode = true;
+        var shared = new BackupRestoreViewModel(@"C:\fake\auth.json", [entry], "{}", _ => text);
+        Assert.True(shared.CanReveal);
+        Assert.DoesNotContain(shared.Lines, l => l.Text.Contains(Secret, StringComparison.Ordinal));
+        shared.RevealCommand.Execute(null);
+        Assert.Contains(shared.Lines, l => l.Text.Contains(Secret, StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Reload_that_turns_the_file_into_a_secret_refreshes_the_masked_view()
     {

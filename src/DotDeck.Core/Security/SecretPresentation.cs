@@ -88,8 +88,22 @@ public static class SecretPresentation
             var line = raw.Trim();
             if (line.Length == 0 || line.StartsWith('#') || line.StartsWith("-----", StringComparison.Ordinal)) continue;
             var assignment = s_assignment.Match(line);
-            Register(assignment.Success ? assignment.Groups["value"].Value.Trim().Trim('"', '\'') : line);
+            Register(assignment.Success ? EnvValue(assignment.Groups["value"].Value) : line);
         }
+    }
+
+    /// <summary>dotenv value: a quoted value ends at its closing quote; an unquoted one at " #" (inline comment).</summary>
+    private static string EnvValue(string raw)
+    {
+        var value = raw.Trim();
+        if (value.Length > 0 && value[0] is '"' or '\'')
+        {
+            var close = value.IndexOf(value[0], 1);
+            return close > 0 ? value[1..close] : value[1..];
+        }
+
+        var comment = value.IndexOf(" #", StringComparison.Ordinal);
+        return (comment >= 0 ? value[..comment] : value).TrimEnd();
     }
 
     // NAME=value / export NAME=value / name: value. Key material lines (base64, may end with '=') do not match.
@@ -114,6 +128,7 @@ public static class SecretPresentation
             if (IsJson(path))
             {
                 var node = JsonNode.Parse(text);
+                if (node is JsonValue && all) return text.Length == 0 ? text : SecretMasker.Mask;
                 var before = node?.ToJsonString();
                 Redact(node, all);
                 if (before == node?.ToJsonString()) return text;
@@ -150,6 +165,13 @@ public static class SecretPresentation
 
     private static void Collect(JsonNode? node, bool sensitive)
     {
+        // A secret document may be a bare scalar ("token").
+        if (node is JsonValue scalar && sensitive)
+        {
+            Register(scalar.ToString());
+            return;
+        }
+
         if (node is JsonObject obj)
         {
             foreach (var (key, child) in obj)

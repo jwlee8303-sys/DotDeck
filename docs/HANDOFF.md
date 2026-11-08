@@ -12,7 +12,15 @@
 - C 검증: Debug build 경고 0·오류 0, 전체 779 / 성공 777 / 실패 0 / 건너뜀 2.
 - C 커밋 b99b06f.
 - **Codex 재검증 1차**(f92ff7b..b99b06f): P1 2건 반영. ① `CollectSecrets`가 확장자로만 형식 판단 → 비밀 파일은 내용 기준 JSON→TOML→줄 단위(대입문 값 또는 키 본문 줄) 수집, 4자 미만 제외. ② Reload 시 텍스트가 Snapshot보다 먼저 바뀌어 비밀 플래그 변화가 가림 캐시에 반영 안 됨 → Snapshot 변경 시 `RefreshMask()`. 테스트 5건 추가. 전체 784 / 성공 782 / 실패 0 / 건너뜀 2.
+- 1차 반영 커밋 d49ba85.
+- **Codex 재검증 2차**(마지막, 최대 2회 규칙): P1 2건·P2 1건 모두 반영. ① JSON 루트 스칼라 비밀 문서 수집·가림 ② dotenv 값의 따옴표·인라인 주석 분리(`EnvValue`) ③ `BackupRestoreViewModel` 초기 표시를 공유 모드 기준으로(`CanReveal`, 기본 평문). 테스트 6건 추가. 전체 790 / 성공 788 / 실패 0 / 건너뜀 2. 이 수정분은 3차 Codex 검증을 받지 않음(사용자 판단).
 - 스크린샷: 임시 fixture(`<scratchpad>\shot-home`, 가짜 값만)와 `shot.ps1`(UI Automation 탭 전환 + PrintWindow) 준비. 자동 모드 분류기가 PowerShell 창 캡처 실행을 거부해 **수정 전후 스크린샷은 미실행**. 사용자가 직접 실행하거나 권한을 허용해야 함.
+
+### 수동 확인 목록 (리뷰 반영분, 사용자 확인 대기)
+- 실행: `$env:DOTDECK_HOME="C:\Users\jwlee\AppData\Local\Temp\DotDeck-codex-review-f79f9e5a"; dotnet run --project src/DotDeck.App` (또는 `-- --home <같은 경로>`). 앱 데이터는 `<home>\.dotdeck`에 격리.
+- 다크 테마: config.toml 폼 6탭(헤더 호버·선택 밑줄·내용 배경), 콤보(편집 가능 입력·드롭다운 팝업·항목 호버/선택), MCP DataGrid(헤더·행 호버·셀 선택·command 셀 편집·3상태 활성 체크), 고급 트리(펼침 화살표·선택·비활성 포커스)·직접 경로 Expander, SecretValueEditor PasswordBox, settings.json·agents·skills 폼, 텍스트/폼 전환 토글, 설정·프로젝트·백업 복원·diff 대화상자, Tab 키 포커스 테두리, 비활성 컨트롤.
+- 화면 공유 모드: 상태줄 버튼·보기 메뉴 토글 → auth.json·config.toml env·환경변수 표·diff·백업 복원 diff가 가려지고 눈으로 해제, 끄면 평문, 재시작 후 유지. 공유 모드에서 config.toml 문법을 깨면 전체 가림.
+- 혼합 args: `[advanced_example] items`처럼 MCP args에 숫자를 넣으면 MCP 탭 읽기 전용 안내, 고급 탭에서 편집 시 다른 원소 타입 유지. 프로필을 기존 이름으로 바꾸면 거부 메시지.
 
 ## 최신 인수인계 메모 (다음 담당자용, 2026-11-08)
 

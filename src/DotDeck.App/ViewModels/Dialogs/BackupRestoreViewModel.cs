@@ -29,8 +29,11 @@ public sealed partial class BackupRestoreViewModel : ObservableObject
     private readonly Func<BackupEntry, string> _loadText;
     private readonly string _currentText;
     private DiffReviewItem? _preview;
+    /// <summary>Screen share mode hides the diff body until the eye button is pressed; otherwise it is plain.</summary>
+    public bool CanReveal { get; } = DotDeck.Core.Security.SecretPresentation.ScreenShareMode;
+
     [ObservableProperty]
-    private bool _isRevealed;
+    private bool _isRevealed = !DotDeck.Core.Security.SecretPresentation.ScreenShareMode;
     [RelayCommand]
     private void Reveal()
     {

@@ -38,6 +38,7 @@
             </ListBox>
             <Border Grid.Column="1" BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="1">
                 <DockPanel>
+                    <Button DockPanel.Dock="Top" Content="👁 diff 표시 / 가리기" Command="{Binding RevealCommand}" HorizontalAlignment="Right" />
                     <TextBlock DockPanel.Dock="Top" Margin="6,4" Text="{Binding Message}" TextWrapping="Wrap" />
                     <controls:DiffView Lines="{Binding Lines}" />
                 </DockPanel>

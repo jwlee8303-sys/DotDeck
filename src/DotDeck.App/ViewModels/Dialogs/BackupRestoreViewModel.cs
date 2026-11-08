@@ -28,6 +28,15 @@ public sealed partial class BackupRestoreViewModel : ObservableObject
 {
     private readonly Func<BackupEntry, string> _loadText;
     private readonly string _currentText;
+    private DiffReviewItem? _preview;
+    [ObservableProperty]
+    private bool _isRevealed;
+    [RelayCommand]
+    private void Reveal()
+    {
+        IsRevealed = !IsRevealed;
+        if (_preview is not null) { _preview.IsRevealed = IsRevealed; Lines = _preview.Lines; }
+    }
 
     /// <param name="loadText">Reads and decodes a backup; throws on damaged/binary content.</param>
     public BackupRestoreViewModel(string path, IReadOnlyList<BackupEntry> entries, string currentText, Func<BackupEntry, string> loadText)
@@ -78,7 +87,8 @@ public sealed partial class BackupRestoreViewModel : ObservableObject
         try
         {
             var diff = TextDiffService.Compute(_currentText, _loadText(value));
-            Lines = diff.Compact();
+            _preview = new DiffReviewItem(Path, diff) { IsRevealed = IsRevealed };
+            Lines = _preview.Lines;
             Message = diff.HasChanges ? $"현재 내용 대비 +{diff.InsertedCount} −{diff.DeletedCount}" : "현재 내용과 같습니다.";
             IsSelectionValid = true;
         }

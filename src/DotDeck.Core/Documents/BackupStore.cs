@@ -9,7 +9,7 @@ using DotDeck.Core.Files;
 namespace DotDeck.Core.Documents;
 
 /// <summary>One file inside a backup set.</summary>
-public sealed record BackupFile(string OriginalPath, string RelativePath, long Length, string Sha256);
+public sealed record BackupFile(string OriginalPath, string RelativePath, long Length, string Sha256, bool Protected = false);
 
 /// <summary>A backup folder (<c>backups\&lt;yyyyMMdd-HHmmss&gt;[-n]</c>) and its manifest.</summary>
 public sealed record BackupSet(string Id, string Directory, DateTimeOffset CreatedAt, string Reason, IReadOnlyList<BackupFile> Files);
@@ -39,8 +39,9 @@ public sealed class BackupStore
 
     private readonly IFileStore _store;
     private readonly TimeProvider _time;
+    private readonly IBackupProtector? _protector;
 
-    public BackupStore(IFileStore store, string backupsDirectory, TimeProvider time, int retention = DefaultRetention)
+    public BackupStore(IFileStore store, string backupsDirectory, TimeProvider time, int retention = DefaultRetention, IBackupProtector? protector = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentException.ThrowIfNullOrEmpty(backupsDirectory);
@@ -48,6 +49,7 @@ public sealed class BackupStore
         ArgumentOutOfRangeException.ThrowIfLessThan(retention, 1);
         _store = store;
         _time = time;
+        _protector = protector;
         BackupsDirectory = backupsDirectory;
         Retention = retention;
     }
@@ -98,11 +100,14 @@ public sealed class BackupStore
 
                     var target = Path.Combine(directory, relative);
                     _store.CreateDirectory(Path.GetDirectoryName(target)!);
-                    _store.WriteAllBytes(target, source.Content);
+                    // The app encrypts every backup, avoiding secret-detection gaps in unknown formats.
+                    var payload = _protector?.Protect(source.Content) ?? source.Content;
+                    _store.WriteAllBytes(target, payload);
                     files.Add(new BackupFile(
-                        Path.GetFullPath(source.OriginalPath), relative, source.Content.Length, TextFileReader.ComputeHash(source.Content)));
+                        Path.GetFullPath(source.OriginalPath), relative, source.Content.Length, TextFileReader.ComputeHash(payload), _protector is not null));
                 }
 
+                reason = DotDeck.Core.Security.SecretMasker.MaskText(reason);
                 set = new BackupSet(id, directory, now, reason, files);
                 var manifest = new Manifest(1, now, reason, files);
                 _store.WriteAllTextAtomic(Path.Combine(directory, ManifestFileName), JsonSerializer.Serialize(manifest, s_json));
@@ -159,6 +164,11 @@ public sealed class BackupStore
             throw new InvalidDataException($"Backup content is damaged: {file.RelativePath}");
         }
 
+        if (file.Protected)
+        {
+            if (_protector is null) throw new IOException("복원 불가: 이 호스트에 백업 복호화 기능이 없습니다.");
+            return _protector.Unprotect(bytes);
+        }
         return bytes;
     }
 

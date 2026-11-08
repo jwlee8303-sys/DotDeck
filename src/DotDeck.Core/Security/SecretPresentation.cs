@@ -7,7 +7,13 @@ namespace DotDeck.Core.Security;
 /// <summary>Presentation-only masking. Never write the returned text back to a document.</summary>
 public static class SecretPresentation
 {
-    public static bool MaskByDefault { get; set; } = true;
+    private static bool s_maskByDefault = true;
+    public static event Action<bool>? PreferenceChanged;
+    public static bool MaskByDefault
+    {
+        get => s_maskByDefault;
+        set { s_maskByDefault = value; PreferenceChanged?.Invoke(value); }
+    }
 
     public static bool SensitivePath(IEnumerable<string> path) => path.Any(p =>
         SecretMasker.IsSecretName(p) || p.Equals("env", StringComparison.OrdinalIgnoreCase)

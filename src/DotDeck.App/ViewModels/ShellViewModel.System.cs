@@ -211,7 +211,7 @@ public sealed partial class ShellViewModel
             return "폴더가 아닌 파일 경로를 입력하세요.";
         }
 
-        return SecretFilePolicy.IsSecret(Path.GetFileName(raw)) ? "비밀 파일은 등록할 수 없습니다." : null;
+        return null;
     }
 
     /// <summary>Main menu: takes the current file off every "사용자 지정 파일" list that has it.</summary>

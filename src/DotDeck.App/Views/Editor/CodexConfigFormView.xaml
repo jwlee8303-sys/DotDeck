@@ -69,11 +69,12 @@
      <StackPanel DockPanel.Dock="Left" Width="300" Margin="0,8,12,0">
       <ListBox ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}" MinHeight="160" />
       <TextBox Text="{Binding ProjectPath, UpdateSourceTrigger=PropertyChanged}" ToolTip="프로젝트 경로" Margin="0,6" />
-      <WrapPanel><Button Content="폴더 선택" Command="{Binding BrowseProjectCommand}" /><Button Content="추가" Command="{Binding AddProjectCommand}" /><Button Content="제거" Command="{Binding DeleteProjectCommand}" /></WrapPanel>
+      <WrapPanel><Button Content="폴더 선택" Command="{Binding BrowseProjectCommand}" /><Button Content="추가" Command="{Binding AddProjectCommand}" /><Button Content="경로 변경" Command="{Binding RenameProjectCommand}" /><Button Content="제거" Command="{Binding DeleteProjectCommand}" /></WrapPanel>
      </StackPanel>
      <ItemsControl ItemsSource="{Binding TrustFields}" />
     </DockPanel>
    </TabItem>
+   <TabItem Header="기타(고급)"><local:AdvancedTomlView DataContext="{Binding Advanced}" /></TabItem>
   </TabControl>
  </DockPanel>
 </UserControl>

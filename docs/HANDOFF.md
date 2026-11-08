@@ -11,6 +11,18 @@
 - ③ 최종 검증: Release build 경고 0·오류 0, 전체 732 / 성공 730 / 실패 0 / 권한 건너뜀 2. 기존 평문 백업은 자동 변환하지 않으며 앱이 이후 새로 만드는 파일 백업부터 모두 암호화한다.
 - 단계 ④: 전용 CodexConfigFormViewModel과 5개 탭(모델/권한·샌드박스/프로필/MCP/프로젝트 신뢰) 및 `Codex/config-form.json` 설명·허용값 카탈로그 구현. 사용자 카탈로그 덮어쓰기는 기존 CatalogResources를 통해 적용(앱 재시작 시 읽음). config.toml은 자동으로 전용 폼 종류 연결, 열 때 자동 폼 시도·문법 오류 시 줄/열 안내와 텍스트로 유지. 프로필·MCP 추가/삭제/이름 변경, 프로젝트 폴더 선택, args 문자열 목록·env 키값 표/눈, 미등록 값 경고·보존. 모든 변경은 TomlEditDocument를 통해 기존 버퍼에 한 번 Replace하여 Undo 공유. 테이블 rename/delete, 주석을 보존하는 문자열 배열 구조 편집 API 추가.
 - ④ 검증: Release build 경고 0·오류 0, 전체 736 / 성공 734 / 실패 0 / 건너뜀 2. API_KEY 문서의 다른 필드·env 편집, 미지 키/주석/CRLF 보존, 프로필·서버 관리, 카탈로그 덮어쓰기, 자동 종류, 실제 STA 5탭 로드와 폼 변경 Ctrl+Z 원본 복원 확인. 다음은 단계 ⑤ 고급 트리.
+- 단계 ⑤: AdvancedTomlViewModel/View로 기타(고급) 테이블 트리 추가. 전용 필드 중복 제거, 배열·인라인 값은 단일 노드, 오른쪽 문자열/불리언/숫자·날짜/배열/인라인 컨트롤과 접힌 직접 경로 편집. 혼합 배열도 위치 편집으로 주석 보존. 기본 가림 설정 변경을 현재 SecretValueEditor에도 적용하고 훅 출력도 마스킹. 실제 WPF 6탭/고급 탭 로드 및 폼 변경 Undo 검사 수행.
+- ⑤ 최종 검증: `dotnet build DotDeck.slnx -c Release` 경고 0·오류 0, `dotnet test --solution DotDeck.slnx -c Release` 총 739 / 성공 737 / 실패 0 / 기존 심볼릭 링크 권한 건너뜀 2. 인라인 테이블 추가/삭제도 위치 편집으로 미수정 키의 공백·따옴표를 보존하도록 보완. 코드 자체 검토와 테스트를 수행했으며 별도 에이전트 교차 검증은 하지 않음. 임시 홈 준비 완료. 다음 사용자 수동 확인 결과에 따라 UI/경계 사례를 보완한다.
+
+## 다음 에이전트를 위한 최신 인수인계
+- 작업 브랜치 `feat/codex-editors`. 사용자 승인된 재설계의 ②·③·④는 각각 e42795a / a9c1bc2 / f42f233 커밋. ⑤는 이 기록과 함께 커밋한다. main 직접 commit/merge/push 안 함. 미추적 `.claude/`는 사용자 로컬 설정이며 건드리지 않음.
+- 수동 확인용 임시 홈: `C:\Users\jwlee\AppData\Local\Temp\DotDeck-codex-review-f79f9e5a`. `.codex/config.toml`에는 주석·프로필·가짜 API_KEY MCP env·args 주석·projects·고급 혼합 배열/인라인 예제, `.codex/auth.json`에는 가짜 토큰만 있음. 실제 사용자 홈·환경변수는 수정하지 않음.
+- 실행: `dotnet run --project src/DotDeck.App -c Release -- --home "C:\Users\jwlee\AppData\Local\Temp\DotDeck-codex-review-f79f9e5a"`. Debug는 사용자 실행 중인 기존 앱 DLL 잠금으로 실패했으므로 이번 구현 검증은 Release로 진행함. 기존 앱을 강제 종료하지 않음.
+- 설계 원칙: 보안 사유 잠금 금지, 마스킹과 눈 표시/편집, DPAPI 투명 백업. 과거 docs/테스트 이름 일부의 "secret files never opened" 문구는 이전 정책의 역사이며 최신 승인 섹션과 SPEC §0이 우선한다. 개발자가 실제 비밀 설정을 조사하지 않는 규칙은 유지.
+- 주요 위치: Core/Codex/ConfigFormCatalog.cs + Catalogs/Codex/config-form.json; App/ViewModels/Editor/CodexConfigFormViewModel.cs와 AdvancedTomlViewModel.cs; Views/Editor의 대응 View; SecretValueEditor/SecretPresentation; Core/Documents/IBackupProtector + App/Infrastructure/Windows/DpapiBackupProtector; BackupStore.Protected flag.
+- 보호/복원: 앱 Composition Root는 모든 새 파일 백업에 DPAPI 주입. Core 단독 BackupStore는 테스트/다른 호스트용으로 provider가 optional이므로 제품의 추가 Composition Root가 생기면 반드시 주입. 기존 평문 백업 자동 마이그레이션은 하지 않음. 복호화 실패는 IO 오류 안내이며 원본 변경 전에 중단. 다른 Windows 계정 실제 전환 검사는 하지 않았고 실패 payload 안내 경로만 자동 검증함.
+- 다음 확인: 사용자 시각적 수동 검사(6탭, 눈·기본 가림 설정, args/env 관리, 프로젝트 폴더 선택, auth 수정·저장·복원). 자동 테스트는 실제 UI 리소스/바인딩과 Undo를 검증하지만 사람이 실행한 제품 스크린샷 검사는 아직 없음.
+- 남은 범위/제한: 완전한 CODEX_HOME 별칭/런타임 경로 역할 판별(원래 2b-1)은 별도 후속. 현재 config.toml 자동 연결은 파일명 fallback이며 다른 제품의 동명 파일에는 수동 텍스트 지정 가능. 카탈로그는 앱 시작 시 재로드. 인라인 테이블 항목 추가/삭제도 SetInlineValues 위치 편집을 사용해 미수정 키의 공백·따옴표를 보존한다. JSON 비밀값 마스킹 프리뷰는 표시용 재직렬화이며 원본 버퍼와 분리. diff는 현재 전체 본문 기본 가림(눈 표시), 요약은 개수만. 프로젝트 ZIP 내보내기는 기존 비밀 파일 제외 정책을 유지하며 이번 DPAPI는 저장/덮어쓰기/복원 파일 백업에 적용. 알려진 비밀값 로그 필터는 프로세스 수명 동안 메모리에 등록값을 유지함.
 
 ## 1. 현재 상태
 - 브랜치 `feat/codex-editors` (main `b3325f5`에서 생성). 단계 0·2a 완료, 사용자 수동 확인 통과. 2b-0 TOML 무손실 편집기 완료.
@@ -51,7 +63,7 @@
 1. **Tomlyn 승인.** nuget.org 최신 안정 버전 확인 결과 **2.10.2** 존재(2.10.1, 2.10.0 이전). 파서(위치·trivia)로만 쓰고 수정은 자체 위치 패처. 2b-0 시험 구현에 **바이트 단위 왕복 테스트 필수**(CRLF, BOM, 주석, `[projects.'d:\project\dotdeck']`, 점 키, 인라인 테이블, 배열 테이블). 실패 시 자체 파서로 전환하고 보고. YAML은 새 의존성 없이 자체 `YamlBlockDocument`.
 2. 카탈로그 덮어쓰기 위치는 **`%APPDATA%\DotDeck\catalogs\Codex\`** (지시서의 `schemas\` 아님). SPEC에도 이 경로로 적는다.
 3. 스킬은 **Codex 전역 트리 안 가상 노드** `스킬 (~/.agents/skills)` (`CustomFilesProjectSource`와 같은 래퍼 패턴, 저장 안 하고 계산).
-4. `auth.json` = 비밀 파일(열기·백업 금지). 런타임 데이터 = 기본 숨김 + 읽기 전용. `/plugins` = 표시 + 읽기 전용. `/skills/.system` = 표시 + "Codex 내장" 안내.
+4. **재설계 승인으로 변경:** `auth.json` 등 비밀 파일도 열기·편집·등록·DPAPI 백업을 허용하고 자물쇠·기본 마스킹·눈 아이콘으로 표시한다. 런타임 데이터는 기본 숨김, plugins와 skills/.system은 출처를 안내하며 보안 사유로 편집을 잠그지 않는다.
 5. **비밀값이 든 파일은 DPAPI(CurrentUser)로 암호화해 백업.** `System.Security.Cryptography.ProtectedData` 패키지 추가 승인(최신 안정 10.0.14 확인, .NET 10 계열에 맞춰 CPM에 추가). manifest에 `protected: true` 등 표시, 복원 시 복호화. SPEC에 "로그·백업 목록·변경 기록·diff 표시에 비밀값 평문 금지" 규칙 명시. (참고: 현재 BackupStore는 원본 바이트를 그대로 복사하므로 Claude settings.json `env` 비밀값도 평문 백업되고 있음 → 이 결정으로 함께 해결.)
 6. 에이전트 toml의 덮어쓸 수 없는 키(`sandbox_mode`, `approval_policy`, `model_provider`, `mcp_servers`)는 **문서를 따른다**: 폼에 노출하지 않고, 있으면 경고 + 값 보존.
 7. 브랜치: 빌드·테스트 통과 확인 후 `feat/permission-arg-kinds`를 main에 병합하고 `feat/codex-editors` 생성 → **완료**. push 안 함.
@@ -84,7 +96,7 @@
 
 ## 8. 반드시 지킬 규칙
 - **실제 `~/.claude`, `~/.claude.json`, `~/.codex`, `~/.agents`, 환경변수, hosts 파일을 수정하지 않는다.** 테스트는 임시 폴더·가짜 구현만, 수동 확인은 `DOTDECK_HOME`/`--home`(+ `--codex-home`).
-- 비밀 파일(`.env*`(example 제외), `*.pfx`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, Codex `auth.json`)은 열지 않는다. 비밀값은 로그·백업 목록·변경 기록·diff 표시에 평문 금지.
+- 개발 중 실제 비밀 설정은 조사하지 않으며 가짜 테스트 파일만 사용한다. 제품은 비밀 파일도 마스킹으로 열기·편집·등록·DPAPI 백업할 수 있다. 로그·백업 목록·변경 기록·diff 요약에는 비밀값 평문 금지, diff 본문은 눈으로 표시 가능.
 - MCP 서버를 실제로 실행·연결하지 않는다.
 - **main 직접 커밋 금지, push·PR·태그 금지**(사용자 확인 후에만). force push 금지.
 - **새 NuGet은 사용자 승인 후**(승인된 것: Tomlyn, System.Security.Cryptography.ProtectedData). 버전은 `Directory.Packages.props`(CPM)만.

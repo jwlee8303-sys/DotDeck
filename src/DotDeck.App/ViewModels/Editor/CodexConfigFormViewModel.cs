@@ -64,6 +64,7 @@ public sealed partial class CodexConfigFormViewModel : DocumentFormViewModel
     public ObservableCollection<CodexServerViewModel> Servers { get; } = [];
     public ObservableCollection<string> Projects { get; } = [];
     public ObservableCollection<CodexFieldViewModel> TrustFields { get; } = [];
+    public AdvancedTomlViewModel Advanced { get; }
     [ObservableProperty] private string? _selectedProfile;
     [ObservableProperty] private CodexServerViewModel? _selectedServer;
     [ObservableProperty] private string? _selectedProject;
@@ -72,7 +73,11 @@ public sealed partial class CodexConfigFormViewModel : DocumentFormViewModel
     [ObservableProperty] private string _projectPath = string.Empty;
     [ObservableProperty] private string? _message;
     public const string ProfileNotice = "기존 [profiles.*] 형식입니다. 최신 Codex는 별도 <이름>.config.toml을 사용합니다. 자동 변환하지 않습니다.";
-    public CodexConfigFormViewModel(Action<string> apply, ConfigFormCatalog? catalog = null) : base(apply) => _catalog = catalog ?? ConfigFormCatalog.BuiltIn;
+    public CodexConfigFormViewModel(Action<string> apply, ConfigFormCatalog? catalog = null) : base(apply)
+    {
+        _catalog = catalog ?? ConfigFormCatalog.BuiltIn;
+        Advanced = new AdvancedTomlViewModel(() => _doc, change => Edit(change));
+    }
 
     protected override string? LoadCore(string text)
     {
@@ -133,6 +138,7 @@ public sealed partial class CodexConfigFormViewModel : DocumentFormViewModel
         }
         finally { _refreshing = false; }
         ProfileFieldsChanged(); ProjectFieldsChanged();
+        Advanced.Load();
     }
     private static void Ensure(TomlEditDocument doc, IReadOnlyList<string> prefix)
     {
@@ -152,9 +158,9 @@ public sealed partial class CodexConfigFormViewModel : DocumentFormViewModel
                         if (Decode(existing[pair.Key].Literal) != pair.Value) d.SetString([.. envPath, pair.Key], pair.Value);
                     return;
                 }
-                d.SetValue(envPath, "{ " + string.Join(", ", values.Where(p => p.Key.Length > 0).Select(p =>
-                    TomlEditDocument.FormatPath([p.Key]) + " = " + (existing.TryGetValue(p.Key, out var previous) && Decode(previous.Literal) == p.Value
-                        ? previous.Literal : JsonSerializer.Serialize(p.Value)))) + " }");
+                d.SetInlineValues(envPath, values.Where(p => p.Key.Length > 0).Select(p => KeyValuePair.Create(
+                    TomlEditDocument.FormatPath([p.Key]), existing.TryGetValue(p.Key, out var previous) && Decode(previous.Literal) == p.Value
+                        ? previous.Literal : JsonSerializer.Serialize(p.Value))).ToList());
                 return;
             }
             Ensure(d, envPath);
@@ -179,8 +185,14 @@ public sealed partial class CodexConfigFormViewModel : DocumentFormViewModel
     [RelayCommand] private void AddServer() { if (ServerName.Length > 0) Edit(d => d.CreateTable(["mcp_servers", ServerName])); }
     [RelayCommand] private void DeleteServer() { if (SelectedServer is { } server) Edit(d => d.DeleteTable(["mcp_servers", server.Name])); }
     [RelayCommand] private void RenameServer() { if (SelectedServer is { } server && ServerName.Length > 0) Edit(d => d.RenameTable(["mcp_servers", server.Name], ServerName)); }
-    [RelayCommand] private void AddProject() { if (ProjectPath.Length > 0) Edit(d => { Ensure(d, ["projects", ProjectPath]); d.SetString(["projects", ProjectPath, "trust_level"], "trusted"); }); }
+    [RelayCommand] private void AddProject() { if (ProjectPath.Length > 0) Edit(d => Ensure(d, ["projects", ProjectPath])); }
     [RelayCommand] private void DeleteProject() { if (SelectedProject is { } path) Edit(d => d.DeleteTable(["projects", path])); }
+    [RelayCommand] private void RenameProject()
+    {
+        if (SelectedProject is not { } old || ProjectPath.Length == 0) return;
+        var next = ProjectPath; Edit(d => d.RenameTable(["projects", old], next));
+        if (Projects.Contains(next)) SelectedProject = next;
+    }
     [RelayCommand] private void BrowseProject() { if (PickFolder?.Invoke() is { } path) ProjectPath = path; }
 
     private void Edit(Action<TomlEditDocument> edit, bool refresh = true)

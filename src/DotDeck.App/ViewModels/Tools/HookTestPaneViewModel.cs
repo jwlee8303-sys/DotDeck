@@ -91,7 +91,7 @@ public sealed partial class HookTestPaneViewModel : ToolPaneViewModel
             var env = Profile.Environment(WorkingDirectory);
             var result = await HookRunner.RunAsync(Command, Input, WorkingDirectory, HookRunner.DefaultTimeout, env, _run.Token).ConfigureAwait(true);
             ResultText = $"{result.Meaning} · 종료 코드 {result.ExitCode?.ToString(CultureInfo.InvariantCulture) ?? "-"} · {result.Elapsed.TotalMilliseconds:0} ms";
-            Output = $"[stdout]\n{result.StandardOutput}\n[stderr]\n{result.StandardError}";
+            Output = Core.Security.SecretMasker.MaskText($"[stdout]\n{result.StandardOutput}\n[stderr]\n{result.StandardError}");
         }
         catch (OperationCanceledException)
         {

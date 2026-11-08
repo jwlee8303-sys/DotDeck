@@ -65,7 +65,7 @@ public sealed class FormXamlTests
                 tomlView.UpdateLayout();
                 Assert.False(Descendants(tomlView).OfType<Button>().Single(b => b.Command == toml.DeleteKeyCommand).IsEnabled);
                 Assert.False(Descendants(tomlView).OfType<Button>().Single(b => b.Command == toml.AddKeyCommand).IsEnabled);
-                var configSource = "# keep\nmodel = 'before'\n[mcp_servers.demo.env]\nAPI_KEY = 'fake-ui-key-2471'\n";
+                var configSource = "# keep\nmodel = 'before'\nextra = [1, 'a']\n[mcp_servers.demo.env]\nAPI_KEY = 'fake-ui-key-2471'\n";
                 var configBuffer = new DocumentBuffer(TextFileReader.Decode(@"C:\fake\config.toml", System.Text.Encoding.UTF8.GetBytes(configSource), DateTime.UtcNow));
                 var configDocument = new TextDocumentViewModel(configBuffer, 1, false, new TestHost(), _ => { }, kind: EditorKind.CodexConfig);
                 configDocument.TryShowForm();
@@ -74,7 +74,11 @@ public sealed class FormXamlTests
                 configView.Measure(new Size(1100, 800));
                 configView.Arrange(new Rect(0, 0, 1100, 800));
                 configView.UpdateLayout();
-                Assert.Equal(5, Descendants(configView).OfType<TabControl>().Single().Items.Count);
+                Assert.Equal(6, Descendants(configView).OfType<TabControl>().Single().Items.Count);
+                Descendants(configView).OfType<TabControl>().Single().SelectedIndex = 5;
+                configForm.Advanced.Selected = configForm.Advanced.Roots.Single().Children.Single(n => n.Label == "extra");
+                configView.Measure(new Size(1100, 800)); configView.UpdateLayout();
+                Assert.True(configForm.Advanced.IsArray);
                 configForm.Models.First().Value = "after";
                 Assert.Contains("model = 'after'", configBuffer.Document.Text, StringComparison.Ordinal);
                 configBuffer.Document.UndoStack.Undo();

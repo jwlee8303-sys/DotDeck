@@ -6,6 +6,17 @@ namespace DotDeck.Core.Tests.Editors;
 public sealed class TomlEditDocumentTests
 {
     [Fact]
+    public void Inline_structural_edits_preserve_unedited_keys_and_spacing()
+    {
+        var doc = TomlEditDocument.Parse(Encode("inline = { x  = 1, 'quoted key' = 'keep' } # end\r\n", true));
+        doc.SetInlineValues(["inline"], [KeyValuePair.Create("x", "2"), KeyValuePair.Create("'quoted key'", "'keep'"), KeyValuePair.Create("added", "true")]);
+        var text = Encoding.UTF8.GetString(doc.ToBytes());
+        Assert.Contains("x  = 2, 'quoted key' = 'keep'", text, StringComparison.Ordinal);
+        Assert.EndsWith("} # end\r\n", text, StringComparison.Ordinal);
+        doc.SetInlineValues(["inline"], [KeyValuePair.Create("'quoted key'", "'keep'")]);
+        Assert.Contains("'quoted key' = 'keep'", Encoding.UTF8.GetString(doc.ToBytes()), StringComparison.Ordinal);
+    }
+    [Fact]
     public void String_list_structural_edits_keep_comments_and_unrelated_bytes()
     {
         var doc = TomlEditDocument.Parse(Encode("# keep\r\nargs = [\r\n'a', # first\r\n'b' # last\r\n]\r\nother = 42\r\n", true));

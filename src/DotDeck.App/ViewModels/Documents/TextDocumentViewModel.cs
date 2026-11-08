@@ -282,6 +282,7 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
 
     private void OnBufferTextChanged(object? sender, EventArgs e)
     {
+        _ = MaskedText;
         OnPropertyChanged(nameof(MaskedText));
         OnPropertyChanged(nameof(HasSecrets));
         OnPropertyChanged(nameof(IsMaskedDisplay));

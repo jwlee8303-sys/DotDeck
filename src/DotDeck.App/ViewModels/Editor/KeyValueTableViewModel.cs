@@ -8,7 +8,8 @@ public sealed partial class KeyValueRow : FormRow
 {
     [ObservableProperty]
     private string _key = string.Empty;
-    public bool IsSecret => DotDeck.Core.Security.SecretMasker.IsSecretName(Key);
+    public bool ForceSecret { get; set; }
+    public bool IsSecret => ForceSecret || DotDeck.Core.Security.SecretMasker.IsSecretName(Key);
     partial void OnKeyChanged(string value) => OnPropertyChanged(nameof(IsSecret));
     protected override bool IsDisplayOnly(string? propertyName) => propertyName == nameof(IsSecret);
 

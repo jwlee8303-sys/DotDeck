@@ -14,7 +14,13 @@ public partial class SecretValueEditor : UserControl
     private bool _reveal = !SecretPresentation.MaskByDefault;
     public string Value { get => (string)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
     public bool IsSecret { get => (bool)GetValue(IsSecretProperty); set => SetValue(IsSecretProperty, value); }
-    public SecretValueEditor() { InitializeComponent(); Refresh(); }
+    public SecretValueEditor()
+    {
+        InitializeComponent(); Refresh();
+        Loaded += (_, _) => { SecretPresentation.PreferenceChanged += OnPreference; OnPreference(SecretPresentation.MaskByDefault); };
+        Unloaded += (_, _) => SecretPresentation.PreferenceChanged -= OnPreference;
+    }
+    private void OnPreference(bool mask) { _reveal = !mask; Refresh(); }
     private static void Changed(DependencyObject sender, DependencyPropertyChangedEventArgs e) => ((SecretValueEditor)sender).Refresh();
     private void Refresh()
     {

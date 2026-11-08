@@ -28,12 +28,63 @@ public sealed class TomlEditDocument
         && (_values.ContainsKey(Key(path)) || _sections.ContainsKey(Key(path.Take(path.Count - 1))));
     public IReadOnlyList<IReadOnlyList<string>> TablePaths => [.. _tablePaths.Values];
 
+    public void SetInlineValues(IReadOnlyList<string> path, IReadOnlyList<KeyValuePair<string, string>> values)
+    {
+        var requested = values.Select(p => (Path: ParsePath(p.Key), Literal: p.Value)).ToArray();
+        if (requested.Select(p => Key(p.Path)).Distinct(StringComparer.Ordinal).Count() != requested.Length) throw new TomlEditException("중복 키입니다.");
+        foreach (var p in requested) { var probe = new TomlEditDocument("v=0", false); probe.SetValue(["v"], p.Literal); }
+        var work = new TomlEditDocument(_text, _bom);
+        if (!work._values.TryGetValue(Key(path), out var value) || value is not InlineTableSyntax) work.SetValue(path, "{}");
+        while (true)
+        {
+            var table = (InlineTableSyntax)work._values[Key(path)];
+            var items = table.Items.ToArray();
+            var index = System.Array.FindIndex(items, item => requested.All(p => !p.Path.SequenceEqual(Segments(item.KeyValue!.Key!))));
+            if (index < 0) break;
+            var pair = items[index].KeyValue!;
+            var patches = new List<(int Start, int Length, string Text)> { (pair.Key!.Span.Start.Offset, pair.Value!.Span.Start.Offset + pair.Value.Span.Length - pair.Key.Span.Start.Offset, "") };
+            var comma = items[index].Comma ?? (index > 0 ? items[index - 1].Comma : null);
+            if (comma is not null) patches.Add((comma.Span.Start.Offset, comma.Span.Length, ""));
+            var text = work._text;
+            foreach (var patch in patches.OrderByDescending(p => p.Start)) text = text[..patch.Start] + patch.Text + text[(patch.Start + patch.Length)..];
+            work = new TomlEditDocument(text, _bom);
+        }
+        foreach (var p in requested)
+        {
+            string[] child = [.. path, .. p.Path];
+            if (work._values.ContainsKey(Key(child))) { work.SetValue(child, p.Literal); continue; }
+            var table = (InlineTableSyntax)work._values[Key(path)];
+            var items = table.Items.ToArray();
+            var text = work._text;
+            var offset = table.CloseBrace!.Span.Start.Offset;
+            text = text[..offset] + FormatPath(p.Path) + " = " + p.Literal + text[offset..];
+            if (items.Length > 0 && items[^1].Comma is null)
+            {
+                var last = items[^1].KeyValue!.Value!;
+                var commaOffset = last.Span.Start.Offset + last.Span.Length;
+                text = text[..commaOffset] + "," + text[commaOffset..];
+            }
+            work = new TomlEditDocument(text, _bom);
+        }
+        _text = work._text; _syntax = work._syntax; Index();
+    }
+
     public void SetStringList(IReadOnlyList<string> path, IReadOnlyList<string> values)
+        => SetArray(path, values, true);
+    public void SetArrayLiterals(IReadOnlyList<string> path, IReadOnlyList<string> values)
+    {
+        foreach (var value in values)
+        {
+            var probe = new TomlEditDocument("v=0", false); probe.SetValue(["v"], value);
+        }
+        SetArray(path, values, false);
+    }
+    private void SetArray(IReadOnlyList<string> path, IReadOnlyList<string> values, bool strings)
     {
         var work = new TomlEditDocument(_text, _bom);
         if (!work._values.TryGetValue(Key(path), out var found) || found is not ArraySyntax)
         {
-            work.SetValue(path, "[" + string.Join(", ", values.Select(v => JsonSerializer.Serialize(v))) + "]");
+            work.SetValue(path, "[" + string.Join(", ", values.Select(v => strings ? JsonSerializer.Serialize(v) : v)) + "]");
         }
         else
         {
@@ -56,13 +107,17 @@ public sealed class TomlEditDocument
                         var last = items[^1].Value!;
                         patches.Add((last.Span.Start.Offset + last.Span.Length, 0, ","));
                     }
-                    patches.Add((array.CloseBracket!.Span.Start.Offset, 0, JsonSerializer.Serialize(values[items.Length])));
+                    patches.Add((array.CloseBracket!.Span.Start.Offset, 0, strings ? JsonSerializer.Serialize(values[items.Length]) : values[items.Length]));
                 }
                 var text = work._text;
                 foreach (var p in patches.OrderByDescending(p => p.Start)) text = text[..p.Start] + p.Text + text[(p.Start + p.Length)..];
                 work = new TomlEditDocument(text, _bom);
             }
-            for (var i = 0; i < values.Count; i++) work.SetString([.. path, i.ToString(System.Globalization.CultureInfo.InvariantCulture)], values[i]);
+            for (var i = 0; i < values.Count; i++)
+            {
+                string[] itemPath = [.. path, i.ToString(System.Globalization.CultureInfo.InvariantCulture)];
+                if (strings) work.SetString(itemPath, values[i]); else work.SetValue(itemPath, values[i]);
+            }
         }
         _text = work._text; _syntax = work._syntax; Index();
     }

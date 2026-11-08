@@ -21,6 +21,8 @@ public sealed record BreadcrumbSegment(string Name, ExplorerRowViewModel? Target
 /// </summary>
 public sealed partial class ExplorerListViewModel : ObservableObject
 {
+    public IReadOnlyList<Editor.EditorChoice> EditorChoices => Editor.FormRegistry.Choices(OpenAsCommand);
+
     private readonly ExplorerContext _context;
 
     private IReadOnlyList<ExplorerRowViewModel> _selectedRows = [];

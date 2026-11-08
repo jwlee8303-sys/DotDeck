@@ -11,7 +11,7 @@ using DotDeck.Core.Logging;
 namespace DotDeck.App.ViewModels;
 
 /// <summary>Editor tabs: open (preview / normal), save, extra views, close with unsaved-change prompts.</summary>
-public sealed partial class ShellViewModel : ITextDocumentHost
+public sealed partial class ShellViewModel : ITextDocumentHost, IClaudeFormServices
 {
     private readonly Dictionary<string, int> _viewCounters = new(StringComparer.OrdinalIgnoreCase);
     private int _openRequest;

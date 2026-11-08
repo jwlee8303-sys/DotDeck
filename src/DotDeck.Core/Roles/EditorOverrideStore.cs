@@ -73,24 +73,9 @@ public sealed class EditorOverrideStore
         }
     }
 
-    public static string KindToName(EditorKind kind) => kind switch
-    {
-        EditorKind.ClaudeSettings => "settingsForm",
-        EditorKind.Agent => "agentForm",
-        EditorKind.Skill => "skillForm",
-        EditorKind.Markdown => "markdown",
-        _ => "text",
-    };
+    public static string KindToName(EditorKind kind) => Editors.Registry.EditorRegistry.Get(kind).Name;
 
-    public static EditorKind? NameToKind(string name) => name switch
-    {
-        "settingsForm" => EditorKind.ClaudeSettings,
-        "agentForm" => EditorKind.Agent,
-        "skillForm" => EditorKind.Skill,
-        "markdown" => EditorKind.Markdown,
-        "text" => EditorKind.Text,
-        _ => null,
-    };
+    public static EditorKind? NameToKind(string name) => Editors.Registry.EditorRegistry.FindKind(name);
 
     private static string Key(string path) => FileRoleResolver.Normalize(path);
 

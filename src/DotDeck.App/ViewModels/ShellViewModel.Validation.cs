@@ -1,5 +1,6 @@
 using DotDeck.App.ViewModels.Documents;
 using DotDeck.Core.Editors;
+using DotDeck.Core.Editors.Registry;
 
 namespace DotDeck.App.ViewModels;
 
@@ -22,7 +23,7 @@ public sealed partial class ShellViewModel
             _validated.Buffer.TextChanged -= OnValidatedTextChanged;
         }
 
-        _validated = value is { Kind: EditorKind.Agent or EditorKind.Skill or EditorKind.ClaudeSettings } ? value : null;
+        _validated = value is not null && EditorRegistry.Get(value.Kind).Validate is not null ? value : null;
         if (_validated is null)
         {
             Validation.Clear();
@@ -65,21 +66,13 @@ public sealed partial class ShellViewModel
         var keys = SettingsKeys;
         var tools = ToolCatalog;
         var events = HookEvents;
-        var issues = await Task.Run(() => Validate(kind, path, text, store, context, keys, tools, events)).ConfigureAwait(true);
+        var validation = new EditorValidationContext(path, text, store, context, keys, tools, events, doc.Role);
+        var validate = EditorRegistry.Get(kind).Validate;
+        var issues = await Task.Run(() => validate?.Invoke(validation) ?? []).ConfigureAwait(true);
         if (version == _validationVersion && _validated == doc)
         {
             Validation.Show(doc.Buffer.FileName, issues);
         }
     }
 
-    private static IReadOnlyList<ValidationIssue> Validate(EditorKind kind, string path, string text, Core.Files.IFileStore store,
-        SettingsContext? context, SettingsKeyCatalog? keys, ClaudeToolCatalog? tools, HookEventCatalog? events) => kind switch
-    {
-        EditorKind.Agent => MarkdownAgentValidator.ValidateAgent(path, text),
-        EditorKind.Skill => MarkdownAgentValidator.ValidateSkill(path, text),
-        EditorKind.ClaudeSettings => ClaudeSettingsDocument.TryParse(text, out var error) is { } settings
-            ? settings.Validate(store.FileExists, context, keys, tools, events)
-            : [new ValidationIssue(IssueSeverity.Error, error ?? "JSON 오류")],
-        _ => [],
-    };
 }

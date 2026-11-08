@@ -53,14 +53,14 @@
                 <Button DockPanel.Dock="Right" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Padding="8,2" Focusable="False"
                         Click="OnFormatClick" ToolTip="다음 형식으로 열기">
                     <Button.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="텍스트" Command="{Binding OpenAsCommand}" CommandParameter="text" />
-                            <MenuItem Header="Markdown" Command="{Binding OpenAsCommand}" CommandParameter="markdown" />
-                            <MenuItem Header="설정 폼 (settings.json)" Command="{Binding OpenAsCommand}" CommandParameter="settingsForm" />
-                            <MenuItem Header="에이전트 폼" Command="{Binding OpenAsCommand}" CommandParameter="agentForm" />
-                            <MenuItem Header="스킬 폼" Command="{Binding OpenAsCommand}" CommandParameter="skillForm" />
-                            <Separator />
-                            <MenuItem Header="자동 판별로 되돌리기" Command="{Binding OpenAsCommand}" CommandParameter="auto" />
+                        <ContextMenu ItemsSource="{Binding EditorChoices}">
+                            <ContextMenu.ItemContainerStyle>
+                                <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Label}" />
+                                    <Setter Property="Command" Value="{Binding Command}" />
+                                    <Setter Property="CommandParameter" Value="{Binding Name}" />
+                                </Style>
+                            </ContextMenu.ItemContainerStyle>
                         </ContextMenu>
                     </Button.ContextMenu>
                     <StackPanel Orientation="Horizontal">

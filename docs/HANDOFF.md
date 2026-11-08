@@ -1,7 +1,7 @@
 # 인수인계 (2026-11-08) — Claude Code → Codex
 
 ## 1. 현재 상태
-- 브랜치 `feat/codex-editors` (main `b3325f5`에서 생성). 단계 0 사양·설계 문서 반영 완료, 제품 코드는 아직 변경 없음.
+- 브랜치 `feat/codex-editors` (main `b3325f5`에서 생성). 단계 0 사양·설계 및 2a-1 편집기 등록소 반영 완료.
 - main(로컬)에 `feat/explorer-visibility`(547ae6a), `feat/custom-files`(d508a3a), `feat/permission-arg-kinds`(b3325f5) 모두 `--no-ff` 병합 완료. **origin에는 아무것도 push 안 함.**
 - 병합 직전 검증(2026-11-08): `dotnet build DotDeck.slnx` 오류 0 / Core.Tests 669 통과·2 건너뜀 / App.Tests 6 통과.
 - 미커밋: `.claude/`(로컬 설정, 커밋 대상 아님)만 남음.
@@ -13,14 +13,14 @@
 | 3e37460 | 탐색기 보이는 항목 규칙·보기 방식·붙여넣기 충돌 처리 |
 | 18ccbcd | 모든 폴더 프로젝트에 사용자 지정 파일 노드 |
 | 178fad7 | 권한 규칙 인수 형식(tools.json v2)·경고(PermissionLint)·MCP 선택지 표시 수정, App.Tests 프로젝트 추가 |
-- Codex 설정 폼 작업: 공식 문서 조사, `architect` 설계안 작성, 사용자 결정 1~7 확정(아래). SPEC 7.5·DESIGN 확장 설계 반영 완료. **코드는 시작 전.**
+- Codex 설정 폼 작업: 공식 문서 조사, `architect` 설계안 작성, 사용자 결정 1~7 확정(아래). SPEC 7.5·DESIGN 및 편집기 등록소 반영 완료. Codex 전용 폼 자체는 아직 구현 전.
 
 ## 3. 진행 중 / 남은 작업 (순서대로, 각 커밋마다 빌드 → 테스트 → 교차 검증 → 커밋)
 | # | 커밋 메시지 초안 | 주요 파일 | 상태 |
 |---|---|---|---|
 | 0 | `docs(spec): Codex 전용 편집기 사양과 설계 추가` | `docs/SPEC.md`(§2.1 Codex 행, §7.0 문구, 신규 §7.5), `docs/DESIGN.md` | 완료 |
-| 2a-1 | `refactor(editors): 편집기 등록소로 종류별 분기 통합` | 신규 `Core/Editors/Registry/*`, `App/ViewModels/Editor/FormRegistry.cs`; 수정 `EditorKind.cs`, `Roles/FileRoleCatalog.cs`, `Roles/EditorOverrideStore.cs`, `TextDocumentViewModel.cs`, `ShellViewModel.Validation.cs`, `.Roles.cs`, `.cs` | **다음 할 일** |
-| 2a-2 | `refactor(hooks): 훅 모델·표·실행기를 제품 공용으로 분리` | 신규 `Core/Hooks/*`, `HookTableViewModel.cs`, `Views/Editor/HookTable.xaml`; 수정 `ClaudeSettingsDocument.cs`, `HookRunner.cs`, `SettingsFormViewModel.cs`, `HookTestPaneViewModel.cs`, `FormTemplates.xaml` | 남음 |
+| 2a-1 | `refactor(editors): 편집기 등록소로 종류별 분기 통합` | 신규 `Core/Editors/Registry/*`, `App/ViewModels/Editor/FormRegistry.cs`; 수정 `EditorKind.cs`, `Roles/FileRoleCatalog.cs`, `Roles/EditorOverrideStore.cs`, `TextDocumentViewModel.cs`, `ShellViewModel.Validation.cs`, `.Roles.cs`, `.cs` | 완료 |
+| 2a-2 | `refactor(hooks): 훅 모델·표·실행기를 제품 공용으로 분리` | 신규 `Core/Hooks/*`, `HookTableViewModel.cs`, `Views/Editor/HookTable.xaml`; 수정 `ClaudeSettingsDocument.cs`, `HookRunner.cs`, `SettingsFormViewModel.cs`, `HookTestPaneViewModel.cs`, `FormTemplates.xaml` | **다음 할 일** |
 | 2a-3 | `refactor(forms): 키-값 표·문자열 목록·frontmatter 프로필 공통화` | `KeyValueTableViewModel.cs`, `StringListViewModel.cs`, `FormViewModels.cs`, `SettingsFormViewModel.cs` | 남음 |
 | → | **2a 끝: Claude 편집기 동작이 같은지 사용자 확인** | | |
 | 2b-0 | `build(core): Tomlyn 추가와 TOML 무손실 편집기` | `Directory.Packages.props`, `DotDeck.Core.csproj`, 신규 `Core/Toml/TomlEditDocument.cs` + 테스트 | 남음 |
@@ -91,3 +91,5 @@
 - 2026-11-08 단계 0: SPEC §2.1·§6·§7.0·신규 §7.5, DESIGN 확장 설계, CHANGELOG Unreleased에 승인된 구현 범위·확인 지점 반영. 제품 코드·패키지·버전 변경 없음.
 - 검증: `dotnet build DotDeck.slnx` 경고 0·오류 0, `dotnet test --solution DotDeck.slnx` 총 677 / 성공 675 / 실패 0 / 건너뜀 2(심볼릭 링크 생성 권한 필요). `git diff --check` 통과. 문서와 HANDOFF의 승인 결정 대조 완료.
 - 공식 문서 차이: 이번 단계는 기존 조사 기록의 문서화이며 새로운 외부 문서 검증은 수행하지 않음. 구현 단계별 대조 예정.
+- 2026-11-08 2a-1: Core `EditorDescriptor`·`EditorRegistry`、App `FormRegistry` 추가. 저장 이름·라벨·기능·검증·폼 생성·문서/탐색기 메뉴를 연결하고 Claude 전용 호스트 서비스를 `IClaudeFormServices`로 분리. Codex enum·저장 이름은 예약하되 폼·메뉴는 아직 비활성. `ICodexFormServices`는 실제 서비스 추가 시 정의 예정.
+- 2a-1 검증: 빌드 경고 0·오류 0, 전체 테스트 695 / 성공 693 / 실패 0 / 건너뜀 2. 신규 18개 사례로 저장 이름 호환·진단·미지 필드 보존·메뉴 명령·미구현 폼 차단 검증. UI 직접 실행은 아직 하지 않음. 새 의존성·버전·실제 설정 변경 없음.

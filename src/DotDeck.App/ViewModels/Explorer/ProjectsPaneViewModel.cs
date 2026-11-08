@@ -63,7 +63,7 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
         var tasks = new List<Task>();
         foreach (var explorer in _explorers.ToList())
         {
-            if (!e.RefreshAll && !e.InvolvedPaths.Any(p => explorer.ContainsPath(p) || IsInside(explorer.Source.RootPath, p)))
+            if (!e.RefreshAll && !e.InvolvedPaths.Any(p => explorer.ContainsPath(p) || IsInside(explorer.Source.RootPath, p) || HasCustomFileAt(explorer, p)))
             {
                 continue;
             }
@@ -128,6 +128,18 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
         {
             await _context.Registry.RunAsync(r => r.UpdateAll(project =>
             {
+                if (project.Builtin == BuiltinProject.System)
+                {
+                    return project;
+                }
+
+                // "사용자 지정 파일" follow renames and moves, wherever the files are (root or not).
+                var customFiles = CustomFileRules.Rewrite(project.CustomFiles, changes);
+                if (!ReferenceEquals(customFiles, project.CustomFiles))
+                {
+                    project = project with { CustomFiles = customFiles };
+                }
+
                 if (!roots.TryGetValue(project.Id, out var root))
                 {
                     return project;
@@ -186,6 +198,11 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
             return true;
         }
     }
+
+    /// <summary>True when one of the explorer's "사용자 지정 파일" is <paramref name="path"/> or lies inside it.</summary>
+    private static bool HasCustomFileAt(ExplorerViewModel explorer, string path) =>
+        explorer.SupportsVisibility
+        && explorer.Project.CustomFiles.Any(f => string.Equals(f, path, StringComparison.OrdinalIgnoreCase) || IsInside(f, path));
 
     /// <summary>True when the project root lies inside a moved/deleted folder.</summary>
     private static bool IsInside(string? root, string path) =>

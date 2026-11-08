@@ -42,7 +42,7 @@ public sealed class SystemProjectSource : IProjectSource
                 Create(UserEnvironmentId, "환경변수(사용자)"),
                 Create(MachineEnvironmentId, "환경변수(시스템)"),
                 Create(PathId, "PATH"),
-                new NodeInfo { Id = ImportantFilesId, Kind = NodeKind.Folder, Name = "기타 파일" },
+                new NodeInfo { Id = ImportantFilesId, Kind = NodeKind.Folder, Name = CustomFileRules.NodeName },
             ];
         }
 
@@ -52,26 +52,7 @@ public sealed class SystemProjectSource : IProjectSource
         }
 
         var list = new ImportantFiles(_store, ImportantFiles.ListFileFor(_paths));
-        return list.List(ImportantFiles.DefaultsFor(_paths)).Select(path =>
-        {
-            var entry = _store.GetEntry(path);
-            var name = Path.GetFileName(path);
-            var exists = entry is { IsDirectory: false };
-            return new NodeInfo
-            {
-                Id = path,
-                Kind = NodeKind.File,
-                Name = exists ? name : $"{name} (없음)",
-                FullPath = path,
-                RelativePath = path,
-                FileKind = FileKindClassifier.Classify(name),
-                IsSecret = SecretFilePolicy.IsSecret(name),
-                IsReadOnly = entry?.IsReadOnly ?? false,
-                IsEnabled = true,
-                Length = entry?.Length ?? 0,
-                LastWriteTimeUtc = entry?.LastWriteTimeUtc ?? default,
-            };
-        }).ToList();
+        return CustomFileRules.CreateNodes(_store, list.List(ImportantFiles.DefaultsFor(_paths)));
     }
 
     private static NodeInfo Create(string id, string name) => new()

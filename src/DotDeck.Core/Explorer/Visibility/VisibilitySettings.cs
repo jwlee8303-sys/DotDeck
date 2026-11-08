@@ -35,6 +35,9 @@ public sealed record VisibilitySettings
     /// <summary>Skip the extension check (decision step ②).</summary>
     public bool ShowAllFiles { get; init; }
 
+    /// <summary>The "사용자 지정 파일" node was unchecked in edit mode: hidden in normal mode.</summary>
+    public bool HideCustomFiles { get; init; }
+
     /// <summary>Unknown keys of the stored "visibility" object, written back unchanged.</summary>
     public JsonObject? Extra { get; init; }
 
@@ -72,6 +75,7 @@ public sealed record VisibilitySettings
         }
 
         return ShowAllFiles == other.ShowAllFiles
+            && HideCustomFiles == other.HideCustomFiles
             && SameList(DefaultExtensions, other.DefaultExtensions)
             && Rules.Count == other.Rules.Count
             && Rules.All(r => other.Rules.TryGetValue(r.Key, out var v) && v == r.Value)

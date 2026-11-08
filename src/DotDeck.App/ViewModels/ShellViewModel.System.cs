@@ -67,49 +67,114 @@ public sealed partial class ShellViewModel
         RestartElevatedRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>
-    /// Registers a file in "other files" by typing its path. A file that does not exist yet is created empty
-    /// (after confirmation) and opened, so new configuration files can be started from here.
-    /// </summary>
+    /// <summary>Folder project selected in the project area (its own list), or null for the System project's list.</summary>
+    private ProjectDefinition? SelectedCustomFilesOwner =>
+        Projects.List.SelectedRow?.Explorer is { SupportsVisibility: true } explorer ? explorer.Project : null;
+
+    /// <summary>Main menu: register by typing a path, into the selected project's "사용자 지정 파일" (else the System project's).</summary>
     [RelayCommand]
-    private async Task RegisterOtherFileAsync()
+    private Task RegisterOtherFileAsync() => RegisterCustomFileAsync(SelectedCustomFilesOwner, browse: false);
+
+    /// <summary>Main menu: add with the file picker.</summary>
+    [RelayCommand]
+    private Task AddImportantFileAsync() => RegisterCustomFileAsync(SelectedCustomFilesOwner, browse: true);
+
+    /// <summary>
+    /// Registers files in a "사용자 지정 파일" list (<paramref name="owner"/> null: the System project). Typing a path of
+    /// a file that does not exist yet creates it empty (after confirmation) and opens it, so new configuration files
+    /// can be started from here.
+    /// </summary>
+    private async Task RegisterCustomFileAsync(ProjectDefinition? owner, bool browse)
     {
-        var input = _dialogs.AskText("기타 파일 등록", "등록할 파일의 전체 경로를 입력하세요. 없는 파일이면 새로 만듭니다.", string.Empty, ValidateOtherFilePath);
-        if (input is null)
+        var title = owner is null ? "사용자 지정 파일 등록" : $"사용자 지정 파일 등록 — {owner.Name}";
+        List<string> paths;
+        if (browse)
         {
-            return;
+            var initial = owner is null ? Paths.Home : Projects.Explorers.FirstOrDefault(e => e.Id == owner.Id)?.Source.RootPath ?? Paths.Home;
+            paths = [.. _dialogs.PickOpenFiles(title, initial)];
+            if (paths.Count == 0)
+            {
+                return;
+            }
         }
-
-        var path = Path.GetFullPath(System.Environment.ExpandEnvironmentVariables(input.Trim().Trim('"')));
-        if (!_store.FileExists(path))
+        else
         {
-            if (!_dialogs.Confirm("기타 파일 등록", $"파일이 없습니다. 빈 파일로 새로 만들까요?\n\n{path}"))
+            var input = _dialogs.AskText(title, "등록할 파일의 전체 경로를 입력하세요. 없는 파일이면 새로 만듭니다.", string.Empty, ValidateOtherFilePath);
+            if (input is null)
             {
                 return;
             }
 
-            try
+            var path = Path.GetFullPath(System.Environment.ExpandEnvironmentVariables(input.Trim().Trim('"')));
+            if (!_store.FileExists(path))
             {
-                _store.CreateDirectory(Path.GetDirectoryName(path)!);
-                _store.CreateFile(path);
+                if (!_dialogs.Confirm(title, $"파일이 없습니다. 빈 파일로 새로 만들까요?\n\n{path}"))
+                {
+                    return;
+                }
+
+                try
+                {
+                    _store.CreateDirectory(Path.GetDirectoryName(path)!);
+                    _store.CreateFile(path);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    _dialogs.ShowError(title, $"파일을 만들 수 없습니다.\n\n{ex.Message}");
+                    return;
+                }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+            paths = [path];
+        }
+
+        var added = new List<string>();
+        foreach (var path in paths)
+        {
+            if (await AddCustomFileAsync(owner, path) is { } error)
             {
-                _dialogs.ShowError("기타 파일 등록", $"파일을 만들 수 없습니다.\n\n{ex.Message}");
-                return;
+                _dialogs.ShowError(title, paths.Count > 1 ? $"{Path.GetFileName(path)}: {error}" : error);
+            }
+            else
+            {
+                added.Add(path);
             }
         }
 
-        var list = new ImportantFiles(_store, ImportantFiles.ListFileFor(Paths));
-        if (list.Add(path) is { } error)
+        if (owner is null)
         {
-            _dialogs.ShowError("기타 파일 등록", error);
+            await RefreshSystemExplorerAsync();
+        }
+
+        if (added.Count == 0)
+        {
             return;
         }
 
-        await RefreshSystemExplorerAsync();
-        StatusMessage = $"기타 파일에 등록했습니다: {path}";
-        await OpenFileAsync(path, preview: false);
+        StatusMessage = added.Count == 1
+            ? $"사용자 지정 파일에 등록했습니다: {added[0]}"
+            : $"사용자 지정 파일에 {added.Count}개를 등록했습니다.";
+        if (!browse)
+        {
+            await OpenFileAsync(added[0], preview: false);
+        }
+    }
+
+    /// <summary>Returns an error message, or null when the file is on the list.</summary>
+    private async Task<string?> AddCustomFileAsync(ProjectDefinition? owner, string path)
+    {
+        if (owner is null)
+        {
+            return new ImportantFiles(_store, ImportantFiles.ListFileFor(Paths)).Add(path);
+        }
+
+        if (CustomFileRules.Validate(path) is { } error)
+        {
+            return error;
+        }
+
+        var id = owner.Id;
+        return await Projects.ChangeRegistryAsync(r => r.AddCustomFile(id, path)) ? null : "프로젝트 목록에 저장하지 못했습니다.";
     }
 
     private string? ValidateOtherFilePath(string text)
@@ -149,44 +214,59 @@ public sealed partial class ShellViewModel
         return SecretFilePolicy.IsSecret(Path.GetFileName(raw)) ? "비밀 파일은 등록할 수 없습니다." : null;
     }
 
+    /// <summary>Main menu: takes the current file off every "사용자 지정 파일" list that has it.</summary>
     [RelayCommand]
-    private async Task AddImportantFileAsync()
+    private async Task RemoveImportantFileAsync()
     {
-        var picked = _dialogs.PickOpenFiles("기타 파일 추가", Paths.Home);
-        if (picked.Count == 0)
+        if (ActiveTextDocument?.FilePath is not { } path)
         {
             return;
         }
 
-        var list = new ImportantFiles(_store, ImportantFiles.ListFileFor(Paths));
-        foreach (var path in picked)
+        var owners = Projects.Explorers.Where(e => e.SupportsVisibility && e.HasCustomFile(path)).Select(e => (ProjectDefinition?)e.Project).ToList();
+        var system = new ImportantFiles(_store, ImportantFiles.ListFileFor(Paths));
+        if (system.List(ImportantFiles.DefaultsFor(Paths)).Contains(path, StringComparer.OrdinalIgnoreCase))
         {
-            if (list.Add(path) is { } error)
+            owners.Add(null);
+        }
+
+        if (owners.Count == 0)
+        {
+            _dialogs.ShowInfo("사용자 지정 파일", "이 파일은 사용자 지정 파일 목록에 없습니다.");
+            return;
+        }
+
+        foreach (var owner in owners)
+        {
+            await RemoveCustomFileAsync(owner, path);
+        }
+    }
+
+    /// <summary>Takes a file off a "사용자 지정 파일" list (the file itself is not touched).</summary>
+    private async Task RemoveCustomFileAsync(ProjectDefinition? owner, string path)
+    {
+        if (owner is null)
+        {
+            var list = new ImportantFiles(_store, ImportantFiles.ListFileFor(Paths));
+            if (!list.List(ImportantFiles.DefaultsFor(Paths)).Contains(path, StringComparer.OrdinalIgnoreCase))
             {
-                _dialogs.ShowError("기타 파일", $"{Path.GetFileName(path)}: {error}");
+                _dialogs.ShowInfo("사용자 지정 파일", "이 파일은 사용자 지정 파일 목록에 없습니다.");
+                return;
+            }
+
+            list.Remove(path);
+            await RefreshSystemExplorerAsync();
+        }
+        else
+        {
+            var id = owner.Id;
+            if (!await Projects.ChangeRegistryAsync(r => r.RemoveCustomFile(id, path)))
+            {
+                return;
             }
         }
 
-        await RefreshSystemExplorerAsync();
-    }
-
-    [RelayCommand]
-    private Task RemoveImportantFileAsync() =>
-        ActiveTextDocument?.FilePath is { } path ? RemoveOtherFileAsync(path) : Task.CompletedTask;
-
-    /// <summary>Takes a file off the "other files" list (the file itself is not touched).</summary>
-    private async Task RemoveOtherFileAsync(string path)
-    {
-        var list = new ImportantFiles(_store, ImportantFiles.ListFileFor(Paths));
-        if (!list.List(ImportantFiles.DefaultsFor(Paths)).Contains(path, StringComparer.OrdinalIgnoreCase))
-        {
-            _dialogs.ShowInfo("기타 파일", "이 파일은 기타 파일 목록에 없습니다.");
-            return;
-        }
-
-        list.Remove(path);
-        await RefreshSystemExplorerAsync();
-        StatusMessage = $"기타 파일 목록에서 뺐습니다(파일은 그대로 둡니다): {Path.GetFileName(path)}";
+        StatusMessage = $"사용자 지정 파일 목록에서 뺐습니다(파일은 그대로 둡니다): {Path.GetFileName(path)}";
     }
 
     /// <summary>Raised after the settings changed; the view applies theme and font size.</summary>

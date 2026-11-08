@@ -51,6 +51,12 @@ public sealed record ProjectDefinition
     /// <summary>Normal-mode layout and pinned items.</summary>
     public ProjectViewSettings View { get; init; } = ProjectViewSettings.Default;
 
+    /// <summary>
+    /// Files registered under the project's "사용자 지정 파일" node (absolute paths, anywhere on disk). Not used by
+    /// the System project, which keeps its own list (<c>important-files.json</c>).
+    /// </summary>
+    public IReadOnlyList<string> CustomFiles { get; init; } = [];
+
     public JsonObject? Extra { get; init; }
 
     public bool IsBuiltin => Kind == ProjectKind.Builtin;

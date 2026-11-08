@@ -481,9 +481,11 @@
                         <Separator />
                         <MenuItem Header="자동 판별로 되돌리기" Command="{Binding OpenAsCommand}" CommandParameter="auto" />
                     </MenuItem>
-                    <MenuItem Header="기타 파일 등록(경로 입력)(_G)..." Command="{Binding RegisterOtherFileCommand}"
+                    <MenuItem Header="사용자 지정 파일 등록(경로 입력)(_G)..." Command="{Binding RegisterOtherFileCommand}"
                               Visibility="{Binding IsOtherFilesTarget, Converter={StaticResource TrueToVisible}}" />
-                    <MenuItem Header="기타 파일 목록에서 빼기(_U)" Command="{Binding UnregisterOtherFileCommand}"
+                    <MenuItem Header="사용자 지정 파일 추가(찾아보기)(_I)..." Command="{Binding BrowseOtherFileCommand}"
+                              Visibility="{Binding IsOtherFilesTarget, Converter={StaticResource TrueToVisible}}" />
+                    <MenuItem Header="사용자 지정 파일 목록에서 빼기(_U)" Command="{Binding UnregisterOtherFileCommand}"
                               Visibility="{Binding IsOtherFileItem, Converter={StaticResource TrueToVisible}}" />
                     <Separator />
                     <MenuItem Header="새 파일(_W)" Command="{Binding NewFileCommand}" />

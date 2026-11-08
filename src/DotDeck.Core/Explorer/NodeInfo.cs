@@ -58,6 +58,9 @@ public sealed record NodeInfo
     /// <summary>Pinned to the top of the project section.</summary>
     public bool IsPinned { get; init; }
 
+    /// <summary>A file of a "사용자 지정 파일" list (System project or folder project); its key is the full path.</summary>
+    public bool IsCustomFile { get; init; }
+
     public bool CanExpand => Kind == NodeKind.Folder;
 
     public bool CanOpen => Kind == NodeKind.File && !IsSecret;

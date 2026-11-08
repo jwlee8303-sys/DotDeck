@@ -65,7 +65,8 @@ public sealed class FileRoleResolver
 
     /// <summary>The editor for a file without an override: the role's editor, else Markdown for .md files, else text.</summary>
     public EditorKind DefaultEditor(string path, FileRole? role) =>
-        role?.Editor ?? (IsMarkdown(path) ? EditorKind.Markdown : EditorKind.Text);
+        role?.Editor ?? (string.Equals(Path.GetFileName(path), "config.toml", StringComparison.OrdinalIgnoreCase)
+            ? EditorKind.CodexConfig : IsMarkdown(path) ? EditorKind.Markdown : EditorKind.Text);
 
     public static bool IsMarkdown(string path) =>
         Path.GetExtension(path) is var ext

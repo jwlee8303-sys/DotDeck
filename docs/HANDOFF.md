@@ -9,6 +9,8 @@
 - 단계 ③: IBackupProtector(Core)와 DpapiBackupProtector(App) 연결. 앱 백업은 형식별 탐지 누락 방지를 위해 비밀값 포함 여부와 무관하게 모두 DPAPI(CurrentUser) 암호화. manifest `protected: true`, SHA는 암호문 기준, 원본 길이 별도 보존. 기존 비암호화 백업 읽기 호환. ReadContent에서 자동 복호화하고 복원은 기존 원자적 쓰기로 원본 바이트 그대로 반영. 복호화 실패 시 다른 Windows 계정/손상 안내. 백업 복원 diff도 기본 가림+눈 지원. 파일 덮어쓰기 백업의 비밀 파일 예외도 제거.
 - ProtectedData 10.0.14가 NuGet에 존재함을 확인했으나 net10.0-windows에서 이미 제공되는 API라 명시 패키지 참조 시 NU1510(불필요 의존성) 발생. 참조를 제거하고 프레임워크 API로 구현해 패키지를 추가하지 않음. 실제 Windows DPAPI 암호문·auth 읽기/수정/저장·바이트 동일 복원·로그/출력/manifest 문자열 검색 검사 통과. 다른 계정은 실제 계정 전환 없이 읽을 수 없는 payload로 오류 안내 경로를 검증함.
 - ③ 최종 검증: Release build 경고 0·오류 0, 전체 732 / 성공 730 / 실패 0 / 권한 건너뜀 2. 기존 평문 백업은 자동 변환하지 않으며 앱이 이후 새로 만드는 파일 백업부터 모두 암호화한다.
+- 단계 ④: 전용 CodexConfigFormViewModel과 5개 탭(모델/권한·샌드박스/프로필/MCP/프로젝트 신뢰) 및 `Codex/config-form.json` 설명·허용값 카탈로그 구현. 사용자 카탈로그 덮어쓰기는 기존 CatalogResources를 통해 적용(앱 재시작 시 읽음). config.toml은 자동으로 전용 폼 종류 연결, 열 때 자동 폼 시도·문법 오류 시 줄/열 안내와 텍스트로 유지. 프로필·MCP 추가/삭제/이름 변경, 프로젝트 폴더 선택, args 문자열 목록·env 키값 표/눈, 미등록 값 경고·보존. 모든 변경은 TomlEditDocument를 통해 기존 버퍼에 한 번 Replace하여 Undo 공유. 테이블 rename/delete, 주석을 보존하는 문자열 배열 구조 편집 API 추가.
+- ④ 검증: Release build 경고 0·오류 0, 전체 736 / 성공 734 / 실패 0 / 건너뜀 2. API_KEY 문서의 다른 필드·env 편집, 미지 키/주석/CRLF 보존, 프로필·서버 관리, 카탈로그 덮어쓰기, 자동 종류, 실제 STA 5탭 로드와 폼 변경 Ctrl+Z 원본 복원 확인. 다음은 단계 ⑤ 고급 트리.
 
 ## 1. 현재 상태
 - 브랜치 `feat/codex-editors` (main `b3325f5`에서 생성). 단계 0·2a 완료, 사용자 수동 확인 통과. 2b-0 TOML 무손실 편집기 완료.

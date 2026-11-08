@@ -5,6 +5,17 @@ namespace DotDeck.Core.Tests.Editors;
 
 public sealed class TomlEditDocumentTests
 {
+    [Fact]
+    public void String_list_structural_edits_keep_comments_and_unrelated_bytes()
+    {
+        var doc = TomlEditDocument.Parse(Encode("# keep\r\nargs = [\r\n'a', # first\r\n'b' # last\r\n]\r\nother = 42\r\n", true));
+        doc.SetStringList(["args"], ["a", "b", "c"]);
+        doc.SetStringList(["args"], ["renamed"]);
+        var text = Encoding.UTF8.GetString(doc.ToBytes());
+        Assert.Contains("# first\r\n", text, StringComparison.Ordinal);
+        Assert.Contains("# last\r\n", text, StringComparison.Ordinal);
+        Assert.Contains("other = 42\r\n", text, StringComparison.Ordinal);
+    }
     [Theory]
     [InlineData("\n", false)]
     [InlineData("\r\n", true)]

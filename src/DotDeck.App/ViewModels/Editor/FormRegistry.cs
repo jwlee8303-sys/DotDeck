@@ -22,6 +22,12 @@ public interface IClaudeFormServices
     Task<IReadOnlyList<AgentNameInfo>> DiscoverAgentsAsync(string? projectRoot);
 }
 
+public interface ICodexFormServices
+{
+    Core.Codex.ConfigFormCatalog CodexCatalog { get; }
+    string? PickProjectFolder();
+}
+
 /// <summary>One format choice, bound identically by document and explorer menus.</summary>
 public sealed record EditorChoice(string Label, string Name, ICommand Command);
 
@@ -36,7 +42,8 @@ public static class FormRegistry
             [EditorKind.ClaudeSettings] = CreateSettings,
             [EditorKind.Agent] = c => CreateFrontmatter(EditorKind.Agent, c),
             [EditorKind.Skill] = c => CreateFrontmatter(EditorKind.Skill, c),
-            [EditorKind.CodexConfig] = c => new TomlFormViewModel(c.Apply),
+            [EditorKind.CodexConfig] = c => new CodexConfigFormViewModel(c.Apply, (c.Host as ICodexFormServices)?.CodexCatalog)
+            { PickFolder = () => (c.Host as ICodexFormServices)?.PickProjectFolder() },
         };
 
     public static bool HasForm(EditorKind kind) => EditorRegistry.Get(kind).HasForm && s_factories.ContainsKey(kind);

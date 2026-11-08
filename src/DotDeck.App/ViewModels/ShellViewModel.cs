@@ -76,6 +76,10 @@ public sealed partial class ShellViewModel : ObservableObject
         }
 
         SettingsKeys = keyCatalog.Value;
+        var codexCatalog = Core.Catalogs.CatalogResources.Load(Core.Codex.ConfigFormCatalog.Resource,
+            Core.Codex.ConfigFormCatalog.Parse, services.Store, services.Paths.CatalogsDir);
+        CodexCatalog = codexCatalog.Value;
+        if (codexCatalog.Warning is { } codexWarning) _log.Warning(codexWarning);
         ToolCatalog = toolCatalog.Value;
         HookEvents = eventCatalog.Value;
 

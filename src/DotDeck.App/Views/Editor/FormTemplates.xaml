@@ -10,6 +10,9 @@
     </ResourceDictionary.MergedDictionaries>
 
     <!-- agents/*.md, skills/*/SKILL.md -->
+    <DataTemplate DataType="{x:Type vm:CodexConfigFormViewModel}">
+        <local:CodexConfigFormView />
+    </DataTemplate>
     <DataTemplate DataType="{x:Type vm:TomlFormViewModel}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="16">

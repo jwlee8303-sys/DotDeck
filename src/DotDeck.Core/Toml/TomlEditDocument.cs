@@ -26,6 +26,91 @@ public sealed class TomlEditDocument
     }
     public bool CanSetValue(IReadOnlyList<string> path) => path.Count > 0
         && (_values.ContainsKey(Key(path)) || _sections.ContainsKey(Key(path.Take(path.Count - 1))));
+    public IReadOnlyList<IReadOnlyList<string>> TablePaths => [.. _tablePaths.Values];
+
+    public void SetStringList(IReadOnlyList<string> path, IReadOnlyList<string> values)
+    {
+        var work = new TomlEditDocument(_text, _bom);
+        if (!work._values.TryGetValue(Key(path), out var found) || found is not ArraySyntax)
+        {
+            work.SetValue(path, "[" + string.Join(", ", values.Select(v => JsonSerializer.Serialize(v))) + "]");
+        }
+        else
+        {
+            while (((ArraySyntax)work._values[Key(path)]).Items.Count() != values.Count)
+            {
+                var array = (ArraySyntax)work._values[Key(path)];
+                var items = array.Items.ToArray();
+                var patches = new List<(int Start, int Length, string Text)>();
+                if (items.Length > values.Count)
+                {
+                    var last = items[^1];
+                    patches.Add((last.Value!.Span.Start.Offset, last.Value.Span.Length, ""));
+                    var comma = last.Comma ?? (items.Length > 1 ? items[^2].Comma : null);
+                    if (comma is not null) patches.Add((comma.Span.Start.Offset, comma.Span.Length, ""));
+                }
+                else
+                {
+                    if (items.Length > 0 && items[^1].Comma is null)
+                    {
+                        var last = items[^1].Value!;
+                        patches.Add((last.Span.Start.Offset + last.Span.Length, 0, ","));
+                    }
+                    patches.Add((array.CloseBracket!.Span.Start.Offset, 0, JsonSerializer.Serialize(values[items.Length])));
+                }
+                var text = work._text;
+                foreach (var p in patches.OrderByDescending(p => p.Start)) text = text[..p.Start] + p.Text + text[(p.Start + p.Length)..];
+                work = new TomlEditDocument(text, _bom);
+            }
+            for (var i = 0; i < values.Count; i++) work.SetString([.. path, i.ToString(System.Globalization.CultureInfo.InvariantCulture)], values[i]);
+        }
+        _text = work._text; _syntax = work._syntax; Index();
+    }
+
+    public void DeleteTable(IReadOnlyList<string> path)
+    {
+        if (path.Count == 0) throw new TomlEditException("루트 테이블은 삭제할 수 없습니다.");
+        var ranges = _assignments.Where(p => IsPrefix(path, JsonSerializer.Deserialize<string[]>(p.Key)!))
+            .Select(p => (Start: LineStart(p.Value.Key!.Span.Start.Offset), End: LineEnd(p.Value.Value!.Span.Start.Offset + p.Value.Value.Span.Length)))
+            .Concat(_tablePaths.Where(p => IsPrefix(path, p.Value)).Select(p =>
+                (Start: LineStart(p.Key.OpenBracket!.Span.Start.Offset), End: LineEnd(p.Key.CloseBracket!.Span.Start.Offset + p.Key.CloseBracket.Span.Length))));
+        var candidate = _text;
+        foreach (var range in ranges.Distinct().OrderByDescending(r => r.Start)) candidate = candidate[..range.Start] + candidate[range.End..];
+        Adopt(candidate, path);
+    }
+
+    public void RenameTable(IReadOnlyList<string> path, string newName)
+    {
+        if (path.Count == 0 || string.IsNullOrEmpty(newName)) throw new TomlEditException("테이블 이름을 입력하세요.");
+        IReadOnlyList<string> renamed = [.. path.Take(path.Count - 1), newName];
+        var patches = new List<(int Start, int Length, string Text)>();
+        foreach (var (table, tablePath) in _tablePaths.Where(p => IsPrefix(path, p.Value)))
+        {
+            patches.Add((table.Name!.Span.Start.Offset, table.Name.Span.Length, FormatPath([.. renamed, .. tablePath.Skip(path.Count)])));
+        }
+        foreach (var (key, pair) in _assignments)
+        {
+            var full = JsonSerializer.Deserialize<string[]>(key)!;
+            var local = Segments(pair.Key!);
+            var parentLength = full.Length - local.Count;
+            if (IsPrefix(path, full) && parentLength < path.Count)
+            {
+                patches.Add((pair.Key!.Span.Start.Offset, pair.Key.Span.Length,
+                    FormatPath(renamed.Concat(full.Skip(path.Count)).Skip(parentLength))));
+            }
+        }
+        if (patches.Count == 0) throw new TomlEditException("테이블을 찾을 수 없습니다.");
+        var candidate = _text;
+        foreach (var patch in patches.OrderByDescending(p => p.Start)) candidate = candidate[..patch.Start] + patch.Text + candidate[(patch.Start + patch.Length)..];
+        var next = new TomlEditDocument(candidate, _bom);
+        foreach (var (key, value) in _values)
+        {
+            var originalPath = JsonSerializer.Deserialize<string[]>(key)!;
+            var expected = IsPrefix(path, originalPath) ? Key(renamed.Concat(originalPath.Skip(path.Count))) : key;
+            if (!next._values.TryGetValue(expected, out var other) || Slice(value) != next.Slice(other)) throw new TomlEditException("이름 변경 검증 실패");
+        }
+        _text = next._text; _syntax = next._syntax; Index();
+    }
     private static readonly UTF8Encoding s_utf8 = new(false, true);
     private readonly bool _bom;
     private string _text;

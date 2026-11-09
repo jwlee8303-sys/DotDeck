@@ -4,6 +4,7 @@
 ## [Unreleased]
 ### Documentation
 - AI CLI 연동 사양(SPEC 11절)과 Phase 5a~5c 계획 추가: 프로젝트 범위 세션, 명령 실행·대화형 터미널, 컨텍스트 전달·내장 MCP, 범위 가드 훅, 변경 요약·되돌리기
+- AI CLI 연동 설계(DESIGN "AI CLI 연동 설계") 추가와 사용자 결정 반영: 셸 없이 CLI 직접 실행, 범위 안 비밀 파일 차단, Codex는 샌드박스 쓰기 루트로 보호. DESIGN Q1(단일 파일은 SelfContained)·Q8(백업 보관은 세트 단위) 문구를 실제 동작에 맞게 수정
 
 ## [1.1.0] - 2026-11-09
 ### Added

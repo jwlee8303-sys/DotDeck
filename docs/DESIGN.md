@@ -6,14 +6,14 @@
 ## 확정된 결정 (Q1~Q18 권장안)
 | # | 결정 |
 |---|---|
-| Q1 | 단일 exe는 framework-dependent (.NET 10 Desktop Runtime 필요) |
+| Q1 | 단일 exe 배포. 초기 결정은 framework-dependent였으나 현재 `DotDeck.App.csproj`는 `PublishSingleFile=true`일 때 `SelfContained=true`(런타임 포함)로 게시한다 |
 | Q2 | WebView2 런타임이 없으면 안내 문구와 텍스트 보기만 제공 |
 | Q3 | `--home`/`DOTDECK_HOME` 지정 시 데이터 폴더도 `<home>\.dotdeck\{roaming,local}`로 격리. `--data <dir>`로 덮어쓰기 가능 |
 | Q4 | 프로젝트 간 드래그는 이동, Ctrl은 복사. 다른 볼륨 간에는 확인. Windows 탐색기에서 끌어오면 복사 |
 | Q5 | 기본 제공 프로젝트별 기본 제외 목록(`.claude`: projects, todos, shell-snapshots, statsig, file-history, debug / `.codex`: sessions, log). 설정에서 해제 |
 | Q6 | "설정·문서만" 필터에 확장자 없는 dotfile, `.gitignore`, `.editorconfig`, csproj, slnx, ini, xml, cmd, bat, sh, psm1 추가 |
 | Q7 | 휴지통 복원은 `$I` 파싱, 실패하면 안내 |
-| Q8 | 백업 보관은 파일별 50개 |
+| Q8 | 백업 보관은 저장 세트 단위 최신 50개(`BackupStore.Retention`, 1분 유예). 파일별 개수가 아니다 |
 | Q9 | 미리보기 탭은 VS 방식. 키보드로 이동할 때도 미리보기(설정, 기본 켬) |
 | Q10 | 생성·복사도 Undo 대상. 이력은 세션 한정, 전역 스택 하나 |
 | Q11 | (Phase 3) 비밀 환경변수 백업은 DPAPI 암호화 |
@@ -506,3 +506,93 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - WebView2에서 CSP와 주입 스크립트
 - 단일 exe의 WebView2Loader
 - CommunityToolkit.Mvvm·Markdig 버전
+
+---
+
+## AI CLI 연동 설계 (SPEC 11, Phase 5, 2026-11-09 승인)
+근거: SPEC 11절, 설치 CLI 도움말(Claude Code 2.1.319, codex-cli 0.167.0), Claude Code 공식 hooks·settings 문서(2026-11-09 조회). "확인 필요"는 해당 단계 스파이크에서 실측 후 이 절에 결과를 기록한다.
+
+### 선행 조건 (1c 확인 결과)
+- 충족: `SafeWriter`(`ExternalChangeKind`·`ExternalChangeException`), `ExternalChangeDetector`, `ShellViewModel.Files.cs`(`ResolveConflictAsync`·자동 다시 불러오기), content/트리 `FolderWatcher`, `BackupStore`+DPAPI, `SafeWriter.Restore`, `TextDiffService`/`DiffReviewDialog`.
+- 5a에서 보완: 세션 스냅샷은 주 백업 Prune(세트 50개)과 격리된 별도 `BackupStore`(`backups\sessions\<id>\`), `SaveAllCoreAsync(): Task<bool>` 분리, Job Object·ConPTY·Named Pipe 인프라 신설(`HookRunner`는 재사용하지 않음).
+
+### 확정 결정
+| # | 결정 |
+|---|---|
+| A1 | 새 NuGet 없음. ConPTY·Job Object·Named Pipe는 P/Invoke, MCP(JSON-RPC 2.0, 줄 단위 stdio)는 직접 구현. xterm.js 6.0.0(MIT)은 dist 파일과 **LICENSE를 함께** `src/DotDeck.App/Assets/Terminal/`에 번들, 버전·SHA-256을 `THIRD-PARTY-NOTICES.txt`와 이 문서에 고정 |
+| A2 | Claude·Codex는 셸 없이 ConPTY(대화형)/파이프(비대화형)로 직접 실행. 일반 PowerShell 터미널은 PATH `pwsh.exe` → `%ProgramFiles%\PowerShell\7\pwsh.exe` → `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`(UTF-8 콘솔 인코딩 초기화) |
+| A3 | 컨텍스트는 `--append-system-prompt` 문자열(12,000자 상한, 초과 시 "외 N개"). `context.md`는 기록용. 5c부터 MCP로 보완 |
+| A4 | `--home`/`DOTDECK_HOME`일 때만 자식 환경에 `CLAUDE_CONFIG_DIR=<home>\.claude`, `CODEX_HOME=<home>\.codex`. 실제 홈 모드에서는 두 변수를 넘기지 않는다(테스트로 보장). 샌드박스 `CLAUDE_CONFIG_DIR`에 가짜 전역 훅(guard_bash·protect_files 흉내)을 두어 A5 병합 실측에 사용 |
+| A5 | 범위 가드는 `--settings <세션 settings.json>`의 PreToolUse 훅으로 주입. 5a-4에서 전역 훅과 병합되는지 실측. **병합되지 않으면** 사용자 `<CLAUDE_CONFIG_DIR 또는 ~/.claude>\settings.json`의 `hooks`를 읽기 전용으로 읽어 세션 settings.json에 함께 넣는다(전역 파일은 수정하지 않음) |
+| A6 | 범위 밖 읽기 차단 기본 켬(`permissions.blockReadsOutsideWorkingDirectories` + 가드 Read 판정). 대화상자 옵션 "범위 밖 읽기 허용" |
+| A7 | 사용자 MCP 서버: 비대화형은 `--strict-mcp-config`로 끔, 대화형은 유지하되 해당 도구 호출은 가드가 ask |
+| A8 | 이어가기 시에만 `--system-prompt-snapshot off`(설치 도움말에서 옵션 존재 확인. 기본 on은 이후 resume에서 기록된 프롬프트를 그대로 재사용) |
+| A9 | Codex 범위 보호는 훅 없이 `-s workspace-write` + `-C`/`--add-dir` + 사후 변경 요약. 읽기 제한 없음, 범위 축소는 재시작. Windows sandbox 미설정이면 실행 전 경고하고 비대화형 Codex 비활성. `codex.cmd`는 실행하지 않고 `node.exe <npm>\node_modules\@openai\codex\bin\codex.js` |
+| A10 | Codex 이어가기는 비대화형(`codex exec resume <id>`)만. 대화형은 새 세션 |
+| A11 | 범위 외 허용: 훅 입력 `scratchpad_dir`(읽기·쓰기), `<CLAUDE_CONFIG_DIR>\{skills,agents,commands,plugins,rules}`(읽기만). 플랜 파일 경로는 실측 후 추가 |
+| A12 | **범위 안 비밀 파일(SPEC 2.3 자물쇠 대상, 링크는 최종 대상 기준)은 대화형·비대화형 모두 deny**(Read·쓰기 도구·Glob/Grep 대상). 전역 protect_files와 동작을 맞춘다 |
+| A13 | 릴리스: 5a → 1.2.0, 5b → 1.3.0, 5c → 1.4.0 (`/release`) |
+| A14 | 비대화형 기본: `--max-budget-usd` 미지정(옵션), "읽기 전용 셸 허용" 끔 |
+| A15 | 스냅샷 기준(설정 노출): 시작 시 전체 캡처는 텍스트 2,000개·합계 20MB 이하, 색인 상한 50,000개, 해시는 2MB 이하 파일, 세션 폴더 보관 7일/최근 20세션 |
+
+### 프로세스 구조
+- 가드·MCP 브리지는 **DotDeck.exe 하위 모드**: `DotDeck.exe --dotdeck-guard <scope.json>`, `--dotdeck-mcp <sessionId>`, `--dotdeck-heartbeat <sessionDir>`. 사용자 정의 `Program.Main`(`StartupObject`)이 인자를 먼저 보고 WPF를 초기화하지 않고 Core 로직을 실행한다. 훅은 exec form(`command`=`Environment.ProcessPath`, `args`)으로 등록해 셸을 거치지 않는다.
+- 5a-4 확인: WinExe(GUI 서브시스템)에서 상속받은 stdin/stdout 파이프가 정상 동작하는지, 콜드 스타트를 **SelfContained 단일 파일 publish 기준**으로 측정. 200ms 초과 → ReadyToRun 적용 → 그래도 초과 → 별도 소형 가드 콘솔 exe(`src/DotDeck.ScopeGuard`, Core 참조, DotDeck.exe 옆 배치)로 분리(사전 승인됨). 측정값을 이 절에 기록.
+
+### Core (`src/DotDeck.Core/AiCli/`)
+| 네임스페이스 | 타입 |
+|---|---|
+| `Scope` | `SessionScope`, `ScopeEligibility`(11.2), `ScopeKey`(주 ID + 정렬된 추가 ID), `ScopeFile`(scope.json, 원자적 쓰기·공유 위반 재시도), `PathNormalizer`, `IFinalPathResolver`, `ScopeChecker`, `ScopeDecision` |
+| `Guard` | `PreToolUseInput`, `HookOutput`, `ToolPathExtractor`, `ShellCommandAnalyzer`, `GuardEvaluator`(순수 함수), `GuardHost`(stdin/stdout, fail-closed) |
+| `Launch` | `CliKind`, `LaunchMode`, `CliLaunchRequest`, `WindowsCommandLine`, `TomlString`, `ClaudeCommandBuilder`, `CodexCommandBuilder`, `ICliLocator`, `ForbiddenOptions`, `SessionFilesWriter` |
+| `Presets` | `SessionPreset`, `SessionPresetStore`(sessions.json, 모르는 필드 보존, 손상 시 `.corrupt-<ts>`) |
+| `Context` | `ContextDocumentBuilder`(비밀·시스템·범위 밖 제외, 길이 상한) |
+| `Snapshots` | `ScopeIndex`, `SessionSnapshot`, `ChangeSummaryBuilder`, `RevertPlanner` |
+| `Output` | `ClaudeStreamJsonParser`, `CodexJsonlParser` |
+| `Mcp`(5c) | `JsonRpcFraming`, `McpServer`, `IAiSessionHost`, 도구 5종 |
+
+### App
+- `Program.cs`(모드 분기), `Infrastructure/Windows/{JobObject, NativeProcessLauncher, PseudoConsole, WindowsFinalPathResolver, NamedPipeMcpHost}`, `Services/AiSessionManager`.
+- ViewModel: `SessionLaunchDialogViewModel`, `TerminalSessionPaneViewModel`(ContentId `tool.terminal:<id>`, 레이아웃 복원 제외, 원시 출력 재생 버퍼 2MB), `AiJobsPaneViewModel`(`tool.aijobs`), `ScopeChipViewModel`, `ChangeSummaryViewModel`.
+- View: `Views/Tools/{TerminalPaneView, AiJobsPaneView}`, `Views/Dialogs/{SessionLaunchDialog, ChangeSummaryDialog}`(기존 `DiffView` 재사용). 터미널 자산은 EmbeddedResource, 가상 호스트 `term.dotdeck.local`을 `WebResourceRequested`로 응답(그 외 403, 외부 탐색·새 창·DevTools 차단).
+- 리소스 키: `DD.Brush.Terminal.*`(배경·전경·커서·선택·ANSI 16색), `DD.Brush.StatusBar.AiRunning` (Dark/Light 동시 추가).
+
+### 명령줄
+- ConPTY는 `CreateProcessW(lpApplicationName=절대경로, lpCommandLine)`이 필요하므로 `ArgumentList`를 쓰지 않고 CommandLineToArgvW 규칙을 직접 구현(공백·탭·개행·`"` 포함 시 인용, `"` 앞 `\`는 2n+1, 닫는 따옴표 앞 `\`는 2n). 비대화형도 같은 실행기를 사용.
+- `.cmd`/`.bat` 대상 금지, 현재 폴더 검색 금지. Codex `-c key=value` 값은 TOML 기본 문자열.
+- `ForbiddenOptions`: `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, `bypassPermissions`, `--dangerously-bypass-approvals-and-sandbox`, `--dangerously-bypass-hook-trust`, `danger-full-access`, `--approve-for-me`, `--bg`, `--remote-control`은 빌더가 만들지 않음(테스트로 단언).
+- 대화형 Claude: `claude.exe --add-dir <추가…> --settings <settings.json> [--mcp-config <mcp.json>] --session-id <uuid>|--resume <uuid> [--system-prompt-snapshot off] -n "<탭 제목>" --append-system-prompt "<컨텍스트>"`.
+- 비대화형 Claude: `-p --output-format stream-json --permission-mode dontAsk --permission-prompts none --tools Read,Glob,Grep,Edit,Write,NotebookEdit --allowedTools Read Glob Grep Edit Write NotebookEdit --strict-mcp-config` + 공통 인자. "읽기 전용 셸 허용" 시 `--tools`에 Bash/PowerShell, allowedTools에 `Bash(git status)`, `Bash(git diff *)`, `Bash(git log *)`만.
+- Codex 비대화형: `node.exe codex.js exec -C <주> --add-dir <추가…> -s workspace-write -c approval_policy="never" -c developer_instructions="…" --json -o <last.txt> -`(프롬프트 stdin). 대화형: `-a on-request --no-daemon`.
+- 확인 필요: stream-json이 `--verbose`를 요구하는지, Claude `-p`의 stdin 프롬프트, Codex `--json`의 thread id.
+
+### 범위 검사
+1. 따옴표·공백 제거, 빈 값 deny. 2. `\\?\C:\`→`C:\`, `\\?\UNC\`→`\\`, `\\.\`·`GLOBALROOT`·`Volume{}`·예약 장치명(NUL 제외) deny. 3. ADS(`:stream`, `::$DATA`)는 호스트 파일 기준. 4. `Path.GetFullPath(p, cwd)`. 5. 존재하는 가장 깊은 상위를 `GetFinalPathNameByHandle`로 해석(링크·정션·8.3·대소문자·매핑 드라이브), 남은 부분 재결합. 실패 시 쓰기 deny / 셸 ask. 6. `OrdinalIgnoreCase`로 `root` 동일 또는 `root + "\"` 접두(형제 접두 방지). 7. 허용 집합은 roots + A11.
+- 도구별: Write/Edit/MultiEdit/NotebookEdit 쓰기, Read 읽기, Glob `path`·절대 패턴의 고정 접두, Grep `path`, `mcp__dotdeck_session__*` 통과, 그 외 MCP ask.
+- 셸(`ShellCommandAnalyzer`, 최선 노력): 경로 후보 중 범위 밖 확정 → deny, `cd`·변수·서브셸·`iex`·`-EncodedCommand`·중첩 셸·스크립트 실행·다운로드 쓰기 → ask, 모두 범위 안 → 결정 없음. 임의 코드 실행 우회는 막을 수 없으므로 비대화형은 셸 기본 제외 + 사후 요약.
+- 가드 출력: 범위 안은 출력 없이 exit 0(**allow를 내지 않음**), 범위 밖·비밀 파일은 `permissionDecision: deny` JSON, 모든 예외는 deny JSON + exit 2. 등록 시 `timeout: 10`, `onFailure: "block"`. stdout은 BOM 없는 UTF-8.
+- scope.json: `generation` 증가 + 원자적 교체, 가드는 매 호출 `FileShare.ReadWrite|Delete`로 읽고 공유 위반 시 20ms×3 재시도, 없음·손상·sessionId 불일치는 deny. 범위 제외·프로젝트 닫기/제거(`ProjectRegistry.Changed`) 시 즉시 갱신.
+- `-p`에서 설정 검증 실패가 조용히 무시되므로 SessionStart 훅 heartbeat가 15초 안에 없으면 DotDeck이 세션을 종료하고 알린다(SessionStart의 `-p` 실행 여부 확인 필요).
+- 알려진 한계: 하드링크, 검사↔쓰기 사이 링크 교체(TOCTOU), 디렉터리별 대소문자 구분 폴더. 변경 요약으로 사후 탐지.
+
+### 스냅샷·변경 요약
+- 시작: 모두 저장 후 실행 → 범위 색인(제외 폴더 적용, 링크 미추적, 상한 초과 시 "색인 생략" 표시) → 범위 내 열린 문서를 세션 BackupStore 한 세트로 → 소규모 범위는 전체 캡처.
+- 실행 중: 가드가 범위 안 Write/Edit/NotebookEdit 직전 대상 원본을 `pre-write`로 경로별 1회 캡처(Claude만).
+- 종료/`변경 검토`: 재스캔 비교로 Modified/Created/Deleted + 이전 내용 유무. 되돌리기는 `SafeWriter.Restore`(현재본 `before-restore` 백업), Created는 휴지통, 요약 후 재수정은 해시로 감지해 확인, 이전 내용이 없으면 비활성+사유. 비밀 파일 diff는 SecretPresentation 규칙, 1MB 초과·바이너리는 크기 변화만.
+
+### 데이터 파일
+- `sessions.json`(`%APPDATA%\DotDeck\` / 샌드박스 `<home>\.dotdeck\roaming\`): `schemaVersion`, `presets[]`(프로젝트 **ID** 참조 → 이름·루트 변경 자동 반영, 없는 ID는 경고·실행 비활성), `lastAdditional{주ID: [추가ID]}`, `conversations{scopeKey: {claude.sessionId, codex.threadId}}`. 모르는 필드 보존.
+- 세션 폴더 `%LOCALAPPDATA%\DotDeck\sessions\<id>\`: `scope.json`, `context.md`, `settings.json`, `mcp.json`, `bridge.key`(DPAPI), `guard.log`(경로·결정만, `SecretMasker` 적용), `heartbeat`, `index.json`, `summary.json`. 정리: 요약 수락·닫기 후 7일, 실행 중 세션 제외.
+
+### 프로세스 정리
+- 세션마다 Job(`KILL_ON_JOB_CLOSE`, breakaway 불허). `STARTUPINFOEX`에 `PROC_THREAD_ATTRIBUTE_JOB_LIST`(+ConPTY `PSEUDOCONSOLE`)로 생성과 동시에 할당, 대체는 `CREATE_SUSPENDED`→Assign→Resume. 중지: Ctrl+C → 3초 → `TerminateJobObject`. `ClosePseudoConsole`은 출력 읽기를 유지한 채 호출. 앱 종료 시 실행 중 세션이 있으면 확인. 상태줄 `AI n 실행 중`(클릭 시 세션 목록).
+
+### 단계 (각 1커밋, 빌드 → 테스트 → `/codex-review` → 커밋)
+- 5a: 0 설계 문서 / 1 범위 모델 / 2 경로 정규화·범위 검사기 / 3 가드 판정·셸 분석 / 4 가드 모드·scope.json 갱신(+stdio·콜드 스타트·병합 실측) / 5 명령줄 빌더·CLI 탐색 / 6 프리셋·컨텍스트 / 7 Job 실행기·세션 관리자 / 8 스냅샷·변경 요약·되돌리기 / 9 세션 시작 대화상자·진입점 / 10 AI 작업 패널·변경 요약 대화상자 / 11 CHANGELOG·HANDOFF.
+- 5b: ConPTY / xterm 번들 / 터미널 패널 / 대화형 세션 탭·범위 칩 / PowerShell 터미널 / 변경 검토 연결 + 스크린샷 확인.
+- 5c: MCP 서버 / Named Pipe 호스트·브리지 / 컨텍스트 고도화 / Codex 지원 / 4개 시나리오 수동 확인.
+
+### 테스트
+- Core: 명령줄(공백·한글·`"`·끝 `\`·`%`·`&`·`'`·개행, 추가 폴더 0/1/3, Claude/Codex·모드 분기, TOML 이스케이프, 금지 옵션 미포함, `.cmd` 거부), 범위 검사(가짜 resolver로 대소문자·`..`·링크 체인·UNC·`\\.\`·ADS·8.3·형제 접두·축소 후 즉시 deny·손상 deny), 가드(도구별 입력 픽스처, 비밀 파일 deny, 예외 exit 2, 셸 분석), 프리셋 왕복·ID 기반 갱신, 컨텍스트 제외, 스냅샷→변경→되돌리기, A4 환경 변수 전달/미전달.
+- App: CommandLineToArgvW 왕복, 실제 정션 1건, `tests/DotDeck.FakeCli`(argv·cwd·환경 기록, stream-json/JSONL 출력, `--settings` PreToolUse 훅 실제 호출, 손자 프로세스로 Job 종료 검증).
+- 수동(샌드박스 홈): 훅 병합, 가드 지연, TUI 한글 IME, 크기 조절, 실행 중 탭 반영, SPEC 5c 4개 시나리오.

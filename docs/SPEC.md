@@ -255,7 +255,7 @@ DotDeck 안에서 Claude Code CLI(및 Codex CLI)를 실행하고, 사용자가 *
 
 ### 11.5 실행 방식
 **A. 대화형 터미널**
-- 하단 `터미널` 패널 탭. ConPTY(P/Invoke)로 pwsh를 띄우고 WebView2 + xterm.js(Assets 번들)로 표시. 별도 NuGet 없이 구현하는 것을 우선 검토하고, 다른 방식이 낫다면 비교 후 제안.
+- 하단 `터미널` 패널 탭. Claude·Codex는 셸을 거치지 않고 ConPTY(P/Invoke)로 직접 실행하고 WebView2 + xterm.js(Assets 번들, LICENSE 포함)로 표시한다. 별도 NuGet은 쓰지 않는다. 일반 PowerShell 터미널(11.3-4)은 pwsh가 없으면 Windows PowerShell 5.1을 UTF-8로 초기화해 쓴다.
 - 크기 조절 전달, 한글 IME 입력, 복사·붙여넣기, 스크롤백, 여러 세션 탭 동시 실행.
 - 탭 제목: `Claude · DotDeck (+웹게임)`. 탭 툴바에 **범위 칩**(누르면 범위 폴더 목록·경로 표시, 프로젝트 추가/세션 재시작).
 
@@ -284,6 +284,8 @@ DotDeck 안에서 Claude Code CLI(및 Codex CLI)를 실행하고, 사용자가 *
 - 세션 전용 설정으로 PreToolUse 훅을 주입해, 파일 도구와 셸 명령의 대상 경로를 `scope.json`과 대조하고 범위 밖이면 차단(deny)한다. 셸 명령은 경로를 확정할 수 없으면 확인(ask).
 - 경로 정규화: 대소문자 무시, `..`, 상대 경로, 심볼릭 링크·정션 실제 경로 해석, `\\?\`·UNC 경로 처리.
 - 사용자의 기존 전역 훅(`guard_bash`, `protect_files`)은 그대로 함께 동작해야 한다.
+- 범위 안이라도 비밀 파일(2.3절 자물쇠 대상, 링크는 최종 대상 기준)에 대한 읽기·쓰기·검색 대상 지정은 대화형·비대화형 모두 차단(deny)한다.
+- Codex는 훅 대신 `workspace-write` 샌드박스와 쓰기 루트(`-C`, `--add-dir`)로 보호하고 변경 요약으로 사후 확인한다(읽기 제한 없음, 범위 축소는 재시작).
 - 훅 구현 언어(Python 스크립트 vs DotDeck 동봉 콘솔 exe)는 설계에서 비교 후 결정.
 
 ### 11.8 파일 변경 반영

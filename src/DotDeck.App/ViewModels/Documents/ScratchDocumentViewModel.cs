@@ -28,6 +28,9 @@ public sealed class ScratchDocumentViewModel : DocumentViewModel
         }
     }
 
+    /// <summary>An untitled tab is a text editor: soft wrap always applies (its default comes from the shell).</summary>
+    public override bool SupportsWordWrap => true;
+
     /// <summary>Editor content (same document type as file tabs, so the same editor control shows it).</summary>
     public TextDocument Document { get; } = new();
 

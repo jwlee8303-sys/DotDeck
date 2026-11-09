@@ -11,6 +11,7 @@
                    Foreground="{DynamicResource DD.Brush.Editor.Text}"
                    LineNumbersForeground="{DynamicResource DD.Brush.Editor.LineNumber}"
                    ShowLineNumbers="True"
+                   WordWrap="{Binding IsWordWrapEnabled, Mode=OneWay}"
                    HorizontalScrollBarVisibility="Auto"
                    VerticalScrollBarVisibility="Auto"
                    Padding="4,0,0,0" />

@@ -33,6 +33,11 @@ public sealed partial class ShellViewModel : ITextDocumentHost, IClaudeFormServi
 
     partial void OnActiveContentChanged(PaneViewModel? value)
     {
+        if (value is DocumentViewModel document)
+        {
+            ActiveDocument = document;
+        }
+
         switch (value)
         {
             case TextDocumentViewModel text:

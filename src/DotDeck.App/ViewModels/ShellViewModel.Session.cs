@@ -53,6 +53,12 @@ public sealed partial class ShellViewModel
                     document.IsMarkdownPreviewOpen = state.IsMarkdownPreviewOpen && document.IsMarkdown;
                     document.CaretLine = state.CaretLine;
                     document.CaretColumn = state.CaretColumn;
+
+                    // A wrap the user chose last time (shared by every view of the file).
+                    if (state.WordWrap is { } wrap)
+                    {
+                        buffer.WordWrapChoice = wrap;
+                    }
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
@@ -74,7 +80,7 @@ public sealed partial class ShellViewModel
         Projects.SaveState();
         _session.SaveDocuments(Documents.OfType<TextDocumentViewModel>()
             .Select(d => new DocumentSessionState(
-                d.FilePath, d.ViewNumber, d.IsPinned, d.IsPreview, d.IsMarkdownPreviewOpen, d.CaretLine, d.CaretColumn))
+                d.FilePath, d.ViewNumber, d.IsPinned, d.IsPreview, d.IsMarkdownPreviewOpen, d.CaretLine, d.CaretColumn, d.WordWrapChoice))
             .ToList());
     }
 }

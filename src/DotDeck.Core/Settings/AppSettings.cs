@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DotDeck.Core.Files;
 
 namespace DotDeck.Core.Settings;
@@ -30,6 +31,16 @@ public sealed record AppSettings
     /// </summary>
     public IReadOnlyList<string>? DefaultExtensions { get; init; }
 
+    /// <summary>
+    /// Extensions whose files open with the editor's soft wrap on (<see cref="WordWrapDefaults"/>); null means the
+    /// built-in list (.md, .txt). Display only: wrapping never changes the file.
+    /// </summary>
+    public IReadOnlyList<string>? WordWrapExtensions { get; init; }
+
+    /// <summary>Keys this version does not know (written by a newer DotDeck or by hand), kept on save.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; init; }
+
     /// <summary>Clamps out-of-range values (hand-edited files) to safe ones.</summary>
     public AppSettings Normalize() => this with
     {
@@ -39,6 +50,7 @@ public sealed record AppSettings
         BackupDirectory = FullOrNull(BackupDirectory),
         ProjectBackupDirectory = FullOrNull(ProjectBackupDirectory),
         DefaultExtensions = DefaultExtensions is null ? null : Explorer.Visibility.ExtensionRules.NormalizeAll(DefaultExtensions),
+        WordWrapExtensions = WordWrapExtensions is null ? null : Explorer.Visibility.ExtensionRules.NormalizeAll(WordWrapExtensions),
     };
 
     private static string? FullOrNull(string? path) =>

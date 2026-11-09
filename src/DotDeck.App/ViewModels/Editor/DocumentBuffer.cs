@@ -48,6 +48,21 @@ public sealed partial class DocumentBuffer : ObservableObject
     [ObservableProperty]
     private bool _isDirty;
 
+    // ===== Soft wrap: one state per file, so every view of the buffer follows it =====
+
+    /// <summary>Soft wrap from the per-extension default (<see cref="Core.Settings.WordWrapDefaults"/>), set on open.</summary>
+    public bool DefaultWordWrap { get; internal set; }
+
+    /// <summary>
+    /// What the user chose with the toggle (saved in the session); null follows <see cref="DefaultWordWrap"/>.
+    /// Display only: the document, undo stack and dirty state never see it.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWordWrapEnabled))]
+    private bool? _wordWrapChoice;
+
+    public bool IsWordWrapEnabled => WordWrapChoice ?? DefaultWordWrap;
+
     internal int ReferenceCount { get; set; }
 
     /// <summary>Increases on every text change (including undo/redo).</summary>

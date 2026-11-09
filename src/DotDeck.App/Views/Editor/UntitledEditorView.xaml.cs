@@ -14,6 +14,7 @@ public partial class UntitledEditorView : UserControl
         Editor.TextArea.SelectionBrush = (Brush)FindResource("DD.Brush.Editor.Selection");
         Editor.TextArea.SelectionForeground = null;
         Editor.TextArea.Caret.CaretBrush = (Brush)FindResource("DD.Brush.Editor.Text");
+        Editor.Options.InheritWordWrapIndentation = true;
         Loaded += (_, _) => FocusWhenActive();
         DataContextChanged += (_, _) => FocusWhenActive();
     }

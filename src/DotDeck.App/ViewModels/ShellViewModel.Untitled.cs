@@ -19,6 +19,7 @@ public sealed partial class ShellViewModel
     {
         ArgumentNullException.ThrowIfNull(template);
         var doc = new ScratchDocumentViewModel(++_scratchCounter, CloseDocument, template.Text, template.FileName);
+        doc.IsWordWrapEnabled = WordWrapDefaultFor(doc.SuggestedFileName);
         Documents.Add(doc);
         ActiveContent = doc;
     }
@@ -100,6 +101,12 @@ public sealed partial class ShellViewModel
                 return false;
             }
 
+            // The new file keeps the wrap state the text was shown with (a file already open keeps its own).
+            if (!wasOpen && untitled.IsWordWrapEnabled != target.Buffer.DefaultWordWrap)
+            {
+                target.Buffer.WordWrapChoice = untitled.IsWordWrapEnabled;
+            }
+
             Documents.Remove(untitled);
             ActiveContent = target;
             return true;
@@ -130,7 +137,10 @@ public sealed partial class ShellViewModel
                 await SaveUntitledAsync(untitled);
                 break;
             case TextDocumentViewModel text:
-                var copy = new ScratchDocumentViewModel(0, _ => { }, text.Buffer.Document.Text, Path.GetFileName(text.FilePath));
+                var copy = new ScratchDocumentViewModel(0, _ => { }, text.Buffer.Document.Text, Path.GetFileName(text.FilePath))
+                {
+                    IsWordWrapEnabled = text.IsWordWrapEnabled,
+                };
                 if (await SaveUntitledAsync(copy, Path.GetDirectoryName(text.FilePath)))
                 {
                     var saved = ActiveContent;

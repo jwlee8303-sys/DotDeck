@@ -36,6 +36,8 @@
         <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
         <KeyBinding Gesture="Ctrl+Alt+S" Command="{Binding SaveActiveAsCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+F" Command="{Binding ShowGlobalSearchCommand}" />
+        <!-- Soft wrap of the active document (VS Code convention). -->
+        <KeyBinding Gesture="Alt+Z" Command="{Binding ActiveDocument.ToggleWordWrapCommand}" />
     </Window.InputBindings>
 
     <DockPanel>
@@ -74,6 +76,11 @@
                           IsChecked="{Binding ActiveTextDocument.IsMarkdownPreviewOpen, Mode=OneWay}"
                           Command="{Binding ActiveTextDocument.ToggleMarkdownPreviewCommand}"
                           IsEnabled="{Binding ActiveTextDocument.IsMarkdown, FallbackValue=False}" />
+                <MenuItem Header="자동 줄 바꿈(_W)" InputGestureText="Alt+Z" IsCheckable="True"
+                          IsChecked="{Binding ActiveDocument.IsWordWrapEnabled, Mode=OneWay, FallbackValue=False}"
+                          Command="{Binding ActiveDocument.ToggleWordWrapCommand}"
+                          IsEnabled="{Binding ActiveDocument.SupportsWordWrap, FallbackValue=False}"
+                          ToolTip="긴 줄을 창 폭에 맞춰 접어 보여 줍니다. 파일 내용은 바뀌지 않습니다." />
                 <Separator />
                 <MenuItem Header="프로젝트" IsCheckable="True" IsChecked="{Binding Projects.IsVisible, Mode=OneWay}"
                           Command="{Binding ToggleToolCommand}" CommandParameter="{Binding Projects}" />
@@ -192,6 +199,13 @@
                            Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" ToolTip="줄바꿈" />
             <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.Buffer.EncodingText}"
                            Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" ToolTip="인코딩" />
+            <StatusBarItem DockPanel.Dock="Right" Padding="0"
+                           Visibility="{Binding ActiveDocument.SupportsWordWrap, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}">
+                <Button Content="{Binding ActiveDocument.WordWrapStatusText}" Command="{Binding ActiveDocument.ToggleWordWrapCommand}"
+                        ToolTip="자동 줄 바꿈 전환 (Alt+Z) — 화면 표시만 바뀌고 파일은 그대로입니다" AutomationProperties.Name="자동 줄 바꿈"
+                        Background="Transparent" BorderThickness="0" Foreground="{DynamicResource DD.Brush.Text.OnAccent}" Padding="6,0" />
+            </StatusBarItem>
+            <!-- Logical (file) line and column: AvalonEdit's caret counts document lines, not wrapped screen lines. -->
             <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.CaretText}"
                            Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" />
             <StatusBarItem DockPanel.Dock="Right" Content="{Binding LastBackupText}" MaxWidth="320"

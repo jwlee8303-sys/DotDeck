@@ -1,0 +1,62 @@
+<UserControl x:Class="DotDeck.App.Views.Tools.TerminalView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource DD.Brush.Editor.Background}">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+    </UserControl.Resources>
+    <DockPanel>
+        <!-- AI session toolbar: scope chips (SPEC 11.5 A), guard state, restart with projects, review, stop. -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource DD.Brush.Panel.Background}"
+                BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="0,0,0,1"
+                Visibility="{Binding IsAiSession, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}">
+            <DockPanel Margin="4,2">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <TextBlock Margin="8,0" VerticalAlignment="Center" Style="{DynamicResource DD.Text.Secondary}"
+                               Text="{Binding SessionState}" TextTrimming="CharacterEllipsis" MaxWidth="360"
+                               ToolTip="{Binding SessionState}" />
+                    <Button Margin="2,0" Padding="6,1" Content="프로젝트 추가/다시 시작..." Command="{Binding RestartWithProjectsCommand}"
+                            ToolTip="범위를 바꿔 같은 대화로 세션을 다시 시작합니다(지금 세션은 중지됩니다)." />
+                    <Button Margin="2,0" Padding="6,1" Content="변경 검토" Command="{Binding ReviewChangesCommand}"
+                            ToolTip="세션 시작 이후 범위 안에서 바뀐 파일 보기·되돌리기" />
+                    <Button Margin="2,0" Padding="6,1" Content="중지" Command="{Binding StopCommand}"
+                            ToolTip="세션 중지 (프로세스 트리 전체 종료)" />
+                </StackPanel>
+                <TextBlock Margin="2,0,6,0" VerticalAlignment="Center" Style="{DynamicResource DD.Text.Secondary}" Text="범위" />
+                <ItemsControl ItemsSource="{Binding Chips}" VerticalAlignment="Center" Focusable="False"
+                              AutomationProperties.Name="세션 범위">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button x:Name="Chip" Margin="0,0,4,0" Padding="8,1" Content="{Binding Name}" ToolTip="{Binding ToolTip}"
+                                    Click="OnChipClick" AutomationProperties.HelpText="{Binding Root}">
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="{Binding Root}" IsEnabled="False" />
+                                        <Separator />
+                                        <MenuItem Header="경로 복사" Command="{Binding CopyPathCommand}" />
+                                        <MenuItem Header="범위에서 제외" Command="{Binding ExcludeCommand}"
+                                                  Visibility="{Binding CanExclude, Converter={StaticResource BoolToVisible}}" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsPrimary}" Value="True">
+                                    <Setter TargetName="Chip" Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
+        </Border>
+        <Grid x:Name="Host">
+            <TextBlock x:Name="Message" Margin="16,12" TextWrapping="Wrap" Visibility="Collapsed"
+                       Style="{DynamicResource DD.Text.Secondary}" />
+        </Grid>
+    </DockPanel>
+</UserControl>

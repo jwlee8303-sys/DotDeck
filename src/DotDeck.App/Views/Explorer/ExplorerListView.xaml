@@ -123,6 +123,8 @@
                         <MenuItem Header="탐색기에서 열기(_X)" Command="{Binding Explorer.RevealRootCommand}" />
                         <MenuItem Header="VS Code로 열기(_V)" Command="{Binding Explorer.List.OpenInVsCodeCommand}" />
                         <MenuItem Header="여기서 터미널 열기(_L)" Command="{Binding Explorer.List.OpenTerminalCommand}" />
+                        <MenuItem Header="이 프로젝트에서 Claude 시작(_A)" Command="{Binding Explorer.StartAiSessionCommand}"
+                                  Visibility="{Binding Explorer.CanStartAiSession, Converter={StaticResource TrueToVisible}}" />
                         <MenuItem Header="새로고침(_R)" Command="{Binding Explorer.LoadCommand}" />
                         <Separator Visibility="{Binding Explorer.IsBuiltin, Converter={StaticResource FalseToVisible}}" />
                         <MenuItem Header="목록에서 제거(_M)..." Command="{Binding Explorer.RemoveProjectCommand}"

@@ -3,7 +3,8 @@ using DotDeck.Core.Documents;
 namespace DotDeck.App.ViewModels.Editor;
 
 /// <summary>One <see cref="DocumentBuffer"/> per file path, reference-counted by the tabs that show it.</summary>
-public sealed class DocumentBufferManager(TextFileReader reader)
+/// <param name="wordWrapDefault">Soft wrap a new buffer starts with, by path (null: off).</param>
+public sealed class DocumentBufferManager(TextFileReader reader, Func<string, bool>? wordWrapDefault = null)
 {
     private readonly TextFileReader _reader = reader ?? throw new ArgumentNullException(nameof(reader));
     private readonly Dictionary<string, DocumentBuffer> _buffers = new(StringComparer.OrdinalIgnoreCase);
@@ -28,7 +29,7 @@ public sealed class DocumentBufferManager(TextFileReader reader)
             // Another open of the same file may have finished while this one was reading.
             if (!_buffers.TryGetValue(key, out buffer))
             {
-                buffer = new DocumentBuffer(snapshot);
+                buffer = new DocumentBuffer(snapshot) { DefaultWordWrap = wordWrapDefault?.Invoke(key) ?? false };
                 _buffers[key] = buffer;
             }
         }

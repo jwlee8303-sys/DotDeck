@@ -1,0 +1,3 @@
+# Bundled third-party web assets are pinned by SHA-256 (THIRD-PARTY-NOTICES.txt): keep their bytes exactly.
+src/DotDeck.App/Assets/Terminal/xterm/** -text
+src/DotDeck.App/Assets/Terminal/addon-fit/** -text

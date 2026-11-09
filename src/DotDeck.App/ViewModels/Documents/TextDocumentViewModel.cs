@@ -186,6 +186,21 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     [ObservableProperty]
     private bool _isFormView;
 
+    partial void OnIsFormViewChanged(bool value) => OnSupportsWordWrapChanged();
+
+    /// <summary>Soft wrap applies while the text editor is shown (not the form view).</summary>
+    public override bool SupportsWordWrap => !IsFormView;
+
+    /// <summary>Kept on the buffer: every view of this file shows the same wrap state.</summary>
+    public override bool IsWordWrapEnabled
+    {
+        get => Buffer.IsWordWrapEnabled;
+        set => Buffer.WordWrapChoice = value;
+    }
+
+    /// <summary>The user's choice for the session file (null: the per-extension default applies).</summary>
+    public bool? WordWrapChoice => Buffer.WordWrapChoice;
+
     [ObservableProperty]
     private DocumentFormViewModel? _form;
 
@@ -334,6 +349,10 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
         if (e.PropertyName == nameof(DocumentBuffer.IsDirty))
         {
             UpdateTitle();
+        }
+        if (e.PropertyName == nameof(DocumentBuffer.IsWordWrapEnabled))
+        {
+            OnWordWrapChanged();
         }
         if (e.PropertyName == nameof(DocumentBuffer.Snapshot))
         {

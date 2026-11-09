@@ -185,6 +185,93 @@
         </DockPanel>
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type tools:TerminalPaneViewModel}">
+        <toolViews:TerminalView />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type tools:AiSessionsPaneViewModel}">
+        <DockPanel Background="{DynamicResource DD.Brush.Panel.Background}">
+            <ToolBar DockPanel.Dock="Top" ToolBarTray.IsLocked="True" Background="{DynamicResource DD.Brush.Panel.Background}">
+                <Button Content="중지" Command="{Binding SelectedSession.StopCommand}" ToolTip="선택한 세션 중지 (프로세스 트리 전체 종료)" />
+                <Button Content="변경 검토" Command="{Binding SelectedSession.ReviewChangesCommand}" ToolTip="세션 시작 이후 범위 안에서 바뀐 파일 보기·되돌리기" />
+                <Button Content="터미널 보기" Command="{Binding SelectedSession.OpenTerminalCommand}" ToolTip="대화형 세션의 터미널 탭 열기" />
+                <Separator />
+                <Button Command="{Binding ClearFinishedCommand}" ToolTip="끝난 세션을 목록에서 지우기">
+                    <TextBlock Style="{StaticResource DD.Glyph}" FontSize="14" Text="&#xE894;" />
+                </Button>
+            </ToolBar>
+            <TextBlock DockPanel.Dock="Top" Margin="8,6" Style="{StaticResource PlaceholderText}" TextWrapping="Wrap"
+                       Text="실행 중이거나 끝난 AI 세션이 없습니다. 도구 메뉴의 &quot;Claude 세션 시작…&quot;(Ctrl+Alt+C)으로 시작하세요."
+                       Visibility="{Binding HasSessions, Converter={StaticResource SysFalseToVisible}}" />
+            <Grid Visibility="{Binding HasSessions, Converter={StaticResource SysBoolToVisible}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="240" MinWidth="160" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ListBox ItemsSource="{Binding Sessions}" SelectedItem="{Binding SelectedSession}" BorderThickness="0"
+                         AutomationProperties.Name="AI 세션 목록">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type tools:AiSessionItemViewModel}">
+                            <StackPanel Margin="2,3" ToolTip="{Binding Prompt}">
+                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Style="{StaticResource DD.Text.Secondary}">
+                                    <Run Text="{Binding StartedText, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding StateText, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource DD.Brush.Border}" />
+                <DockPanel Grid.Column="2" DataContext="{Binding SelectedSession}">
+                    <TextBlock DockPanel.Dock="Top" Margin="6,4,6,0" TextWrapping="Wrap" Foreground="{DynamicResource DD.Brush.Error}"
+                               Text="{Binding Message}" Visibility="{Binding Message, Converter={StaticResource SysNullToCollapsed}, FallbackValue=Collapsed}" />
+                    <TextBlock DockPanel.Dock="Top" Margin="6,4,6,0" TextWrapping="Wrap" Style="{StaticResource DD.Text.Secondary}"
+                               Text="대화형 세션입니다. 출력과 입력은 터미널 탭에 있습니다(&quot;터미널 보기&quot;)."
+                               Visibility="{Binding IsInteractive, Converter={StaticResource SysBoolToVisible}, FallbackValue=Collapsed}" />
+                    <Expander DockPanel.Dock="Top" Margin="4,2" Header="프롬프트·명령줄">
+                        <StackPanel>
+                            <TextBox IsReadOnly="True" TextWrapping="Wrap" MaxHeight="90" VerticalScrollBarVisibility="Auto" Text="{Binding Prompt, Mode=OneWay}"
+                                     AutomationProperties.Name="프롬프트" />
+                            <TextBox Margin="0,4,0,0" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="90" VerticalScrollBarVisibility="Auto"
+                                     FontFamily="{DynamicResource DD.Font.Editor}" Text="{Binding CommandLine, Mode=OneWay}" AutomationProperties.Name="명령줄" />
+                        </StackPanel>
+                    </Expander>
+                    <ListBox ItemsSource="{Binding Lines}" BorderThickness="0"
+                             FontFamily="{DynamicResource DD.Font.Editor}" FontSize="{DynamicResource DD.FontSize.Ui}"
+                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="AI 출력">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="MinHeight" Value="0" />
+                                <Setter Property="Padding" Value="6,1" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock x:Name="Line" Text="{Binding Text}" TextWrapping="Wrap" />
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Kind}" Value="Tool">
+                                        <Setter TargetName="Line" Property="Foreground" Value="{DynamicResource DD.Brush.Text.Secondary}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Kind}" Value="System">
+                                        <Setter TargetName="Line" Property="Foreground" Value="{DynamicResource DD.Brush.Text.Secondary}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Kind}" Value="Result">
+                                        <Setter TargetName="Line" Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsError}" Value="True">
+                                        <Setter TargetName="Line" Property="Foreground" Value="{DynamicResource DD.Brush.Error}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Grid>
+        </DockPanel>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type tools:ValidationPaneViewModel}">
         <DockPanel Background="{DynamicResource DD.Brush.Panel.Background}">
             <TextBlock DockPanel.Dock="Top" Margin="6,3" Style="{StaticResource DD.Text.Secondary}" Text="{Binding Summary}" />

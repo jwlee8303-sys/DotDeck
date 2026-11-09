@@ -16,6 +16,7 @@ public sealed record ExplorerViewState(bool IsCollapsed, IReadOnlyList<string> E
 
 /// <summary>An editor tab open when the session was saved, in tab order.</summary>
 /// <param name="ViewNumber">Second and later views of one file have numbers 2, 3, … (ContentId suffix).</param>
+/// <param name="WordWrap">Soft wrap the user chose for the file; null follows the per-extension default.</param>
 public sealed record DocumentSessionState(
     string Path,
     int ViewNumber,
@@ -23,7 +24,8 @@ public sealed record DocumentSessionState(
     bool IsPreview = false,
     bool IsMarkdownPreviewOpen = false,
     int CaretLine = 1,
-    int CaretColumn = 1);
+    int CaretColumn = 1,
+    bool? WordWrap = null);
 
 /// <summary>
 /// Reads and writes session.json (explorer state and open editor tabs). Best effort: the session is a
@@ -134,7 +136,7 @@ public sealed class SessionStateStore
         var array = new JsonArray();
         foreach (var doc in documents.Take(MaxDocuments))
         {
-            array.Add(new JsonObject
+            var item = new JsonObject
             {
                 ["path"] = doc.Path,
                 ["view"] = doc.ViewNumber,
@@ -143,7 +145,15 @@ public sealed class SessionStateStore
                 ["markdownPreview"] = doc.IsMarkdownPreviewOpen,
                 ["line"] = doc.CaretLine,
                 ["column"] = doc.CaretColumn,
-            });
+            };
+
+            // Only a choice the user made: without it the default (which settings may change) applies.
+            if (doc.WordWrap is { } wrap)
+            {
+                item["wordWrap"] = wrap;
+            }
+
+            array.Add(item);
         }
 
         WriteSection(DocumentsKey, array);
@@ -214,7 +224,8 @@ public sealed class SessionStateStore
             Flag(obj["preview"]),
             Flag(obj["markdownPreview"]),
             Number(obj["line"], int.MaxValue),
-            Number(obj["column"], int.MaxValue));
+            Number(obj["column"], int.MaxValue),
+            obj["wordWrap"] is JsonValue w && w.TryGetValue<bool>(out var wrap) ? wrap : null);
     }
 
     /// <summary>Returns the parsed root, or null when missing/unreadable (a fresh file is then written).</summary>

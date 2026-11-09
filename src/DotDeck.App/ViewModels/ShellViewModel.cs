@@ -47,6 +47,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly SynchronizationContext? _ui;
     private readonly FileRoleResolver _roles;
     private readonly EditorOverrideStore _editorOverrides;
+    private readonly IClipboardService _clipboard;
     private int _scratchCounter;
 
     public ShellViewModel(ShellServices services, string version, bool isAdministrator)
@@ -55,7 +56,16 @@ public sealed partial class ShellViewModel : ObservableObject
         Paths = services.Paths;
         _log = services.Log;
         _dialogs = services.Dialogs;
-        _buffers = new DocumentBufferManager(services.Reader);
+        _clipboard = services.Clipboard;
+        _wordWrapExtensions = new DotDeck.Core.Settings.AppSettingsStore(services.Store, services.Paths.SettingsFile).Load().WordWrapExtensions;
+        _buffers = new DocumentBufferManager(services.Reader, WordWrapDefaultFor);
+        Documents.CollectionChanged += (_, _) =>
+        {
+            if (ActiveDocument is { } active && !Documents.Contains(active))
+            {
+                ActiveDocument = null;
+            }
+        };
         _writer = services.Writer;
         _backups = services.Backups;
         _store = services.Store;
@@ -99,13 +109,14 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Shell, services.Dialogs,
             new ExplorerFileOperations(services.FileOperations, services.Dialogs, services.Log, message => StatusMessage = message),
             services.Log, message => StatusMessage = message, new FolderWatcherFactory(), ExplorerPreferences, OpenFileAsync, OpenSystemNode,
-            RegisterCustomFileAsync, RemoveCustomFileAsync, OpenFileAsAsync);
+            RegisterCustomFileAsync, RemoveCustomFileAsync, OpenFileAsAsync, QuickStartAiSessionAsync);
         Properties = new PropertiesPaneViewModel { DescribeRole = DescribeRole };
         Output = new OutputPaneViewModel(services.Log);
         Validation = new ValidationPaneViewModel();
         SearchResults = new SearchResultsPaneViewModel(services.Store, SearchRoots, OpenSearchHitAsync);
         HookTest = new HookTestPaneViewModel { Dialogs = services.Dialogs, WorkingDirectory = services.Paths.Home };
-        Tools = [Properties, Output, Validation, SearchResults, HookTest];
+        AiWork = new AiSessionsPaneViewModel(ReviewAiChangesAsync, ConfirmStopAiSession, ShowAiTerminal) { IsVisible = false };
+        Tools = [Properties, Output, Validation, SearchResults, HookTest, AiWork];
         Projects = new ProjectsPaneViewModel(explorerContext, services.Session, Tools.Add, tool => Tools.Remove(tool));
         Tools.Insert(0, Projects);
         Projects.List.PropertyChanged += (_, e) =>
@@ -149,10 +160,6 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public string Title => Paths.IsHomeOverridden ? $"DotDeck — 샌드박스: {Paths.Home}" : "DotDeck";
 
-    public string HomeStatusText => Paths.IsHomeOverridden ? $"샌드박스 홈: {Paths.Home}" : $"홈: {Paths.Home}";
-
-    public string PrivilegeStatusText => IsAdministrator ? "관리자" : "표준 사용자";
-
     public ObservableCollection<DocumentViewModel> Documents { get; } = [];
 
     public ObservableCollection<ToolPaneViewModel> Tools { get; }
@@ -169,9 +176,25 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public HookTestPaneViewModel HookTest { get; }
 
+    /// <summary>"AI 작업" panel: sessions, their output and the change review (SPEC 11.3-4).</summary>
+    public AiSessionsPaneViewModel AiWork { get; }
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveActiveCommand))]
     private PaneViewModel? _activeContent;
+
+    /// <summary>
+    /// The document tab the "보기" menu and the status bar act on: the active tab of any kind, kept while a tool pane
+    /// has focus, cleared when it closes.
+    /// </summary>
+    [ObservableProperty]
+    private DocumentViewModel? _activeDocument;
+
+    /// <summary>Extensions that open with soft wrap on (settings; null: the built-in list).</summary>
+    private IReadOnlyList<string>? _wordWrapExtensions;
+
+    /// <summary>Soft wrap a file (or an untitled tab's suggested name) starts with.</summary>
+    public bool WordWrapDefaultFor(string path) => Core.Settings.WordWrapDefaults.IsEnabledFor(path, _wordWrapExtensions);
 
     [ObservableProperty]
     private string _statusMessage = "준비";
@@ -193,6 +216,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private void NewScratchDocument()
     {
         var doc = new ScratchDocumentViewModel(++_scratchCounter, CloseDocument);
+        doc.IsWordWrapEnabled = WordWrapDefaultFor(doc.SuggestedFileName);
         Documents.Add(doc);
         ActiveContent = doc;
     }

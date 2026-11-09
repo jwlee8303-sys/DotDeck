@@ -12,31 +12,27 @@ namespace DotDeck.App.Infrastructure.Windows;
 /// <summary>
 /// Starts CLI processes with <c>CreateProcessW</c> directly (no shell, no <c>ArgumentList</c> re-quoting) inside a new
 /// Job (kill on close, breakaway not allowed). The job is attached at creation with
-/// <c>PROC_THREAD_ATTRIBUTE_JOB_LIST</c>, so even a process that starts children immediately cannot escape it, and only
-/// the three pipe ends are inherited (<c>PROC_THREAD_ATTRIBUTE_HANDLE_LIST</c>).
+/// <c>PROC_THREAD_ATTRIBUTE_JOB_LIST</c>, so even a process that starts children immediately cannot escape it.
+/// Pipe runs inherit only the three pipe ends (<c>PROC_THREAD_ATTRIBUTE_HANDLE_LIST</c>); terminal runs inherit no
+/// handles and are attached to a new pseudo console (<c>PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE</c>).
 /// </summary>
-public sealed partial class JobProcessLauncher : ICliProcessLauncher
+public sealed partial class JobProcessLauncher : ICliProcessLauncher, ITerminalLauncher
 {
     private const int PipeBufferSize = 64 * 1024;
 
     public ICliProcess Start(CliLaunchPlan plan)
     {
-        ArgumentNullException.ThrowIfNull(plan);
-        ForbiddenOptions.Validate(plan);
-        if (!Path.IsPathFullyQualified(plan.Executable) || !Path.IsPathFullyQualified(plan.WorkingDirectory))
-        {
-            throw new ArgumentException("실행 파일과 작업 폴더는 절대 경로여야 합니다.");
-        }
+        Validate(plan);
 
         var job = CreateKillOnCloseJob();
         SafeFileHandle? stdinParent = null, stdinChild = null, stdoutParent = null, stdoutChild = null, stderrParent = null, stderrChild = null;
         try
         {
-            CreatePipePair(childReads: true, out stdinParent, out stdinChild);
-            CreatePipePair(childReads: false, out stdoutParent, out stdoutChild);
-            CreatePipePair(childReads: false, out stderrParent, out stderrChild);
+            CreatePipePair(childReads: true, inheritable: true, out stdinParent, out stdinChild);
+            CreatePipePair(childReads: false, inheritable: true, out stdoutParent, out stdoutChild);
+            CreatePipePair(childReads: false, inheritable: true, out stderrParent, out stderrChild);
 
-            var info = CreateInJob(plan, job, stdinChild, stdoutChild, stderrChild);
+            var info = CreateInJob(plan, job, [stdinChild, stdoutChild, stderrChild], console: null);
             var process = new JobProcess(job, info, stdoutParent, stderrParent);
             job = null;
             stdoutParent = null;
@@ -56,6 +52,62 @@ public sealed partial class JobProcessLauncher : ICliProcessLauncher
             stdoutParent?.Dispose();
             stderrParent?.Dispose();
             job?.Dispose();
+        }
+    }
+
+    public ITerminalProcess Start(CliLaunchPlan plan, TerminalSize size)
+    {
+        Validate(plan);
+        if (plan.StandardInput is not null)
+        {
+            throw new ArgumentException("터미널 실행에는 표준 입력 텍스트를 넘길 수 없습니다.", nameof(plan));
+        }
+
+        var job = CreateKillOnCloseJob();
+        SafeFileHandle? inputParent = null, inputConsole = null, outputParent = null, outputConsole = null;
+        SafePseudoConsoleHandle? console = null;
+        try
+        {
+            // The console duplicates its ends, so ours are closed right after creation; nothing is inheritable.
+            CreatePipePair(childReads: true, inheritable: false, out inputParent, out inputConsole);
+            CreatePipePair(childReads: false, inheritable: false, out outputParent, out outputConsole);
+            var result = CreatePseudoConsole(new COORD(size), inputConsole, outputConsole, 0, out console);
+            if (result != 0)
+            {
+                throw new Win32Exception(result);
+            }
+
+            inputConsole.Dispose();
+            inputConsole = null;
+            outputConsole.Dispose();
+            outputConsole = null;
+
+            var info = CreateInJob(plan, job, inherit: null, console);
+            var process = new TerminalProcess(job, info, console, inputParent, outputParent);
+            job = null;
+            console = null;
+            inputParent = null;
+            outputParent = null;
+            return process;
+        }
+        finally
+        {
+            inputConsole?.Dispose();
+            outputConsole?.Dispose();
+            inputParent?.Dispose();
+            outputParent?.Dispose();
+            console?.Dispose();
+            job?.Dispose();
+        }
+    }
+
+    private static void Validate(CliLaunchPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ForbiddenOptions.Validate(plan);
+        if (!Path.IsPathFullyQualified(plan.Executable) || !Path.IsPathFullyQualified(plan.WorkingDirectory))
+        {
+            throw new ArgumentException("실행 파일과 작업 폴더는 절대 경로여야 합니다.");
         }
     }
 
@@ -99,16 +151,16 @@ public sealed partial class JobProcessLauncher : ICliProcessLauncher
         return job;
     }
 
-    private static void CreatePipePair(bool childReads, out SafeFileHandle parent, out SafeFileHandle child)
+    private static void CreatePipePair(bool childReads, bool inheritable, out SafeFileHandle parent, out SafeFileHandle child)
     {
-        var attributes = new SECURITY_ATTRIBUTES { nLength = Marshal.SizeOf<SECURITY_ATTRIBUTES>(), bInheritHandle = 1 };
+        var attributes = new SECURITY_ATTRIBUTES { nLength = Marshal.SizeOf<SECURITY_ATTRIBUTES>(), bInheritHandle = inheritable ? 1 : 0 };
         if (!CreatePipe(out var read, out var write, ref attributes, PipeBufferSize))
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError());
         }
 
         (parent, child) = childReads ? (write, read) : (read, write);
-        if (!SetHandleInformation(parent, HANDLE_FLAG_INHERIT, 0))
+        if (inheritable && !SetHandleInformation(parent, HANDLE_FLAG_INHERIT, 0))
         {
             var error = Marshal.GetLastPInvokeError();
             parent.Dispose();
@@ -117,54 +169,87 @@ public sealed partial class JobProcessLauncher : ICliProcessLauncher
         }
     }
 
+    /// <summary>
+    /// Creates the process in <paramref name="job"/>, either with <paramref name="inherit"/> (stdin, stdout, stderr)
+    /// as its only inherited handles or attached to <paramref name="console"/>.
+    /// </summary>
     private static unsafe PROCESS_INFORMATION CreateInJob(
-        CliLaunchPlan plan, SafeJobHandle job, SafeFileHandle stdin, SafeFileHandle stdout, SafeFileHandle stderr)
+        CliLaunchPlan plan, SafeJobHandle job, SafeFileHandle[]? inherit, SafePseudoConsoleHandle? console)
     {
+        if ((inherit is null) == (console is null))
+        {
+            throw new ArgumentException("inherit and console are exclusive");
+        }
+
         var commandLine = (plan.CommandLine + '\0').ToCharArray();
         var environment = BuildEnvironmentBlock(plan.Environment).ToCharArray();
 
-        var refs = new SafeHandle[] { job, stdin, stdout, stderr };
-        var added = new bool[refs.Length];
+        var refs = new List<SafeHandle> { job };
+        refs.AddRange(inherit ?? []);
+        if (console is not null)
+        {
+            refs.Add(console);
+        }
+
+        var added = new bool[refs.Count];
         nint attributeList = 0;
         try
         {
-            for (var i = 0; i < refs.Length; i++)
+            for (var i = 0; i < refs.Count; i++)
             {
                 refs[i].DangerousAddRef(ref added[i]);
             }
 
-            var inherit = stackalloc nint[3] { stdin.DangerousGetHandle(), stdout.DangerousGetHandle(), stderr.DangerousGetHandle() };
+            var handles = stackalloc nint[3];
             var jobs = stackalloc nint[1] { job.DangerousGetHandle() };
 
             nint size = 0;
             InitializeProcThreadAttributeList(0, 2, 0, ref size);
             attributeList = Marshal.AllocHGlobal(size);
             if (!InitializeProcThreadAttributeList(attributeList, 2, 0, ref size)
-                || !UpdateProcThreadAttribute(attributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, inherit, 3 * sizeof(nint), 0, 0)
                 || !UpdateProcThreadAttribute(attributeList, 0, PROC_THREAD_ATTRIBUTE_JOB_LIST, jobs, sizeof(nint), 0, 0))
             {
                 throw new Win32Exception(Marshal.GetLastPInvokeError());
             }
 
-            var startup = new STARTUPINFOEXW
+            STARTUPINFOW startup;
+            uint flags = EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT;
+            if (inherit is not null)
             {
-                StartupInfo = new STARTUPINFOW
+                for (var i = 0; i < 3; i++)
                 {
-                    cb = Marshal.SizeOf<STARTUPINFOEXW>(),
-                    dwFlags = STARTF_USESTDHANDLES,
-                    hStdInput = inherit[0],
-                    hStdOutput = inherit[1],
-                    hStdError = inherit[2],
-                },
-                lpAttributeList = attributeList,
-            };
+                    handles[i] = inherit[i].DangerousGetHandle();
+                }
+
+                if (!UpdateProcThreadAttribute(attributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles, 3 * sizeof(nint), 0, 0))
+                {
+                    throw new Win32Exception(Marshal.GetLastPInvokeError());
+                }
+
+                startup = new STARTUPINFOW { hStdInput = handles[0], hStdOutput = handles[1], hStdError = handles[2] };
+                flags |= CREATE_NO_WINDOW;
+            }
+            else
+            {
+                // The attribute value is the HPCON itself. The standard handles are set explicitly invalid: otherwise a
+                // child of a process whose own stdio is redirected (a test host, a service) can inherit those instead
+                // of the console's.
+                if (!UpdateProcThreadAttribute(attributeList, 0, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, (void*)console!.DangerousGetHandle(), sizeof(nint), 0, 0))
+                {
+                    throw new Win32Exception(Marshal.GetLastPInvokeError());
+                }
+
+                startup = new STARTUPINFOW { hStdInput = -1, hStdOutput = -1, hStdError = -1 };
+            }
+
+            startup.cb = Marshal.SizeOf<STARTUPINFOEXW>();
+            startup.dwFlags = STARTF_USESTDHANDLES;
+            var startupEx = new STARTUPINFOEXW { StartupInfo = startup, lpAttributeList = attributeList };
 
             fixed (char* cmd = commandLine)
             fixed (char* env = environment)
             {
-                if (!CreateProcessW(plan.Executable, cmd, 0, 0, true,
-                        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
-                        env, plan.WorkingDirectory, ref startup, out var info))
+                if (!CreateProcessW(plan.Executable, cmd, 0, 0, inherit is not null, flags, env, plan.WorkingDirectory, ref startupEx, out var info))
                 {
                     throw new Win32Exception(Marshal.GetLastPInvokeError());
                 }
@@ -182,7 +267,7 @@ public sealed partial class JobProcessLauncher : ICliProcessLauncher
                 Marshal.FreeHGlobal(attributeList);
             }
 
-            for (var i = 0; i < refs.Length; i++)
+            for (var i = 0; i < refs.Count; i++)
             {
                 if (added[i])
                 {
@@ -223,42 +308,54 @@ public sealed partial class JobProcessLauncher : ICliProcessLauncher
         return block.Append('\0').ToString();
     }
 
-    private sealed class JobProcess : ICliProcess
+    /// <summary>The job, the main process handle and its exit notification, shared by pipe and terminal runs.</summary>
+    private abstract class JobProcessBase : IDisposable
     {
         private readonly SafeJobHandle _job;
         private readonly SafeWaitHandle _process;
         private readonly TaskCompletionSource<int> _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly RegisteredWaitHandle _registration;
         private readonly ProcessWait _wait;
+        private RegisteredWaitHandle? _registration;
+        private int _disposed;
 
-        public JobProcess(SafeJobHandle job, PROCESS_INFORMATION info, SafeFileHandle stdout, SafeFileHandle stderr)
+        protected JobProcessBase(SafeJobHandle job, PROCESS_INFORMATION info)
         {
             _job = job;
             _process = new SafeWaitHandle(info.hProcess, ownsHandle: true);
             ProcessId = info.dwProcessId;
-            StandardOutput = new FileStream(stdout, FileAccess.Read, 4096, isAsync: false);
-            StandardError = new FileStream(stderr, FileAccess.Read, 4096, isAsync: false);
             _wait = new ProcessWait(_process);
-            _registration = ThreadPool.RegisterWaitForSingleObject(_wait, (_, _) =>
-            {
-                try
-                {
-                    _exited.TrySetResult(GetExitCodeProcess(_process, out var code) ? code : -1);
-                }
-                catch (ObjectDisposedException)
-                {
-                    _exited.TrySetResult(-1);
-                }
-            }, null, Timeout.Infinite, executeOnlyOnce: true);
         }
 
         public int ProcessId { get; }
 
-        public Stream StandardOutput { get; }
-
-        public Stream StandardError { get; }
-
         public Task<int> Exited => _exited.Task;
+
+        /// <summary>Called by the derived constructor once its own state is ready for <see cref="OnExited"/>.</summary>
+        protected void StartWaiting()
+        {
+            _registration = ThreadPool.RegisterWaitForSingleObject(_wait, (_, _) =>
+            {
+                int code;
+                try
+                {
+                    code = GetExitCodeProcess(_process, out var exitCode) ? exitCode : -1;
+                }
+                catch (ObjectDisposedException)
+                {
+                    code = -1;
+                }
+
+                _exited.TrySetResult(code);
+                OnExited();
+            }, null, Timeout.Infinite, executeOnlyOnce: true);
+        }
+
+        /// <summary>Runs on a pool thread after the main process has exited (not after <see cref="Dispose"/>).</summary>
+        protected virtual void OnExited()
+        {
+        }
+
+        protected abstract void DisposeStreams();
 
         public unsafe IReadOnlyList<int> JobProcessIds()
         {
@@ -311,9 +408,10 @@ public sealed partial class JobProcessLauncher : ICliProcessLauncher
             _job.Dispose();
 
             // Wait for a callback that is already running before the process handle goes away.
-            using (var unregistered = new ManualResetEvent(false))
+            if (_registration is { } registration)
             {
-                if (_registration.Unregister(unregistered))
+                using var unregistered = new ManualResetEvent(false);
+                if (registration.Unregister(unregistered))
                 {
                     unregistered.WaitOne();
                 }
@@ -322,11 +420,84 @@ public sealed partial class JobProcessLauncher : ICliProcessLauncher
             _exited.TrySetResult(-1);
             _wait.Dispose();
             _process.Dispose();
+            DisposeStreams();
+        }
+    }
+
+    private sealed class JobProcess : JobProcessBase, ICliProcess
+    {
+        public JobProcess(SafeJobHandle job, PROCESS_INFORMATION info, SafeFileHandle stdout, SafeFileHandle stderr)
+            : base(job, info)
+        {
+            StandardOutput = new FileStream(stdout, FileAccess.Read, 4096, isAsync: false);
+            StandardError = new FileStream(stderr, FileAccess.Read, 4096, isAsync: false);
+            StartWaiting();
+        }
+
+        public Stream StandardOutput { get; }
+
+        public Stream StandardError { get; }
+
+        protected override void DisposeStreams()
+        {
             StandardOutput.Dispose();
             StandardError.Dispose();
         }
+    }
 
-        private int _disposed;
+    private sealed class TerminalProcess : JobProcessBase, ITerminalProcess
+    {
+        private readonly SafePseudoConsoleHandle _console;
+
+        public TerminalProcess(SafeJobHandle job, PROCESS_INFORMATION info, SafePseudoConsoleHandle console, SafeFileHandle input, SafeFileHandle output)
+            : base(job, info)
+        {
+            _console = console;
+            Input = new FileStream(input, FileAccess.Write, 1, isAsync: false);
+            Output = new FileStream(output, FileAccess.Read, 4096, isAsync: false);
+            StartWaiting();
+        }
+
+        public Stream Output { get; }
+
+        public Stream Input { get; }
+
+        public void Resize(TerminalSize size)
+        {
+            // The marshaller's reference keeps the console alive for the call; a closed console throws instead.
+            try
+            {
+                _ = ResizePseudoConsole(_console, new COORD(size));
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+
+        protected override void OnExited()
+        {
+            // The output pipe ends only when the console is closed. ClosePseudoConsole can wait for the console to
+            // flush its last output into the pipe, so it runs on its own pool work item: Dispose waits for this exit
+            // callback, and must still be able to reach Output.Dispose (which unblocks a flush nobody reads).
+            ThreadPool.UnsafeQueueUserWorkItem(static console => console.Dispose(), _console, preferLocal: false);
+        }
+
+        protected override void DisposeStreams()
+        {
+            // Closing our read end first means a console flushing into a full pipe that nobody reads any more fails
+            // instead of blocking ClosePseudoConsole on the caller's (possibly UI) thread.
+            Output.Dispose();
+            try
+            {
+                Input.Dispose();
+            }
+            catch (IOException)
+            {
+                // Flushing to a console that already ended.
+            }
+
+            _console.Dispose();
+        }
     }
 
     private sealed class ProcessWait : WaitHandle
@@ -363,6 +534,20 @@ public sealed partial class JobProcessLauncher : ICliProcessLauncher
         protected override bool ReleaseHandle() => CloseHandle(handle);
     }
 
+    internal sealed class SafePseudoConsoleHandle : SafeHandleZeroOrMinusOneIsInvalid
+    {
+        public SafePseudoConsoleHandle()
+            : base(ownsHandle: true)
+        {
+        }
+
+        protected override bool ReleaseHandle()
+        {
+            ClosePseudoConsole(handle);
+            return true;
+        }
+    }
+
     // ---- Win32 ----
 
     private const int STARTF_USESTDHANDLES = 0x100;
@@ -375,6 +560,20 @@ public sealed partial class JobProcessLauncher : ICliProcessLauncher
     private const int JobObjectExtendedLimitInformation = 9;
     private static readonly nint PROC_THREAD_ATTRIBUTE_HANDLE_LIST = 0x00020002;
     private static readonly nint PROC_THREAD_ATTRIBUTE_JOB_LIST = 0x0002000D;
+    private static readonly nint PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct COORD
+    {
+        public short X;
+        public short Y;
+
+        public COORD(TerminalSize size)
+        {
+            X = (short)size.Columns;
+            Y = (short)size.Rows;
+        }
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SECURITY_ATTRIBUTES
@@ -507,4 +706,13 @@ public sealed partial class JobProcessLauncher : ICliProcessLauncher
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool CloseHandle(nint handle);
+
+    [LibraryImport("kernel32.dll")]
+    private static partial int CreatePseudoConsole(COORD size, SafeFileHandle input, SafeFileHandle output, uint flags, out SafePseudoConsoleHandle console);
+
+    [LibraryImport("kernel32.dll")]
+    private static partial int ResizePseudoConsole(SafePseudoConsoleHandle console, COORD size);
+
+    [LibraryImport("kernel32.dll")]
+    private static partial void ClosePseudoConsole(nint console);
 }

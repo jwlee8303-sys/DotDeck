@@ -25,7 +25,7 @@ public interface ICliProcess : IDisposable
     void Terminate(int exitCode = 1);
 }
 
-/// <summary>Starts a <see cref="CliLaunchPlan"/> with redirected pipes (non-interactive runs; ConPTY arrives in 5b).</summary>
+/// <summary>Starts a <see cref="CliLaunchPlan"/> with redirected pipes (non-interactive runs; terminals use <see cref="ITerminalLauncher"/>).</summary>
 public interface ICliProcessLauncher
 {
     /// <summary>Starts the process; <see cref="CliLaunchPlan.StandardInput"/> is written as UTF-8 and stdin is closed.</summary>

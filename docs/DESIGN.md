@@ -607,6 +607,13 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 ### 프로세스 정리
 - 세션마다 Job(`KILL_ON_JOB_CLOSE`, breakaway 불허). `STARTUPINFOEX`에 `PROC_THREAD_ATTRIBUTE_JOB_LIST`(+ConPTY `PSEUDOCONSOLE`)로 생성과 동시에 할당, 대체는 `CREATE_SUSPENDED`→Assign→Resume. 중지: Ctrl+C → 3초 → `TerminateJobObject`. `ClosePseudoConsole`은 출력 읽기를 유지한 채 호출. 앱 종료 시 실행 중 세션이 있으면 확인. 상태줄 `AI n 실행 중`(클릭 시 세션 목록).
 
+### ConPTY 실행기 (5b-1 구현)
+- Core `ITerminalLauncher.Start(plan, TerminalSize)` → `ITerminalProcess`(`Output` VT 바이트, `Input`, `Resize`, `Exited`, `Terminate`, `JobProcessIds`). `TerminalSize`는 읽을 때 1~4000칸으로 고정(`default`도 1×1). 터미널 실행은 `StandardInput` 텍스트를 받지 않는다.
+- App `JobProcessLauncher`가 파이프 실행과 같은 Job 생성 경로를 쓴다: 상속 불가 파이프 2쌍 → `CreatePseudoConsole` → 콘솔 쪽 끝은 즉시 닫음 → `STARTUPINFOEX`에 `JOB_LIST` + `PSEUDOCONSOLE`, 핸들 상속 없음, 표준 핸들은 명시적으로 `INVALID_HANDLE_VALUE`(부모 stdio가 리디렉션된 경우 자식이 그쪽을 물려받는 문제 방지), `CREATE_NO_WINDOW` 없음.
+- 종료: 주 프로세스가 끝나면 종료 콜백과 분리된 별도 풀 작업에서 `ClosePseudoConsole`(24H2 이전에는 출력이 비워질 때까지 막힐 수 있고, `Dispose`가 종료 콜백을 기다리므로 콜백 안에서 닫으면 UI 스레드 교착 — Codex 5b-1 P1)(출력은 계속 읽히는 중이므로 마지막 출력이 비워진 뒤 출력 스트림이 끝난다). `Dispose`는 Job을 닫고 → 우리 출력 읽기 끝을 먼저 닫은 뒤 → 콘솔을 닫는다(읽는 쪽이 없어도 UI 스레드가 막히지 않음). `Resize`는 SafeHandle 참조로 닫힘과 경합하지 않는다.
+- 입력 쓰기는 콘솔이 바쁘면 막힐 수 있으므로 호출자는 UI 스레드에서 쓰지 않는다(5b-3 세션이 전용 쓰기 작업을 둔다).
+- 테스트(App.Tests `TerminalLauncherTests`, 실제 cmd.exe): 출력·종료 코드·EOF, 한글 입력 왕복, 초기 크기·`Resize`(`mode con`), Terminate/Dispose 시 손자 종료, 읽는 쪽 없는 Dispose, 종료·Dispose 경합.
+
 ### 단계 (각 1커밋, 빌드 → 테스트 → `/codex-review` → 커밋)
 - 5a: 0 설계 문서 / 1 범위 모델 / 2 경로 정규화·범위 검사기 / 3 가드 판정·셸 분석 / 4 가드 모드·scope.json 갱신(+stdio·콜드 스타트·병합 실측) / 5 명령줄 빌더·CLI 탐색 / 6 프리셋·컨텍스트 / 7 Job 실행기·세션 관리자 / 8 스냅샷·변경 요약·되돌리기 / 9 세션 시작 대화상자·진입점 / 10 AI 작업 패널·변경 요약 대화상자 / 11 CHANGELOG·HANDOFF.
 - 5b: ConPTY / xterm 번들 / 터미널 패널 / 대화형 세션 탭·범위 칩 / PowerShell 터미널 / 변경 검토 연결 + 스크린샷 확인.

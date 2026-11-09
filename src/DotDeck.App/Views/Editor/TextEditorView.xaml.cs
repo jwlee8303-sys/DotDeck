@@ -200,5 +200,8 @@ public partial class TextEditorView : UserControl, IEditorSelection
         Editor.TextArea.TextView.CurrentLineBorder = null;
         Editor.Options.EnableHyperlinks = false;
         Editor.Options.EnableEmailHyperlinks = false;
+
+        // Soft wrap: continuation lines keep the line's indentation (list items stay aligned).
+        Editor.Options.InheritWordWrapIndentation = true;
     }
 }

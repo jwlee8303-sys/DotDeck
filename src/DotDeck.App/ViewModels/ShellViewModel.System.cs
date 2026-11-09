@@ -338,6 +338,9 @@ public sealed partial class ShellViewModel
         ApplyScreenShareMode(settings.ScreenShareMode);
         _backups.BackupsDirectory = settings.BackupDirectory ?? Paths.BackupsDir;
         ExplorerPreferences.SetGlobalExtensions(settings.DefaultExtensions);
+
+        // Applies to files opened from now on; open tabs keep their wrap state.
+        _wordWrapExtensions = settings.WordWrapExtensions;
         SettingsChanged?.Invoke(this, settings);
         StatusMessage = "설정을 적용했습니다.";
     }

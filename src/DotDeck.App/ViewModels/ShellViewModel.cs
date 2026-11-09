@@ -101,13 +101,13 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Shell, services.Dialogs,
             new ExplorerFileOperations(services.FileOperations, services.Dialogs, services.Log, message => StatusMessage = message),
             services.Log, message => StatusMessage = message, new FolderWatcherFactory(), ExplorerPreferences, OpenFileAsync, OpenSystemNode,
-            RegisterCustomFileAsync, RemoveCustomFileAsync, OpenFileAsAsync, LaunchAiSessionAsync);
+            RegisterCustomFileAsync, RemoveCustomFileAsync, OpenFileAsAsync, QuickStartAiSessionAsync);
         Properties = new PropertiesPaneViewModel { DescribeRole = DescribeRole };
         Output = new OutputPaneViewModel(services.Log);
         Validation = new ValidationPaneViewModel();
         SearchResults = new SearchResultsPaneViewModel(services.Store, SearchRoots, OpenSearchHitAsync);
         HookTest = new HookTestPaneViewModel { Dialogs = services.Dialogs, WorkingDirectory = services.Paths.Home };
-        AiWork = new AiSessionsPaneViewModel(ReviewAiChangesAsync, ConfirmStopAiSession) { IsVisible = false };
+        AiWork = new AiSessionsPaneViewModel(ReviewAiChangesAsync, ConfirmStopAiSession, ShowAiTerminal) { IsVisible = false };
         Tools = [Properties, Output, Validation, SearchResults, HookTest, AiWork];
         Projects = new ProjectsPaneViewModel(explorerContext, services.Session, Tools.Add, tool => Tools.Remove(tool));
         Tools.Insert(0, Projects);

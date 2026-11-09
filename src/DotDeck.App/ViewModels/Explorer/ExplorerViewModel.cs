@@ -633,7 +633,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         }
     }
 
-    /// <summary>"이 프로젝트에서 Claude 시작": the session dialog with this project as the primary one.</summary>
+    /// <summary>"이 프로젝트에서 Claude 시작": an interactive Claude session on this project (no dialog, SPEC 11.3-1).</summary>
     [RelayCommand]
     private Task StartAiSessionAsync() => _context.StartAiSession?.Invoke(Project.Id) ?? Task.CompletedTask;
 

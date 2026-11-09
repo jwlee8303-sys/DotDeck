@@ -16,15 +16,17 @@ public sealed partial class AiSessionsPaneViewModel : ToolPaneViewModel
     private readonly SynchronizationContext? _ui;
     private readonly Func<AiSession, Task> _reviewChanges;
     private readonly Func<AiSession, bool> _confirmStop;
+    private readonly Action<AiSession> _openTerminal;
     private AiSessionManager? _manager;
     private readonly HashSet<string> _cleared = new(StringComparer.Ordinal);
 
-    public AiSessionsPaneViewModel(Func<AiSession, Task> reviewChanges, Func<AiSession, bool> confirmStop)
+    public AiSessionsPaneViewModel(Func<AiSession, Task> reviewChanges, Func<AiSession, bool> confirmStop, Action<AiSession>? openTerminal = null)
         : base("tool.ai", "AI 작업", ToolLocation.Bottom)
     {
         _ui = SynchronizationContext.Current;
         _reviewChanges = reviewChanges ?? throw new ArgumentNullException(nameof(reviewChanges));
         _confirmStop = confirmStop ?? throw new ArgumentNullException(nameof(confirmStop));
+        _openTerminal = openTerminal ?? (_ => { });
     }
 
     public ObservableCollection<AiSessionItemViewModel> Sessions { get; } = [];
@@ -54,7 +56,7 @@ public sealed partial class AiSessionsPaneViewModel : ToolPaneViewModel
         {
             if (!_cleared.Contains(session.Id) && Sessions.All(s => s.Session != session))
             {
-                var item = new AiSessionItemViewModel(session, Post, Stop, _reviewChanges);
+                var item = new AiSessionItemViewModel(session, Post, Stop, _reviewChanges, _openTerminal);
                 Sessions.Insert(0, item);
                 SelectedSession = item;
                 IsVisible = true;
@@ -108,13 +110,15 @@ public sealed partial class AiSessionItemViewModel : ObservableObject
     private readonly Action<Action> _post;
     private readonly Action<AiSession> _stop;
     private readonly Func<AiSession, Task> _review;
+    private readonly Action<AiSession> _openTerminal;
 
-    internal AiSessionItemViewModel(AiSession session, Action<Action> post, Action<AiSession> stop, Func<AiSession, Task> review)
+    internal AiSessionItemViewModel(AiSession session, Action<Action> post, Action<AiSession> stop, Func<AiSession, Task> review, Action<AiSession> openTerminal)
     {
         Session = session;
         _post = post;
         _stop = stop;
         _review = review;
+        _openTerminal = openTerminal;
 
         // Lines raised before this row existed come with the subscription, so none is lost or shown twice.
         foreach (var (line, isError) in session.AttachOutput(OnOutput))
@@ -152,6 +156,12 @@ public sealed partial class AiSessionItemViewModel : ObservableObject
     public string? Message => Session.Message;
 
     public bool IsFailed => Session.State == AiSessionState.Failed;
+
+    /// <summary>An interactive session: its output is in its terminal tab, not in this list.</summary>
+    public bool IsInteractive => Session.Terminal is not null;
+
+    [RelayCommand(CanExecute = nameof(IsInteractive))]
+    private void OpenTerminal() => _openTerminal(Session);
 
     [RelayCommand(CanExecute = nameof(IsRunning))]
     private void Stop() => _stop(Session);

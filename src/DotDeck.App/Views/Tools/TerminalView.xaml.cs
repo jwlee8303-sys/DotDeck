@@ -342,6 +342,18 @@ public partial class TerminalView : UserControl
         }
     }
 
+    /// <summary>A scope chip opens its menu (path, copy, exclude) on a plain click.</summary>
+    private void OnChipClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu } chip)
+        {
+            menu.DataContext = chip.DataContext;
+            menu.PlacementTarget = chip;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
+    }
+
     private void ShowMessage(string text)
     {
         Message.Text = text;

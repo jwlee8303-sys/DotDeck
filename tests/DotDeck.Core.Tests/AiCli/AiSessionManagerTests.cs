@@ -16,6 +16,7 @@ public sealed class AiSessionManagerTests : IDisposable
 {
     private readonly TempDirectory _temp = new();
     private readonly FakeLauncher _launcher = new();
+    private readonly FakeTerminalLauncher _terminals = new();
     private readonly List<ProjectDefinition> _projects;
     private readonly string _main;
     private readonly string _web;
@@ -38,12 +39,13 @@ public sealed class AiSessionManagerTests : IDisposable
     private AppPaths Paths(HomeSource source = HomeSource.CommandLine) =>
         new(_temp.Combine("home"), source, _temp.Combine("roaming"), _temp.Combine("local"));
 
-    private AiSessionManager Manager(AppPaths? paths = null, SessionPresetStore? presets = null, TimeSpan? heartbeat = null) => new(new AiSessionEnvironment
+    private AiSessionManager Manager(AppPaths? paths = null, SessionPresetStore? presets = null, TimeSpan? heartbeat = null, bool terminals = false) => new(new AiSessionEnvironment
     {
         Paths = paths ?? Paths(),
         Store = PhysicalFileStore.Instance,
         Projects = () => _projects,
         Launcher = _launcher,
+        TerminalLauncher = terminals ? _terminals : null,
         Locate = cli => new CliLocatorResult(new CliLocation(cli, @"C:\tools\claude.exe", []), null),
         GuardExecutable = @"C:\Program Files\DotDeck\DotDeck.exe",
         Presets = presets,
@@ -397,6 +399,7 @@ public sealed class AiSessionManagerTests : IDisposable
         using var manager = Manager(presets: presets);
 
         var first = manager.Start(Request("b"));
+        manager.Stop(first); // one CLI per conversation
         var resumed = manager.Start(Request("b") with { ResumeConversation = true });
         var fresh = manager.Start(Request());
 
@@ -408,7 +411,7 @@ public sealed class AiSessionManagerTests : IDisposable
 
     [Theory]
     [InlineData(CliKind.Codex, LaunchMode.NonInteractive, "프롬프트", "5c")]
-    [InlineData(CliKind.Claude, LaunchMode.Interactive, "프롬프트", "5b")]
+    [InlineData(CliKind.Claude, LaunchMode.Interactive, "프롬프트", "대화형")]
     [InlineData(CliKind.Claude, LaunchMode.NonInteractive, " ", "프롬프트")]
     public void Unsupported_or_incomplete_requests_are_refused(CliKind cli, LaunchMode mode, string prompt, string expected)
     {
@@ -457,6 +460,232 @@ public sealed class AiSessionManagerTests : IDisposable
 
         Assert.Equal(AiSessionState.Stopped, session.State);
         Assert.True(_launcher.Last.Disposed);
+    }
+
+    [Fact]
+    public async Task Interactive_session_runs_in_a_terminal_without_a_prompt()
+    {
+        using var manager = Manager(terminals: true);
+
+        var session = manager.Start(Request("b") with { Mode = LaunchMode.Interactive, Prompt = null });
+
+        var (plan, size) = Assert.Single(_terminals.Starts);
+        Assert.Empty(_launcher.Plans);
+        Assert.Null(plan.StandardInput);
+        Assert.DoesNotContain("-p", plan.Arguments);
+        Assert.Contains("--settings", plan.Arguments);
+        Assert.Equal("Claude · DotDeck (+웹게임)", plan.Arguments[plan.Arguments.ToList().IndexOf("-n") + 1]);
+        Assert.Equal(TerminalSize.Default, size);
+        Assert.NotNull(session.Terminal);
+        Assert.Equal(LaunchMode.Interactive, session.Mode);
+
+        _terminals.Last.Print("TUI 화면");
+        File.WriteAllText(Path.Combine(session.Directory, "heartbeat"), "x");
+        await Eventually(() => session.GuardConnected);
+        await Eventually(() => session.Terminal!.Attach(_ => { }) == "TUI 화면");
+
+        _terminals.Last.Exit(0);
+
+        await Eventually(() => session.State == AiSessionState.Exited);
+        Assert.True(_terminals.Last.Disposed);
+        Assert.Equal("TUI 화면", session.Terminal!.Attach(_ => { })); // replay survives the exit
+    }
+
+    [Fact]
+    public async Task Interactive_prompt_is_not_passed_and_stop_terminates_the_terminal()
+    {
+        using var manager = Manager(terminals: true);
+        var session = manager.Start(Request() with { Mode = LaunchMode.Interactive });
+
+        Assert.DoesNotContain(_terminals.Starts[0].Plan.Arguments, a => a.Contains("README 정리해줘", StringComparison.Ordinal));
+
+        manager.Stop(session);
+
+        Assert.Equal(AiSessionState.Stopped, session.State);
+        await Eventually(() => _terminals.Last.Terminated);
+    }
+
+    [Fact]
+    public async Task Interactive_session_without_heartbeat_fails_after_exit()
+    {
+        using var manager = Manager(terminals: true);
+        var session = manager.Start(Request() with { Mode = LaunchMode.Interactive });
+
+        _terminals.Last.Exit(0);
+
+        await Eventually(() => session.State == AiSessionState.Failed);
+        Assert.Contains("가드 훅", session.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Restart_resumes_the_given_conversation_even_in_another_scope()
+    {
+        using var manager = Manager(terminals: true);
+        var first = manager.Start(Request() with { Mode = LaunchMode.Interactive });
+        manager.Stop(first); // one CLI per conversation
+
+        var restarted = manager.Start(Request("b") with { Mode = LaunchMode.Interactive, ResumeConversation = true, ResumeConversationId = first.ConversationId });
+        var notResumed = manager.Start(Request("b") with { Mode = LaunchMode.Interactive, ResumeConversationId = first.ConversationId });
+        var invalid = manager.Start(Request("b") with { Mode = LaunchMode.Interactive, ResumeConversation = true, ResumeConversationId = "not-a-uuid" });
+
+        Assert.Equal(first.ConversationId, restarted.ConversationId);
+        Assert.Contains("--resume", _terminals.Starts[1].Plan.Arguments);
+        Assert.NotEqual(first.ConversationId, notResumed.ConversationId);
+        Assert.NotEqual("not-a-uuid", invalid.ConversationId);
+        Assert.DoesNotContain("not-a-uuid", _terminals.Starts[3].Plan.Arguments);
+    }
+
+    [Fact]
+    public void A_running_conversation_cannot_be_resumed_twice()
+    {
+        using var manager = Manager(terminals: true);
+        var first = manager.Start(Request() with { Mode = LaunchMode.Interactive });
+        manager.Stop(first);
+        var second = manager.Start(Request() with { Mode = LaunchMode.Interactive, ResumeConversation = true, ResumeConversationId = first.ConversationId });
+
+        // Restarting again from the old (stopped) tab while the resumed one runs.
+        var error = Assert.Throws<AiSessionStartException>(() =>
+            manager.Start(Request("b") with { Mode = LaunchMode.Interactive, ResumeConversation = true, ResumeConversationId = first.ConversationId }));
+
+        Assert.Contains("다른 세션에서 실행 중", error.Message, StringComparison.Ordinal);
+        Assert.Equal(2, _terminals.Starts.Count);
+
+        manager.Stop(second);
+        var third = manager.Start(Request() with { Mode = LaunchMode.Interactive, ResumeConversation = true, ResumeConversationId = first.ConversationId });
+        Assert.Equal(first.ConversationId, third.ConversationId);
+    }
+
+    [Fact]
+    public async Task A_stopped_session_keeps_its_conversation_until_its_process_ends()
+    {
+        using var manager = Manager(terminals: true);
+        _terminals.TerminateExits = false; // the process takes its time to end
+        var first = manager.Start(Request() with { Mode = LaunchMode.Interactive });
+        manager.Stop(first);
+
+        Assert.Equal(AiSessionState.Stopped, first.State);
+        Assert.Throws<AiSessionStartException>(() =>
+            manager.Start(Request() with { Mode = LaunchMode.Interactive, ResumeConversation = true, ResumeConversationId = first.ConversationId }));
+
+        _terminals.Terminals[0].Exit(1);
+        await first.WhenProcessEnded.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        var resumed = manager.Start(Request() with { Mode = LaunchMode.Interactive, ResumeConversation = true, ResumeConversationId = first.ConversationId });
+
+        Assert.Equal(first.ConversationId, resumed.ConversationId);
+    }
+
+    [Fact]
+    public void Conversation_ids_are_compared_in_one_spelling()
+    {
+        using var manager = Manager(terminals: true);
+        var first = manager.Start(Request() with { Mode = LaunchMode.Interactive });
+        manager.Stop(first);
+        var upper = first.ConversationId!.ToUpperInvariant();
+        var braced = "{" + first.ConversationId + "}";
+
+        var resumed = manager.Start(Request() with { Mode = LaunchMode.Interactive, ResumeConversation = true, ResumeConversationId = upper });
+
+        Assert.Equal(first.ConversationId, resumed.ConversationId);
+        Assert.Contains(first.ConversationId, _terminals.Starts[1].Plan.Arguments);
+        Assert.Throws<AiSessionStartException>(() =>
+            manager.Start(Request() with { Mode = LaunchMode.Interactive, ResumeConversation = true, ResumeConversationId = braced }));
+    }
+
+    [Fact]
+    public void Excluding_an_additional_project_rewrites_the_scope_and_the_primary_stays()
+    {
+        using var manager = Manager();
+        var session = manager.Start(Request("b"));
+        var changed = 0;
+        manager.Changed += (_, _) => changed++;
+
+        Assert.NotNull(manager.ExcludeProject(session, "a"));
+        Assert.NotNull(manager.ExcludeProject(session, "zzz"));
+        Assert.Null(manager.ExcludeProject(session, "b"));
+
+        Assert.Empty(session.Scope.Additional);
+        var scope = JsonNode.Parse(File.ReadAllText(Path.Combine(session.Directory, "scope.json")))!;
+        Assert.Equal(2, scope["generation"]!.GetValue<long>());
+        Assert.Single(scope["roots"]!.AsArray());
+        Assert.Equal(1, changed);
+
+        manager.Stop(session);
+        Assert.NotNull(manager.ExcludeProject(session, "b"));
+    }
+
+    private sealed class FakeTerminalLauncher : ITerminalLauncher
+    {
+        public List<(CliLaunchPlan Plan, TerminalSize Size)> Starts { get; } = [];
+
+        public List<FakeTerminal> Terminals { get; } = [];
+
+        public FakeTerminal Last => Terminals[^1];
+
+        /// <summary>False: Terminate only records the call; the test ends the process with Exit.</summary>
+        public bool TerminateExits { get; set; } = true;
+
+        public ITerminalProcess Start(CliLaunchPlan plan, TerminalSize size)
+        {
+            Starts.Add((plan, size));
+            var terminal = new FakeTerminal { TerminateExits = TerminateExits };
+            Terminals.Add(terminal);
+            return terminal;
+        }
+    }
+
+    private sealed class FakeTerminal : ITerminalProcess
+    {
+        private readonly TaskCompletionSource<int> _exit = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly System.IO.Pipes.AnonymousPipeServerStream _output = new(System.IO.Pipes.PipeDirection.Out);
+
+        public FakeTerminal()
+        {
+            Output = new System.IO.Pipes.AnonymousPipeClientStream(System.IO.Pipes.PipeDirection.In, _output.ClientSafePipeHandle);
+        }
+
+        public int ProcessId => 4321;
+
+        public Stream Output { get; }
+
+        public Stream Input { get; } = new MemoryStream();
+
+        public Task<int> Exited => _exit.Task;
+
+        public bool Terminated { get; private set; }
+
+        public bool Disposed { get; private set; }
+
+        public bool TerminateExits { get; init; } = true;
+
+        public void Print(string text) => _output.Write(Encoding.UTF8.GetBytes(text));
+
+        public void Exit(int code)
+        {
+            _output.Dispose();
+            _exit.TrySetResult(code);
+        }
+
+        public void Resize(TerminalSize size)
+        {
+        }
+
+        public IReadOnlyList<int> JobProcessIds() => [];
+
+        public void Terminate(int exitCode = 1)
+        {
+            Terminated = true;
+            if (TerminateExits)
+            {
+                Exit(exitCode);
+            }
+        }
+
+        public void Dispose()
+        {
+            Disposed = true;
+            Exit(-1);
+            Output.Dispose();
+        }
     }
 
     private sealed class FakeLauncher : ICliProcessLauncher

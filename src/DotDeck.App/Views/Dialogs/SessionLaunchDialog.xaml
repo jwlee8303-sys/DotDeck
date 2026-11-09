@@ -68,20 +68,22 @@
             </StackPanel>
             <StackPanel Grid.Column="1">
                 <TextBlock Text="실행 방식" FontWeight="SemiBold" />
-                <RadioButton Margin="0,4,0,0" Content="명령 실행(비대화형)" IsChecked="True" GroupName="Mode" />
-                <RadioButton Margin="0,2,0,0" Content="대화형 터미널" IsEnabled="False" GroupName="Mode" ToolTip="{Binding InteractiveNote}" />
+                <RadioButton Margin="0,4,0,0" Content="대화형 터미널" IsChecked="{Binding IsInteractive}" GroupName="Mode" />
+                <RadioButton Margin="0,2,0,0" Content="명령 실행(비대화형)" IsChecked="{Binding IsCommandRun}" GroupName="Mode" />
             </StackPanel>
         </Grid>
 
-        <TextBlock Text="프롬프트" Margin="0,12,0,4" FontWeight="SemiBold" />
+        <TextBlock Text="프롬프트 (명령 실행)" Margin="0,12,0,4" FontWeight="SemiBold" />
         <TextBox x:Name="PromptBox" Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                 IsEnabled="{Binding IsCommandRun}" ToolTip="대화형 터미널에서는 시작 후 터미널에 직접 입력합니다."
                  TextWrapping="Wrap" MinHeight="70" MaxHeight="160" VerticalScrollBarVisibility="Auto"
                  AutomationProperties.Name="프롬프트" />
 
         <TextBlock Text="옵션" Margin="0,12,0,4" FontWeight="SemiBold" />
         <CheckBox Content="열린 문서 목록을 컨텍스트로 전달" IsChecked="{Binding IncludeOpenDocuments}" />
         <CheckBox Margin="0,2,0,0" Content="이 범위의 이전 대화 이어가기" IsChecked="{Binding ResumeConversation}" />
-        <CheckBox Margin="0,2,0,0" Content="읽기 전용 셸 허용 (git status / diff / log만)" IsChecked="{Binding AllowReadOnlyShell}" />
+        <CheckBox Margin="0,2,0,0" Content="읽기 전용 셸 허용 (명령 실행, git status / diff / log만)" IsChecked="{Binding AllowReadOnlyShell}"
+                  IsEnabled="{Binding IsCommandRun}" />
         <DockPanel Margin="0,2,0,0" IsEnabled="{Binding CanSavePresets}"
                    ToolTip="sessions.json을 쓸 수 없으면(새 버전이 만든 파일 등) 프리셋을 저장할 수 없습니다.">
             <CheckBox x:Name="SavePresetBox" Content="프리셋으로 저장:" IsChecked="{Binding SaveAsPreset}" VerticalAlignment="Center" />

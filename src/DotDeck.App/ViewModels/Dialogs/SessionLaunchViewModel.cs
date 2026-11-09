@@ -42,7 +42,7 @@ public sealed partial class SessionProjectChoice : ObservableObject
 
 /// <summary>
 /// "Claude 세션 시작" dialog (SPEC 11.3-3): primary project, additional projects, CLI, mode, prompt, options and the
-/// read-only command-line preview. In 5a only Claude in command mode can start (interactive: 5b, Codex: 5c).
+/// read-only command-line preview. Claude starts as an interactive terminal (default) or a command run; Codex: 5c.
 /// </summary>
 public sealed partial class SessionLaunchViewModel : ObservableObject
 {
@@ -110,6 +110,17 @@ public sealed partial class SessionLaunchViewModel : ObservableObject
     [ObservableProperty]
     private string _prompt = string.Empty;
 
+    /// <summary>Interactive terminal (default) or a command run with a prompt (SPEC 11.5).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCommandRun))]
+    private bool _isInteractive = true;
+
+    public bool IsCommandRun
+    {
+        get => !IsInteractive;
+        set => IsInteractive = !value;
+    }
+
     [ObservableProperty]
     private bool _includeOpenDocuments = true;
 
@@ -132,8 +143,6 @@ public sealed partial class SessionLaunchViewModel : ObservableObject
     private string? _error;
 
     /// <summary>Shown next to the disabled choices.</summary>
-    public string InteractiveNote => "대화형 터미널은 다음 단계(5b)에서 지원합니다.";
-
     public string CodexNote => "Codex는 다음 단계(5c)에서 지원합니다.";
 
     public bool HasSelectableProject => PrimaryChoices.Any(c => c.IsSelectable);
@@ -144,6 +153,8 @@ public sealed partial class SessionLaunchViewModel : ObservableObject
     partial void OnPrimaryChanged(SessionProjectChoice? value) => RebuildAdditional();
 
     partial void OnPromptChanged(string value) => RefreshPreview();
+
+    partial void OnIsInteractiveChanged(bool value) => RefreshPreview();
 
     partial void OnIncludeOpenDocumentsChanged(bool value) => RefreshPreview();
 
@@ -165,7 +176,7 @@ public sealed partial class SessionLaunchViewModel : ObservableObject
             return "주 프로젝트를 선택하세요.";
         }
 
-        if (string.IsNullOrWhiteSpace(Prompt))
+        if (!IsInteractive && string.IsNullOrWhiteSpace(Prompt))
         {
             return "실행할 프롬프트를 입력하세요.";
         }
@@ -178,11 +189,11 @@ public sealed partial class SessionLaunchViewModel : ObservableObject
         PrimaryProjectId = Primary?.Id ?? string.Empty,
         AdditionalProjectIds = [.. AdditionalChoices.Where(c => c.IsSelected).Select(c => c.Id)],
         Cli = CliKind.Claude,
-        Mode = LaunchMode.NonInteractive,
-        Prompt = Prompt.Trim(),
+        Mode = IsInteractive ? LaunchMode.Interactive : LaunchMode.NonInteractive,
+        Prompt = IsInteractive ? null : Prompt.Trim(),
         IncludeOpenDocuments = IncludeOpenDocuments,
         ResumeConversation = ResumeConversation,
-        AllowReadOnlyShell = AllowReadOnlyShell,
+        AllowReadOnlyShell = !IsInteractive && AllowReadOnlyShell,
     };
 
     private void RebuildAdditional()
@@ -221,7 +232,13 @@ public sealed partial class SessionLaunchViewModel : ObservableObject
 
     private void RefreshPreview()
     {
-        CommandLinePreview = Primary is null ? string.Empty : _preview(BuildRequest() with { Prompt = string.IsNullOrWhiteSpace(Prompt) ? "(프롬프트)" : Prompt });
+        var request = BuildRequest();
+        if (!IsInteractive && string.IsNullOrWhiteSpace(Prompt))
+        {
+            request = request with { Prompt = "(프롬프트)" };
+        }
+
+        CommandLinePreview = Primary is null ? string.Empty : _preview(request);
         OnPropertyChanged(nameof(IncludesGlobalProject));
     }
 }

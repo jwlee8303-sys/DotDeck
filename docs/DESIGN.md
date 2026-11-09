@@ -630,6 +630,15 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - 키: 선택이 있을 때 Ctrl+C(또는 Ctrl+Shift+C)는 복사(호스트 클립보드), 없으면 인터럽트. Ctrl+V·Shift+Insert는 브라우저 붙여넣기 이벤트로 xterm이 처리(bracketed paste). 색은 `DD.Color.Terminal.*`(배경·전경·커서·선택·ANSI 16, Dark/Light), 글꼴은 편집기 글꼴, 테마 전환 시 즉시 반영.
 - `TerminalPaneViewModel`(ContentId `tool.terminal:<id>`, 아래 영역, 레이아웃 복원 대상 아님): 종료되면 제목에 "(종료됨)"과 종료 코드 안내. 탭을 닫으면 실행 중일 때 확인 후 Job 전체 종료·제거, 거절하면 다시 표시. 앱 종료 시 실행 중 터미널이 있으면 확인. 진입점: 도구 메뉴 "새 PowerShell 터미널"(Ctrl+Alt+T), 작업 폴더는 활성 문서의 프로젝트 → 선택 프로젝트 → (샌드박스) 홈.
 
+### 대화형 Claude 세션·범위 칩 (5b-4 구현)
+- `AiSessionManager`: `AiSessionEnvironment.TerminalLauncher`가 있으면 대화형 시작 허용(프롬프트 불필요, 받아도 넘기지 않음). 명령줄은 기존 빌더의 대화형 분기(`--settings`, `--add-dir`, `--session-id`/`--resume`, `-n <탭 제목>`, `--append-system-prompt`; Claude Code 2.1.319 도움말에서 옵션 확인). `AiSession.Terminal`(`TerminalConnection`)로 실행, 종료 감시·heartbeat·중지·Dispose는 파이프 실행과 같은 경로(`ProcessExited`/`TerminateProcess`/`DisposeProcess`). 종료 후 콘솔은 해제하지만 재생 버퍼는 남아 탭을 다시 열 수 있다.
+- `ExcludeProject(session, id)`: 범위 칩 "범위에서 제외". 추가 프로젝트만, `_scopeSync` 안에서 scope.json 세대 증가·원자적 교체(실패 시 세션 중지). 주 프로젝트는 거부.
+- 진입점: 프로젝트 우클릭 "이 프로젝트에서 Claude 시작"은 대화상자 없이 대화형(SPEC 11.3-1). 세션 시작 대화상자는 대화형이 기본, 프롬프트·"읽기 전용 셸 허용"은 명령 실행에서만 활성. 모든 시작은 모두 저장 → 미저장 확인 → 시작 → 대화형이면 터미널 탭 열기.
+- 터미널 탭(세션 ID 기반 ContentId): 툴바에 범위 칩(주 프로젝트 굵게, 클릭 시 경로·경로 복사·범위에서 제외), 가드 상태 문구, "프로젝트 추가/다시 시작…"(같은 범위·대화형·이어가기로 대화상자, 새 세션 직전에 기존 세션 중지 → 한 대화에 CLI 하나), 변경 검토, 중지. 실행 중 탭을 닫으면 확인 후 세션 중지. 앱 종료 확인은 AI 세션과 일반 터미널을 따로 센다(중복 질문 없음).
+- 한 대화에 CLI 하나: `Start`가 `(CLI, 대화 ID)`를 `_gate` 안에서 검사·예약(실행 중이거나 프로세스가 아직 끝나지 않은 세션, 또는 시작 중인 예약이 있으면 거부, 실패·등록 후 `finally`에서 해제). 대화 ID는 `Guid` "D" 형식으로 정규화. 재시작은 저장·확인 → 기존 세션 중지 → `WhenProcessEnded`(최대 10초, UI 컨텍스트로 복귀) → 원래 대화 ID(`ResumeConversationId`)로 시작. 시작 실패 시 중지된 탭에서 다시 시작하도록 안내. (Codex 5b-4 지적 반영: 재시작 세션 소실, 범위 변경 시 다른 대화 재개, 중복 실행, 대소문자 ID, UI 스레드 복귀)
+- AI 작업 패널: 대화형 세션은 "터미널 보기"로 탭을 열거나 다시 만든다(종료 후에도 재생 버퍼 표시). 출력 목록 대신 안내 문구.
+- 미확인(수동): 실제 Claude TUI 표시·한글 IME·크기 조절, 대화형에서 가드 훅 deny 표시. 샌드박스 로그인이 필요해 5b 끝 수동 확인 항목으로 둔다.
+
 ### 단계 (각 1커밋, 빌드 → 테스트 → `/codex-review` → 커밋)
 - 5a: 0 설계 문서 / 1 범위 모델 / 2 경로 정규화·범위 검사기 / 3 가드 판정·셸 분석 / 4 가드 모드·scope.json 갱신(+stdio·콜드 스타트·병합 실측) / 5 명령줄 빌더·CLI 탐색 / 6 프리셋·컨텍스트 / 7 Job 실행기·세션 관리자 / 8 스냅샷·변경 요약·되돌리기 / 9 세션 시작 대화상자·진입점 / 10 AI 작업 패널·변경 요약 대화상자 / 11 CHANGELOG·HANDOFF.
 - 5b: ConPTY / xterm 번들 / 터미널 패널 / 대화형 세션 탭·범위 칩 / PowerShell 터미널 / 변경 검토 연결 + 스크린샷 확인.

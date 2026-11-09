@@ -44,6 +44,12 @@ public sealed record AiSessionStartRequest
 
     public bool ResumeConversation { get; init; }
 
+    /// <summary>
+    /// The exact Claude conversation to resume ("프로젝트 추가/다시 시작" keeps the conversation even though the scope,
+    /// and so the remembered conversation of that scope, changes). Used only with <see cref="ResumeConversation"/>.
+    /// </summary>
+    public string? ResumeConversationId { get; init; }
+
     public bool AllowReadOnlyShell { get; init; }
 
     public decimal? MaxBudgetUsd { get; init; }
@@ -62,6 +68,9 @@ public sealed record AiSessionEnvironment
     public required Func<IReadOnlyList<ProjectDefinition>> Projects { get; init; }
 
     public required ICliProcessLauncher Launcher { get; init; }
+
+    /// <summary>Starts interactive sessions in a pseudo console; without one, interactive starts are refused.</summary>
+    public ITerminalLauncher? TerminalLauncher { get; init; }
 
     public required Func<CliKind, CliLocatorResult> Locate { get; init; }
 
@@ -127,6 +136,35 @@ public sealed class AiSession
     public string? Message { get; private set; }
 
     internal ICliProcess? Process { get; set; }
+
+    /// <summary>The console of an interactive session (null for command runs). Kept after the exit for its replay.</summary>
+    public TerminalConnection? Terminal { get; internal set; }
+
+    internal Task<int> ProcessExited => Terminal?.Exited ?? Process?.Exited ?? Task.FromResult(-1);
+
+    /// <summary>
+    /// Completes when the CLI process has actually ended (a stopped session's process may still be shutting down).
+    /// A restart waits for it before resuming the same conversation.
+    /// </summary>
+    public Task WhenProcessEnded => ProcessExited;
+
+    internal void TerminateProcess()
+    {
+        if (Terminal is { } terminal)
+        {
+            terminal.Terminate();
+        }
+        else
+        {
+            Process?.Terminate();
+        }
+    }
+
+    internal void DisposeProcess()
+    {
+        Terminal?.Dispose();
+        Process?.Dispose();
+    }
 
     /// <summary>The scope index and captured contents taken just before the CLI started.</summary>
     public SessionSnapshot? Snapshot { get; internal set; }
@@ -351,12 +389,12 @@ public sealed class AiSessionManager : IDisposable
             throw new AiSessionStartException("Codex 세션은 이후 단계(5c)에서 지원합니다.");
         }
 
-        if (request.Mode == LaunchMode.Interactive)
+        if (request.Mode == LaunchMode.Interactive && _env.TerminalLauncher is null)
         {
-            throw new AiSessionStartException("대화형 터미널은 이후 단계(5b)에서 지원합니다.");
+            throw new AiSessionStartException("대화형 터미널을 사용할 수 없습니다.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Prompt))
+        if (request.Mode == LaunchMode.NonInteractive && string.IsNullOrWhiteSpace(request.Prompt))
         {
             throw new AiSessionStartException("실행할 프롬프트를 입력하세요.");
         }
@@ -402,7 +440,7 @@ public sealed class AiSessionManager : IDisposable
                 Context = context,
                 ConversationId = conversation.Id,
                 Resume = conversation.Resume,
-                Prompt = request.Prompt,
+                Prompt = request.Mode == LaunchMode.NonInteractive ? request.Prompt : null,
                 AllowReadOnlyShell = request.AllowReadOnlyShell,
                 MaxBudgetUsd = request.MaxBudgetUsd,
                 SandboxClaudeConfigDir = _env.Paths.IsHomeOverridden ? _env.Paths.ClaudeHome : null,
@@ -434,25 +472,50 @@ public sealed class AiSessionManager : IDisposable
             throw new AiSessionStartException($"세션을 준비하지 못했습니다: {ex.Message}", ex);
         }
 
+        // One CLI per conversation: a resumed conversation that is still running (or starting) elsewhere is refused,
+        // checked and reserved atomically so two starts cannot both pass.
+        ReserveConversation(request.Cli, conversation.Id);
         try
         {
-            session.Process = _env.Launcher.Start(plan);
+            try
+            {
+                if (request.Mode == LaunchMode.Interactive)
+                {
+                    session.Terminal = new TerminalConnection(_env.TerminalLauncher!.Start(plan, TerminalSize.Default), TerminalSize.Default);
+                }
+                else
+                {
+                    session.Process = _env.Launcher.Start(plan);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                throw new AiSessionStartException($"CLI를 실행하지 못했습니다: {ex.Message}", ex);
+            }
+
+            RememberConversation(scope, request.Cli, conversation.Id);
+            session.StateChanged += _ => Changed?.Invoke(this, EventArgs.Empty);
+            lock (_gate)
+            {
+                _sessions.Add(session);
+            }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        finally
         {
-            throw new AiSessionStartException($"CLI를 실행하지 못했습니다: {ex.Message}", ex);
+            ReleaseConversation(request.Cli, conversation.Id);
         }
 
-        RememberConversation(scope, request.Cli, conversation.Id);
-        session.StateChanged += _ => Changed?.Invoke(this, EventArgs.Empty);
-        lock (_gate)
+        if (session.Process is { } process)
         {
-            _sessions.Add(session);
+            var stdout = PumpAsync(session, process.StandardOutput, isError: false);
+            var stderr = PumpAsync(session, process.StandardError, isError: true);
+            _ = WatchExitAsync(session, Task.WhenAll(stdout, stderr));
+        }
+        else
+        {
+            _ = WatchExitAsync(session, session.Terminal!.OutputEnded);
         }
 
-        var stdout = PumpAsync(session, session.Process.StandardOutput, isError: false);
-        var stderr = PumpAsync(session, session.Process.StandardError, isError: true);
-        _ = WatchExitAsync(session, stdout, stderr);
         _ = WatchHeartbeatAsync(session);
 
         // Projects removed while the session was being prepared (on a worker thread) were not seen by
@@ -460,6 +523,40 @@ public sealed class AiSessionManager : IDisposable
         OnProjectsChanged();
         Changed?.Invoke(this, EventArgs.Empty);
         return session;
+    }
+
+    private readonly HashSet<(CliKind, string)> _startingConversations = [];
+
+    private void ReserveConversation(CliKind cli, string? conversationId)
+    {
+        if (conversationId is null)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (_startingConversations.Contains((cli, conversationId))
+                // Not only Running: a stopped or failed session whose process has not ended yet still owns it.
+                || _sessions.Any(s => (s.State == AiSessionState.Running || !s.ProcessExited.IsCompleted) && s.Cli == cli
+                    && string.Equals(s.ConversationId, conversationId, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new AiSessionStartException("이 대화는 다른 세션에서 실행 중입니다. 그 세션을 중지한 뒤 다시 시작하세요.");
+            }
+
+            _startingConversations.Add((cli, conversationId));
+        }
+    }
+
+    private void ReleaseConversation(CliKind cli, string? conversationId)
+    {
+        if (conversationId is not null)
+        {
+            lock (_gate)
+            {
+                _startingConversations.Remove((cli, conversationId));
+            }
+        }
     }
 
     /// <summary>The session's own backup store (start capture and pre-write captures).</summary>
@@ -509,7 +606,7 @@ public sealed class AiSessionManager : IDisposable
         ArgumentNullException.ThrowIfNull(session);
         if (session.Finish(AiSessionState.Stopped, null, reason ?? "사용자가 중지했습니다."))
         {
-            session.Process?.Terminate();
+            session.TerminateProcess();
         }
     }
 
@@ -526,6 +623,45 @@ public sealed class AiSessionManager : IDisposable
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Takes an additional project out of a running session's scope (scope chip "범위에서 제외"). scope.json is
+    /// rewritten at once; the guard denies that folder from the next tool call. The primary project cannot leave.
+    /// </summary>
+    /// <returns>Null on success, else the reason (for the user).</returns>
+    public string? ExcludeProject(AiSession session, string projectId)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        lock (_scopeSync)
+        {
+            if (session.State != AiSessionState.Running)
+            {
+                return "세션이 실행 중이 아닙니다.";
+            }
+
+            var narrowed = session.Scope.Without(projectId);
+            if (narrowed is null || narrowed.Additional.Count == session.Scope.Additional.Count)
+            {
+                return narrowed is null ? "주 프로젝트는 범위에서 뺄 수 없습니다." : "이 프로젝트는 세션 범위에 없습니다.";
+            }
+
+            try
+            {
+                var generation = session.ScopeGeneration + 1;
+                ScopeFile.Write(Path.Combine(session.Directory, SessionFileNames.Scope), ScopeDocumentFor(session, narrowed, generation));
+                session.ScopeGeneration = generation;
+                session.Scope = narrowed;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Stop(session, $"범위 파일을 갱신하지 못해 세션을 중지했습니다: {ex.Message}");
+                return $"범위 파일을 갱신하지 못해 세션을 중지했습니다: {ex.Message}";
+            }
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+        return null;
     }
 
     // One scope update at a time (UI thread and a starting session may both call OnProjectsChanged).
@@ -576,7 +712,7 @@ public sealed class AiSessionManager : IDisposable
         foreach (var session in Sessions)
         {
             Stop(session, "DotDeck이 종료되어 세션을 중지했습니다.");
-            session.Process?.Dispose();
+            session.DisposeProcess();
         }
     }
 
@@ -601,12 +737,20 @@ public sealed class AiSessionManager : IDisposable
             return (null, false);
         }
 
-        if (request.ResumeConversation && _env.Presets?.GetConversation(scope.Key)?.ClaudeSessionId is { } previous && Guid.TryParse(previous, out _))
+        if (request.ResumeConversation && request.ResumeConversationId is { } explicitId && Guid.TryParse(explicitId, out _))
         {
-            return (previous, true);
+            return (Canonical(explicitId), true);
         }
 
-        return (Guid.NewGuid().ToString(), false);
+        if (request.ResumeConversation && _env.Presets?.GetConversation(scope.Key)?.ClaudeSessionId is { } previous && Guid.TryParse(previous, out _))
+        {
+            return (Canonical(previous), true);
+        }
+
+        return (Guid.NewGuid().ToString("D"), false);
+
+        // One spelling per conversation (lowercase "D" form) for the reservation, the command line and sessions.json.
+        static string Canonical(string id) => Guid.Parse(id).ToString("D");
     }
 
     private void RememberConversation(SessionScope scope, CliKind cli, string? id)
@@ -648,12 +792,11 @@ public sealed class AiSessionManager : IDisposable
     /// output has been read. A Claude run that ends without the SessionStart heartbeat never loaded the session
     /// settings (SessionStart also runs for -p, measured in 5a-4), so it is a failure even with exit code 0.
     /// </summary>
-    private async Task WatchExitAsync(AiSession session, Task stdout, Task stderr)
+    private async Task WatchExitAsync(AiSession session, Task outputRead)
     {
-        var process = session.Process!;
-        var code = await process.Exited.ConfigureAwait(false);
-        process.Terminate(code);
-        await Task.WhenAll(stdout, stderr).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        var code = await session.ProcessExited.ConfigureAwait(false);
+        session.TerminateProcess();
+        await outputRead.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
         if (session.Cli == CliKind.Claude && !File.Exists(Path.Combine(session.Directory, Guard.GuardHost.HeartbeatFileName)))
         {
@@ -664,7 +807,8 @@ public sealed class AiSessionManager : IDisposable
             session.Finish(code == 0 ? AiSessionState.Exited : AiSessionState.Failed, code, code == 0 ? null : $"CLI가 종료 코드 {code}로 끝났습니다.");
         }
 
-        process.Dispose();
+        // A terminal keeps its recent output after this (a viewer can still attach and replay it).
+        session.DisposeProcess();
     }
 
     private static readonly TimeSpan HeartbeatPoll = TimeSpan.FromMilliseconds(250);
@@ -679,7 +823,7 @@ public sealed class AiSessionManager : IDisposable
         }
 
         var heartbeat = Path.Combine(session.Directory, Guard.GuardHost.HeartbeatFileName);
-        var exited = session.Process!.Exited;
+        var exited = session.ProcessExited;
         var timeout = Task.Delay(_env.HeartbeatTimeout, _env.Time);
         while (!timeout.IsCompleted && !exited.IsCompleted)
         {
@@ -705,7 +849,7 @@ public sealed class AiSessionManager : IDisposable
 
         if (session.Finish(AiSessionState.Failed, null, HeartbeatMissing))
         {
-            session.Process.Terminate();
+            session.TerminateProcess();
         }
     }
 }

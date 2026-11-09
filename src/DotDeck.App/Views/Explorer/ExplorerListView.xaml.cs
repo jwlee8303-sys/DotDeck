@@ -209,6 +209,54 @@ public partial class ExplorerListView : UserControl
         }
     }
 
+    // ===== Search box =====
+
+    /// <summary>Esc clears the search; Down / Enter move to the first result.</summary>
+    private void OnSearchBoxPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.Escape when _viewModel.HasSearchText:
+                _viewModel.ClearSearch();
+                e.Handled = true;
+                break;
+            case Key.Down or Key.Enter when Keyboard.Modifiers == ModifierKeys.None:
+                var first = _viewModel.Rows.OfType<NodeRowViewModel>().FirstOrDefault();
+                if (first is not null)
+                {
+                    _viewModel.Select(first);
+                }
+
+                // Focus after layout so the row's container exists.
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, FocusTree);
+                e.Handled = true;
+                break;
+        }
+    }
+
+    // ===== Header drop-downs =====
+
+    /// <summary>A header button with a menu (view mode, "…" overflow): a left click opens the menu below it.</summary>
+    private void OnDropDownButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { ContextMenu: { } menu } button)
+        {
+            return;
+        }
+
+        // Opened from code, the menu does not pick up the button's data context by itself.
+        menu.DataContext = button.DataContext;
+        menu.PlacementTarget = button;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
     // ===== Mouse =====
 
     private void OnRowDoubleClick(object sender, MouseButtonEventArgs e)

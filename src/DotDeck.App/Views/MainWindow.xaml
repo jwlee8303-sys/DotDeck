@@ -188,6 +188,9 @@
             <Separator DockPanel.Dock="Right" />
             <StatusBarItem DockPanel.Dock="Right" Content="{Binding HomeStatusText}" />
             <Separator DockPanel.Dock="Right" />
+            <StatusBarItem DockPanel.Dock="Right" Content="{Binding AiStatusText}" ToolTip="실행 중인 AI CLI 세션"
+                           Background="{DynamicResource DD.Brush.StatusBar.AiRunning}"
+                           Visibility="{Binding HasRunningAiSessions, Converter={StaticResource BoolToVisible}}" />
             <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.Buffer.LineEndingText}"
                            Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" ToolTip="줄바꿈" />
             <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.Buffer.EncodingText}"

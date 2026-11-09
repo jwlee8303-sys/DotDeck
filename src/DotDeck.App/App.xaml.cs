@@ -21,6 +21,7 @@ namespace DotDeck.App;
 public partial class App : Application
 {
     private FileAppLog? _log;
+    private DotDeck.Core.AiCli.Sessions.AiSessionManager? _aiSessions;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -86,6 +87,7 @@ public partial class App : Application
                 backups,
                 CreateEnvironmentStore(paths, store));
             var shell = new ShellViewModel(services, version, IsAdministrator());
+            shell.AttachAiSessions(CreateAiSessionManager(paths, store, registry), registry);
 
             var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log));
             MainWindow = window;
@@ -112,8 +114,32 @@ public partial class App : Application
         Shutdown(1);
     }
 
+    private DotDeck.Core.AiCli.Sessions.AiSessionManager CreateAiSessionManager(AppPaths paths, IFileStore store, ProjectRegistry registry)
+    {
+        var presets = new DotDeck.Core.AiCli.Presets.SessionPresetStore(store, paths.AiSessionsFile);
+        if (presets.Load() is DotDeck.Core.AiCli.Presets.PresetStoreLoadStatus.RecoveredFromCorrupt)
+        {
+            _log?.Warning($"손상된 세션 프리셋 파일을 보존하고 새로 시작합니다: {presets.CorruptCopyPath}");
+        }
+
+        var locator = new DotDeck.Core.AiCli.Launch.CliLocator(SystemProcessEnvironment.Instance, store);
+        _aiSessions = new DotDeck.Core.AiCli.Sessions.AiSessionManager(new DotDeck.Core.AiCli.Sessions.AiSessionEnvironment
+        {
+            Paths = paths,
+            Store = store,
+            Projects = () => registry.Projects,
+            Launcher = new JobProcessLauncher(),
+            Locate = cli => locator.Find(cli),
+            GuardExecutable = Environment.ProcessPath ?? throw new InvalidOperationException("DotDeck 실행 파일 경로를 알 수 없습니다."),
+            Presets = presets,
+        });
+        return _aiSessions;
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
+        // Running CLI trees end with their jobs (also if this never runs: the OS closes the job handles).
+        _aiSessions?.Dispose();
         _log?.Info("DotDeck 종료");
         base.OnExit(e);
     }

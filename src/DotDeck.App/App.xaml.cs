@@ -117,6 +117,17 @@ public partial class App : Application
         Shutdown(1);
     }
 
+    private DotDeck.Core.AiCli.Snapshots.SystemRecordPolicy LoadSystemRecords(string resource, IFileStore store, AppPaths paths)
+    {
+        var loaded = DotDeck.Core.Catalogs.CatalogResources.Load(resource, DotDeck.Core.AiCli.Snapshots.SystemRecordPolicy.Parse, store, paths.CatalogsDir);
+        if (loaded.Warning is { } warning)
+        {
+            _log?.Warning(warning);
+        }
+
+        return loaded.Value;
+    }
+
     private DotDeck.Core.AiCli.Sessions.AiSessionManager CreateAiSessionManager(AppPaths paths, IFileStore store, ProjectRegistry registry)
     {
         var presets = new DotDeck.Core.AiCli.Presets.SessionPresetStore(store, paths.AiSessionsFile);
@@ -138,6 +149,9 @@ public partial class App : Application
             Presets = presets,
             BackupProtector = new DpapiBackupProtector(),
             RecycleBin = _log is null ? null : new WindowsRecycleBin(_log),
+            // Overridable like the other catalogs (%APPDATA%\DotDeck\catalogs\<CLI>\system-records.json).
+            ClaudeSystemRecords = LoadSystemRecords(DotDeck.Core.AiCli.Snapshots.SystemRecordPolicy.ClaudeResource, store, paths),
+            CodexSystemRecords = LoadSystemRecords(DotDeck.Core.AiCli.Snapshots.SystemRecordPolicy.CodexResource, store, paths),
         });
         return _aiSessions;
     }

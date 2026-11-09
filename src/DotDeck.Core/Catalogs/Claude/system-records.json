@@ -1,0 +1,26 @@
+{
+  // Files Claude Code writes for itself in its config folder (<home>\.claude: ~/.claude, or the sandbox home's .claude).
+  // A session rooted at that folder neither backs these up nor lists them for review.
+  // "/name" is a file, "/name/" a folder with everything below it. Paths are relative to the config folder.
+  // Measured with Claude Code 2.1.319 in a sandbox config folder (2026-11-09); unverified entries are not listed.
+  // A Claude tool write (Write/Edit) to any of these is still captured and reviewed as a user change.
+  "schemaVersion": 1,
+  "paths": [
+    "/.claude.json",
+    "/.credentials.json",
+    "/history.jsonl",
+    "/backups/",
+    "/cache/",
+    "/sessions/",
+    "/session-env/",
+    "/plugins/synced/",
+    "/plugins/cache/",
+    "/skills/synced/",
+    "/projects/",
+    "/file-history/",
+    "/todos/",
+    "/shell-snapshots/",
+    "/statsig/",
+    "/debug/"
+  ]
+}

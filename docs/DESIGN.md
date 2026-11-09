@@ -639,6 +639,16 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - AI 작업 패널: 대화형 세션은 "터미널 보기"로 탭을 열거나 다시 만든다(종료 후에도 재생 버퍼 표시). 출력 목록 대신 안내 문구.
 - 미확인(수동): 실제 Claude TUI 표시·한글 IME·크기 조절, 대화형에서 가드 훅 deny 표시. 샌드박스 로그인이 필요해 5b 끝 수동 확인 항목으로 둔다.
 
+### CLI 시스템 기록 (사용자 결정 2026-11-09)
+- 문제: 범위 루트가 CLI 설정 폴더(Claude 전역 = `CLAUDE_CONFIG_DIR`/`~\.claude`)이면 Claude Code가 시작·종료 때 스스로 쓰는 기록(`.claude.json`, `history.jsonl`, `backups\`, `sessions\`, `plugins\synced\`·`plugins\cache\`, `skills\synced\` 등)이 세션 변경으로 잡혀 매번 변경 검토 창이 뜨고, 시작 캡처가 이 파일들을 백업했다. 샌드박스 실측(2.1.319): 한 세션에서 바뀐 21개 중 사용자 작업은 1개.
+- 판정(사용자 승인): ① Claude 도구(Write/Edit 등)가 쓴 파일 → 경로와 무관하게 사용자 작업(가드가 쓰기 직전 캡처, 캡처된 경로는 항상 요약) ② 도구 기록 없음 + 시스템 기록 카탈로그 → CLI 시스템 기록: 색인·시작 캡처·변경 요약·되돌리기에서 제외 ③ 도구 기록 없음 + 카탈로그 밖 → 출처 불명이므로 사용자 작업으로 취급(셸 명령·외부 편집·카탈로그에 없는 새 CLI 기록).
+- 구현: Core `SystemRecordPolicy`(설정 폴더 기준 상대 경로, `/파일`·`/폴더/`, 대소문자 무시, `..`·드라이브 경로 무시). 카탈로그는 내장 `Catalogs/{Claude,Codex}/system-records.json`(schemaVersion 1), `%APPDATA%\DotDeck\catalogs\<CLI>\system-records.json`으로 덮어쓰기. `SnapshotRoot.SystemRecords`를 `AiSessionManager`가 `AppPaths.ClaudeHome`/`CodexHome`와의 상대 위치에 맞춰 채운다(관련 없는 일반 프로젝트는 모든 파일 유지). `ScopeIndex.Build`는 시스템 폴더를 내려가지 않고 시스템 파일을 색인하지 않으며, `SessionSnapshots.IsInScope`도 제외 → 시작 캡처(열린 문서 포함)에서 빠지고, 도구가 쓴 경우는 사전 캡처 또는 도구 경로 기록으로 요약된다.
+- Claude 카탈로그: `.claude.json`, `.credentials.json`(로그인 정보: SPEC 2.3 비밀 패턴에 없어 이전에는 시작 캡처될 수 있었음), `history.jsonl`, `backups\`, `cache\`, `sessions\`, `session-env\`, `plugins\synced\`·`plugins\cache\`, `skills\synced\`, 기존 기본 제외 폴더(`projects\`, `file-history\`, `todos\`, `shell-snapshots\`, `statsig\`, `debug\`). `settings.json`은 사용자 설정이기도 해서 넣지 않는다(③). Codex는 `sessions\`, `log\`만(5c에서 실측 후 보강).
+- 루트 위치(Codex 지적 반영): 카탈로그는 루트가 설정 폴더와 같을 때뿐 아니라 설정 폴더를 품은 상위 루트(홈 등, 경로 앞에 상대 경로를 붙임)와 설정 폴더 안의 하위 루트(아래 항목만, 루트가 시스템 폴더면 전부)에도 적용하고, Claude·Codex 카탈로그를 합친다(`SystemRecordPolicy.RelativeTo`·`Combine`).
+- 시작 색인에 없던 경로(제외 폴더·시스템 기록·잘린 색인)가 사전 캡처 후 삭제되면 `StartStateUnknown`으로 되돌리기를 막는다(세션 중 생성→재수정→삭제된 파일을 세션 중 내용으로 다시 만들지 않음, Codex 지적 반영).
+- 보류(Codex P3): 루트가 정션·8.3·최종 경로 형태라 `AppPaths`와 문자열이 다르면 카탈로그가 적용되지 않음(시스템 기록이 다시 보일 뿐, 안전 쪽). 사용자 환경 변수 `CLAUDE_CONFIG_DIR`로 옮긴 설정 폴더는 `AppPaths.ClaudeHome`이 아니므로 대상 아님.
+- 도구 기록 보완: 가드는 원본 캡처와 별개로 세션 백업 폴더의 `tool-writes/`에 경로·첫 도구 호출 전 존재 여부만 원자적으로 기록한다(파일 내용 없음, 프로세스 간 캡처 락 공유). 새 파일·대용량·바이너리도 시스템 기록 경로에 도구가 쓰면 검토에 표시하되, 시작 상태나 원본을 확인할 수 없으면 되돌리기는 막는다. 원본 캡처 없이 생성 후 삭제되어 남지 않은 경로는 표시하지 않는다. 분류는 표시·백업만 바꾸며 가드의 범위·비밀 파일 판정은 그대로다.
+
 ### 단계 (각 1커밋, 빌드 → 테스트 → `/codex-review` → 커밋)
 - 5a: 0 설계 문서 / 1 범위 모델 / 2 경로 정규화·범위 검사기 / 3 가드 판정·셸 분석 / 4 가드 모드·scope.json 갱신(+stdio·콜드 스타트·병합 실측) / 5 명령줄 빌더·CLI 탐색 / 6 프리셋·컨텍스트 / 7 Job 실행기·세션 관리자 / 8 스냅샷·변경 요약·되돌리기 / 9 세션 시작 대화상자·진입점 / 10 AI 작업 패널·변경 요약 대화상자 / 11 CHANGELOG·HANDOFF.
 - 5b: ConPTY / xterm 번들 / 터미널 패널 / 대화형 세션 탭·범위 칩 / PowerShell 터미널 / 변경 검토 연결 + 스크린샷 확인.

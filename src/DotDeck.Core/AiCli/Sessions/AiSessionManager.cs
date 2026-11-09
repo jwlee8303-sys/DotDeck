@@ -89,6 +89,12 @@ public sealed record AiSessionEnvironment
 
     public SnapshotLimits SnapshotLimits { get; init; } = new();
 
+    /// <summary>Claude Code's own records in <see cref="AppPaths.ClaudeHome"/> (left out of snapshots and summaries).</summary>
+    public SystemRecordPolicy ClaudeSystemRecords { get; init; } = SystemRecordPolicy.Claude;
+
+    /// <summary>Codex CLI's own records in <see cref="AppPaths.CodexHome"/>.</summary>
+    public SystemRecordPolicy CodexSystemRecords { get; init; } = SystemRecordPolicy.Codex;
+
     /// <summary>Where reverted "created" files go. Without one, such reverts are refused (never a permanent delete).</summary>
     public IRecycleBin? RecycleBin { get; init; }
 }
@@ -463,7 +469,7 @@ public sealed class AiSessionManager : IDisposable
                 .GroupBy(p => p.Root, StringComparer.OrdinalIgnoreCase)
                 .Select(g => new SnapshotRoot(g.Key, projects.FirstOrDefault(d => d.Id == g.First().ProjectId) is { } definition
                     ? ExcludedFolderPolicy.For(definition)
-                    : new ExcludedFolderPolicy(ExcludedFolderPolicy.CommonDefaults)))];
+                    : new ExcludedFolderPolicy(ExcludedFolderPolicy.CommonDefaults)) { SystemRecords = SystemRecordsFor(g.Key) })];
             session.Snapshot = SessionSnapshots.Capture(
                 session.SnapshotRoots, request.OpenDocuments, _env.Store, OpenBackups(session), _env.SnapshotLimits);
         }
@@ -558,6 +564,14 @@ public sealed class AiSessionManager : IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// The CLI system records under a scope root: the root may be a CLI config folder, contain one (the home folder)
+    /// or lie inside one. Any CLI may write there, so both catalogs apply regardless of the session's CLI.
+    /// </summary>
+    private SystemRecordPolicy SystemRecordsFor(string root) => SystemRecordPolicy.Combine(
+        _env.ClaudeSystemRecords.RelativeTo(_env.Paths.ClaudeHome, root),
+        _env.CodexSystemRecords.RelativeTo(_env.Paths.CodexHome, root));
 
     /// <summary>The session's own backup store (start capture and pre-write captures).</summary>
     public BackupStore OpenBackups(AiSession session)

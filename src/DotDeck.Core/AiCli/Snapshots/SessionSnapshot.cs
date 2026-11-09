@@ -1,6 +1,9 @@
 using DotDeck.Core.Documents;
 using DotDeck.Core.Explorer;
 using DotDeck.Core.Files;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace DotDeck.Core.AiCli.Snapshots;
 
@@ -77,6 +80,17 @@ public static class SessionSnapshots
             // both capture, or the second could keep content written after the first write. The short wait keeps
             // the hook well inside its time limit; when it runs out the write goes ahead uncaptured.
             using var _ = store.AcquireLock(Path.Combine(sessionBackups.BackupsDirectory, CaptureLockFile), limits.PreWriteLockTimeout);
+            // Keep tool provenance even when there is no original to capture (new, large or binary files).
+            var writes = Path.Combine(sessionBackups.BackupsDirectory, ToolWritesFolder);
+            var full = Path.GetFullPath(path);
+            var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(full.ToUpperInvariant())));
+            var record = Path.Combine(writes, key + ".json");
+            if (!store.FileExists(record))
+            {
+                store.CreateDirectory(writes);
+                store.WriteAllTextAtomic(record, JsonSerializer.Serialize(new ToolWrite(full, store.FileExists(full))));
+            }
+
             if (sessionBackups.ListFor(path).Count > 0 || ReadCapturable(store, path, limits) is not { } bytes)
             {
                 return false;
@@ -92,8 +106,48 @@ public static class SessionSnapshots
     }
 
     private const string CaptureLockFile = "capture.lock";
+    private const string ToolWritesFolder = "tool-writes";
 
-    /// <summary>Inside one of the roots and not under an excluded folder (lexical; reading the file refuses links).</summary>
+    internal sealed record ToolWrite(string Path, bool Existed);
+
+    internal static IReadOnlyList<ToolWrite> ReadToolWrites(IFileStore store, BackupStore backups)
+    {
+        var result = new List<ToolWrite>();
+        var folder = Path.Combine(backups.BackupsDirectory, ToolWritesFolder);
+        try
+        {
+            if (!store.DirectoryExists(folder))
+            {
+                return result;
+            }
+
+            foreach (var entry in store.GetChildren(folder).Where(e => !e.IsDirectory && !e.IsReparsePoint && e.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)))
+            {
+                try
+                {
+                    if (JsonSerializer.Deserialize<ToolWrite>(store.ReadAllText(entry.FullPath)) is { Path.Length: > 0 } write)
+                    {
+                        result.Add(write);
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+                {
+                    // A missing or damaged provenance record must not prevent review of other changes.
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The existing index and content backups still provide the ordinary change summary.
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Inside one of the roots and not under an excluded folder or a CLI system record (lexical; reading the file
+    /// refuses links). A path that is not indexable this way but was captured before a tool write is still summarized.
+    /// </summary>
     internal static bool IsInScope(string path, IReadOnlyList<SnapshotRoot> roots)
     {
         string full;
@@ -114,7 +168,13 @@ public static class SessionSnapshots
                 continue;
             }
 
-            var relativeFolder = Path.GetDirectoryName(full[(rootPath.Length + 1)..]) ?? string.Empty;
+            var relativeFile = full[(rootPath.Length + 1)..];
+            if (root.SystemRecords.IsSystemFile(relativeFile))
+            {
+                continue;
+            }
+
+            var relativeFolder = Path.GetDirectoryName(relativeFile) ?? string.Empty;
             var excluded = false;
             for (var folder = relativeFolder; folder.Length > 0; folder = Path.GetDirectoryName(folder) ?? string.Empty)
             {

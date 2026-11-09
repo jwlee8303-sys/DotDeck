@@ -15,3 +15,7 @@ obj/
 *.suo
 TestResults/
 publish/
+
+# Python hook caches
+__pycache__/
+*.pyc

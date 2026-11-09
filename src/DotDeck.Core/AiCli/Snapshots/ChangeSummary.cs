@@ -41,10 +41,17 @@ public sealed record ChangeItem
     /// </summary>
     public bool PossiblyPreexisting { get; init; }
 
+    /// <summary>
+    /// A deleted file the start index did not list (excluded folder, CLI system record or cut-short index): its kept
+    /// content is from a write during the session, and it may not have existed at the start, so it is never recreated.
+    /// </summary>
+    public bool StartStateUnknown { get; init; }
+
     /// <summary>Created files go to the recycle bin; others need their previous content.</summary>
     public string? RevertBlockedReason => Kind switch
     {
         ChangeKind.Created when PossiblyPreexisting => "시작 시 색인이 잘려 새 파일인지 확인할 수 없습니다. 직접 확인하세요.",
+        ChangeKind.Deleted when StartStateUnknown => "세션 시작 때 있던 파일인지 확인할 수 없어 다시 만들지 않습니다.",
         ChangeKind.Created => null,
         _ when PreviousFile is null => IsSecret ? "비밀 파일은 이전 내용을 보관하지 않습니다." : "이전 내용이 기록되지 않았습니다(큰 파일·바이너리 또는 캡처 범위 밖).",
         _ => null,
@@ -128,12 +135,47 @@ public static class ChangeSummaryBuilder
                 && items.All(i => !string.Equals(i.Path, path, StringComparison.OrdinalIgnoreCase)))
             {
                 var exists = now.Files.TryGetValue(path, out var after) || store.FileExists(path);
-                var item = Item(path, exists ? ChangeKind.Modified : ChangeKind.Deleted, null, after, previous, store, limits) with { OldLength = kept.File.Length };
+                var item = Item(path, exists ? ChangeKind.Modified : ChangeKind.Deleted, null, after, previous, store, limits) with
+                {
+                    OldLength = kept.File.Length,
+                    StartStateUnknown = !exists,
+                };
                 if (!(exists && item.CurrentSha256 is { } sha && SameContent(sessionBackups, kept.Set, kept.File, sha)))
                 {
                     items.Add(item);
                 }
             }
+        }
+
+        // System records are absent from both indexes. A tool write is user work even without a content backup.
+        foreach (var write in SessionSnapshots.ReadToolWrites(store, sessionBackups))
+        {
+            if (previous.ContainsKey(write.Path) || SessionSnapshots.IsInScope(write.Path, start.Roots)
+                || items.Any(i => string.Equals(i.Path, write.Path, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            DotDeck.Core.Files.FileSystemEntry? entry;
+            try
+            {
+                entry = store.GetEntry(write.Path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                items.Add(Item(write.Path, ChangeKind.Modified, null, null, previous, store, limits));
+                continue;
+            }
+            if (entry is null && !write.Existed)
+            {
+                continue;
+            }
+
+            var after = entry is { IsDirectory: false } ? new IndexEntry(write.Path, entry.Length, entry.LastWriteTimeUtc) : null;
+            items.Add(Item(write.Path, after is null ? ChangeKind.Deleted : ChangeKind.Modified, null, after, previous, store, limits) with
+            {
+                StartStateUnknown = after is null,
+            });
         }
 
         return new ChangeSummary([.. items.OrderBy(i => i.Path, StringComparer.OrdinalIgnoreCase)], start.Index.Truncated || now.Truncated);

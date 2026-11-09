@@ -23,7 +23,11 @@ public sealed record SnapshotLimits
 }
 
 /// <summary>One root of the indexed scope with its project's excluded folders.</summary>
-public sealed record SnapshotRoot(string Path, ExcludedFolderPolicy Excluded);
+public sealed record SnapshotRoot(string Path, ExcludedFolderPolicy Excluded)
+{
+    /// <summary>CLI system records under this root (when it is a CLI config folder): never indexed or captured.</summary>
+    public SystemRecordPolicy SystemRecords { get; init; } = SystemRecordPolicy.None;
+}
 
 /// <summary>One indexed file.</summary>
 public sealed record IndexEntry(string Path, long Length, DateTime LastWriteTimeUtc);
@@ -68,11 +72,16 @@ public sealed record ScopeIndex(IReadOnlyDictionary<string, IndexEntry> Files, b
                     var childRelative = relative.Length == 0 ? child.Name : relative + "\\" + child.Name;
                     if (child.IsDirectory)
                     {
-                        if (!child.IsReparsePoint && !root.Excluded.IsExcluded(childRelative))
+                        if (!child.IsReparsePoint && !root.Excluded.IsExcluded(childRelative) && !root.SystemRecords.IsSystemFolder(childRelative))
                         {
                             pending.Push((child.FullPath, childRelative));
                         }
 
+                        continue;
+                    }
+
+                    if (root.SystemRecords.IsSystemFile(childRelative))
+                    {
                         continue;
                     }
 

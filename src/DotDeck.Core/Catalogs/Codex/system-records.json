@@ -1,0 +1,10 @@
+{
+  // Files Codex CLI writes for itself in its home folder (<home>\.codex: ~/.codex, or the sandbox home's .codex).
+  // Same rules as Claude/system-records.json. Only the folders already hidden by default are listed;
+  // the rest is measured when Codex sessions are added (Phase 5c).
+  "schemaVersion": 1,
+  "paths": [
+    "/sessions/",
+    "/log/"
+  ]
+}

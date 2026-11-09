@@ -52,6 +52,25 @@ public sealed class AiSessionManagerTests : IDisposable
         HeartbeatTimeout = heartbeat ?? TimeSpan.FromMinutes(5),
     });
 
+    [Fact]
+    public void Cli_system_records_apply_only_to_the_cli_config_folder()
+    {
+        var paths = Paths();
+        Directory.CreateDirectory(paths.ClaudeHome);
+        File.WriteAllText(Path.Combine(paths.ClaudeHome, ".claude.json"), "{}");
+        File.WriteAllText(Path.Combine(paths.ClaudeHome, "test.md"), "사용자 파일");
+        File.WriteAllText(Path.Combine(_main, ".claude.json"), "{}");
+        _projects.Add(new() { Id = "c", Kind = ProjectKind.Folder, Name = "Claude 설정", Root = paths.ClaudeHome });
+        using var manager = Manager(paths);
+
+        var session = manager.Start(Request("a") with { PrimaryProjectId = "c" });
+
+        var files = session.Snapshot!.Index.Files.Keys;
+        Assert.DoesNotContain(Path.Combine(paths.ClaudeHome, ".claude.json"), files);
+        Assert.Contains(Path.Combine(paths.ClaudeHome, "test.md"), files);
+        Assert.Contains(Path.Combine(_main, ".claude.json"), files); // an ordinary project keeps every file
+    }
+
     private static AiSessionStartRequest Request(params string[] additional) => new()
     {
         PrimaryProjectId = "a",

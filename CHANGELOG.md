@@ -3,6 +3,8 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-09
+
 ### Added
 - 통합 설정 메뉴 "자동백업·변경검토 제외항목": 두 독립 목록, 파일·폴더 경로 입력/선택/제거, 폴더 하위 항목 제외. 저장 전 미리보기와 AI 변경검토의 좌측 체크박스로 즉시 등록
 - AI CLI 연동 5c: 세션 전용 내장 MCP 서버(`list_projects`, `get_open_documents`, `get_active_document`, `find_files`, `open_in_editor`). 실시간 편집기 상태·선택 영역, 프로젝트 표시 필터·제외 폴더 반영, 범위 밖·비밀 파일 제외와 결과 마스킹

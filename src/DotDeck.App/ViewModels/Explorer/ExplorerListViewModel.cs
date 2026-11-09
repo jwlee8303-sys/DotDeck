@@ -58,6 +58,57 @@ public sealed partial class ExplorerListViewModel : ObservableObject
     [ObservableProperty]
     private string? _selectedPath;
 
+    // ===== File search (top of the list) =====
+
+    private const int SearchDelayMilliseconds = 250;
+
+    private int _searchVersion;
+
+    /// <summary>What is typed in the search box ("*.md", "agent", "docs\*.md; *.json").</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSearchText))]
+    private string _searchText = string.Empty;
+
+    public bool HasSearchText => SearchText.Length > 0;
+
+    /// <summary>
+    /// The filter in effect (null: no search). While set, each explorer of this list shows the matching files as a
+    /// flat list: the visible files in normal mode, every file in visibility edit mode.
+    /// </summary>
+    public FileNameFilter? SearchFilter { get; private set; }
+
+    public bool IsSearching => SearchFilter is not null;
+
+    partial void OnSearchTextChanged(string value) => _ = ApplySearchAsync(value);
+
+    /// <summary>Applies the typed text after a short pause (clearing applies at once).</summary>
+    private async Task ApplySearchAsync(string text)
+    {
+        var version = ++_searchVersion;
+        var filter = FileNameFilter.Parse(text);
+        if (filter is not null)
+        {
+            await Task.Delay(SearchDelayMilliseconds);
+            if (version != _searchVersion)
+            {
+                return;
+            }
+        }
+
+        if (string.Equals(filter?.Text, SearchFilter?.Text, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        SearchFilter = filter;
+        OnPropertyChanged(nameof(IsSearching));
+        var explorers = Rows.OfType<ProjectHeaderRowViewModel>().Select(h => h.Explorer).ToList();
+        await Task.WhenAll(explorers.Select(e => e.LoadAsync()));
+    }
+
+    [RelayCommand]
+    public void ClearSearch() => SearchText = string.Empty;
+
     public void Select(ExplorerRowViewModel? row)
     {
         if (row is null || !Rows.Contains(row))
@@ -580,7 +631,7 @@ public sealed partial class ExplorerListViewModel : ObservableObject
     /// </summary>
     public static ExplorerViewModel? FlatReorderTarget(IReadOnlyList<string> paths, ExplorerRowViewModel? row) =>
         row is NodeRowViewModel { IsFolder: false, Depth: 0, Node.IsPinned: false } file
-        && file.Explorer is { IsFlatMode: true, IsCustomFlatSort: true, IsEditingVisibility: false } explorer
+        && file.Explorer is { IsFlatMode: true, IsCustomFlatSort: true, IsEditingVisibility: false, List.IsSearching: false } explorer
         && paths.Count > 0
         && paths.All(p => explorer.BodyRows.OfType<NodeRowViewModel>().Any(r => r is { IsFolder: false, Depth: 0 } && string.Equals(r.Node.FullPath, p, StringComparison.OrdinalIgnoreCase)))
             ? explorer

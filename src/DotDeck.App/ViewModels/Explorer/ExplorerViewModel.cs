@@ -146,7 +146,10 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public async Task LoadAsync()
     {
         var version = ++_loadVersion;
-        if (Header.IsCollapsed)
+        var filter = List.SearchFilter;
+
+        // A search lists the matches of collapsed projects too.
+        if (Header.IsCollapsed && filter is null)
         {
             ReplaceBody([]);
             return;
@@ -155,6 +158,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
         Header.IsLoading = true;
         try
         {
+            if (filter is not null)
+            {
+                await LoadSearchResultsAsync(version, filter);
+                return;
+            }
+
             TreeBuildResult result;
             IReadOnlyList<TreeRow> customRows;
             IProjectSource source;
@@ -246,6 +255,90 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 Header.IsLoading = false;
             }
         }
+    }
+
+    /// <summary>
+    /// Search (list's search box): the matching files as one flat list. Normal mode searches what is visible; edit mode
+    /// searches every item (its check boxes keep working). Expansion state is left alone.
+    /// </summary>
+    private async Task LoadSearchResultsAsync(int version, FileNameFilter filter)
+    {
+        FileSearchResult result;
+        IReadOnlyList<NodeInfo> customMatches;
+        IProjectSource source;
+        while (true)
+        {
+            source = BuildSource();
+            var current = source;
+            (result, customMatches) = await Task.Run(() =>
+            {
+                var found = ExplorerFileSearch.Find(current, filter);
+
+                // No root listing: the "사용자 지정 파일" (files anywhere) are still searched, like the tree shows them.
+                var custom = current is CustomFilesProjectSource wrapper && (found.RootState == ProjectRootState.Missing || found.RootError is not null)
+                    ? ExplorerFileSearch.Find(wrapper.NodeOnly(), filter).Files
+                    : [];
+                return (found, custom);
+            });
+            if (version != _loadVersion)
+            {
+                return;
+            }
+
+            // Same as a tree load: do not drop an in-place editor the user started meanwhile.
+            if (BodyRows.OfType<IEditableRow>().Any(r => r.IsEditing))
+            {
+                while (BodyRows.OfType<IEditableRow>().Any(r => r.IsEditing))
+                {
+                    await Task.Delay(300);
+                    if (version != _loadVersion)
+                    {
+                        return;
+                    }
+                }
+
+                continue;
+            }
+
+            break;
+        }
+
+        if (_selectionOverride is { } requested)
+        {
+            _pendingSelectionKey = requested;
+            _selectionOverride = null;
+        }
+        else if (BodyRows.OfType<NodeRowViewModel>().FirstOrDefault(r => r.IsSelected) is { } selected)
+        {
+            _pendingSelectionKey = selected.Key;
+        }
+
+        List<ExplorerRowViewModel> body;
+        if (result.RootState == ProjectRootState.Missing || result.RootError is not null)
+        {
+            body =
+            [
+                .. customMatches.Select(f => CreateNodeRow(new TreeRow(f, 0, false))),
+                .. CreateBody(new TreeBuildResult(result.RootState, [], result.RootError, new HashSet<string>()), filtered: false),
+            ];
+        }
+        else if (result.Files.Count == 0)
+        {
+            body = [new MessageRowViewModel(this, "(검색 결과 없음)")];
+        }
+        else
+        {
+            body = [.. result.Files.Select(f => CreateNodeRow(new TreeRow(f, 0, false)))];
+        }
+
+        if (result.IsTruncated || CustomFilesProjectSource.Unwrap(source) is VisibleProjectSource { IsTruncated: true })
+        {
+            body.Add(new MessageRowViewModel(this, "결과가 많아 일부만 표시합니다. 검색어를 더 구체적으로 입력하세요."));
+        }
+
+        ReplaceBody(body);
+        RestoreSelection();
+        UpdateWatcher();
     }
 
     /// <summary>True when <paramref name="path"/> is this project's root or inside it.</summary>
@@ -520,6 +613,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         }
 
         RemoveSegment();
+        var searchChanged = !string.Equals(List.SearchFilter?.Text, target.SearchFilter?.Text, StringComparison.Ordinal);
         List = target;
         for (var i = 0; i < rows.Count; i++)
         {
@@ -529,6 +623,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
         if (wasSelected is not null)
         {
             target.Select(wasSelected);
+        }
+
+        // The new list searches for something else (or nothing): show what it asks for.
+        if (searchChanged)
+        {
+            _ = LoadAsync();
         }
     }
 
@@ -691,7 +791,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
             while (_watchDirty && !_removed)
             {
                 _watchDirty = false;
-                if (!Header.IsCollapsed)
+                // A search lists collapsed projects too, so their results follow changes as well.
+                if (!Header.IsCollapsed || List.IsSearching)
                 {
                     await LoadAsync();
                 }
@@ -716,6 +817,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         OnPropertyChanged(nameof(IsCompactMode));
         OnPropertyChanged(nameof(IsFlatMode));
         OnPropertyChanged(nameof(IsCustomFlatSort));
+        OnPropertyChanged(nameof(ViewModeText));
     }
 
     private List<ExplorerRowViewModel> CreateBody(TreeBuildResult result, bool filtered)
@@ -763,6 +865,14 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public bool IsFlatMode => SupportsVisibility && Project.View.Mode == ExplorerViewMode.Flat;
 
     public bool IsCustomFlatSort => Project.View.FlatSort == FlatSort.Custom;
+
+    /// <summary>Label of the view mode drop-down in the header.</summary>
+    public string ViewModeText => Project.View.Mode switch
+    {
+        ExplorerViewMode.Tree => "트리",
+        ExplorerViewMode.Flat => "평면",
+        _ => "압축",
+    };
 
     /// <summary>The extensions in effect for this project (its own list or the global default).</summary>
     public IReadOnlyList<string> Extensions => Project.Visibility.EffectiveExtensions(_context.Preferences.GlobalExtensions);
@@ -1056,6 +1166,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
         }
 
         _selectionOverride = key.Length == 0 ? null : key;
+
+        // The tree, not search results: the search box is cleared (the reload below shows the tree).
+        List.ClearSearch();
         if (_editor is null)
         {
             await ToggleVisibilityEditAsync();

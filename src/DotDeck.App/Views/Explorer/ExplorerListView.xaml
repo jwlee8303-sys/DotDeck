@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:DotDeck.App.Converters"
+             xmlns:local="clr-namespace:DotDeck.App.Views.Explorer"
              xmlns:ex="clr-namespace:DotDeck.App.ViewModels.Explorer"
              xmlns:core="clr-namespace:DotDeck.Core.Explorer;assembly=DotDeck.Core"
              xmlns:vis="clr-namespace:DotDeck.Core.Explorer.Visibility;assembly=DotDeck.Core"
@@ -14,6 +15,7 @@
         <BooleanToVisibilityConverter x:Key="TrueToVisible" />
         <conv:FalseToVisibleConverter x:Key="FalseToVisible" />
         <conv:InvertBooleanConverter x:Key="Invert" />
+        <conv:EmptyToVisibleConverter x:Key="EmptyToVisible" />
 
         <Style x:Key="RowGlyph" TargetType="TextBlock" BasedOn="{StaticResource DD.Glyph}">
             <Setter Property="FontSize" Value="14" />
@@ -131,8 +133,6 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <!-- Project root: a filled accent badge with a solid caret, distinct from the plain folder chevrons. -->
                 <Border Width="16" Height="16" CornerRadius="3" VerticalAlignment="Center" Margin="0,0,1,0"
@@ -143,47 +143,89 @@
                 </Border>
                 <Border Grid.Column="1" Width="3" Height="14" Margin="2,0,6,0" VerticalAlignment="Center"
                         Background="{Binding Color, TargetNullValue=Transparent}" />
-                <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <Button x:Name="RootCheck" Style="{StaticResource CheckButton}"
-                            Command="{Binding Explorer.ToggleCheckCommand}" CommandParameter="{Binding}"
-                            Visibility="{Binding CheckState, Converter={StaticResource NullToCollapsed}}">
-                        <TextBlock x:Name="RootCheckGlyph" Style="{StaticResource DD.Glyph}" FontSize="13" Text="&#xE739;" />
-                    </Button>
-                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-                <Button Grid.Column="4" Content="편집 끝내기" Margin="4,0" Padding="6,0"
-                        Command="{Binding Explorer.ToggleVisibilityEditCommand}" ToolTip="체크한 항목을 저장하고 보통 보기로 돌아갑니다"
-                        Visibility="{Binding Explorer.IsEditingVisibility, Converter={StaticResource TrueToVisible}}" />
-                <StackPanel x:Name="Toolbar" Grid.Column="3" Orientation="Horizontal" Visibility="Hidden">
-                    <!-- Plain Buttons: a ToggleButton would overwrite its IsChecked binding on click. Tag = "on". -->
-                    <StackPanel Orientation="Horizontal" Margin="0,0,4,0"
-                                Visibility="{Binding Explorer.SupportsVisibility, Converter={StaticResource TrueToVisible}}">
-                        <Button Style="{StaticResource HeaderTextButton}" Content="트리" Tag="{Binding Explorer.IsTreeMode}"
-                                Command="{Binding Explorer.SetViewModeCommand}" CommandParameter="Tree" ToolTip="트리 보기" />
-                        <Button Style="{StaticResource HeaderTextButton}" Content="압축" Tag="{Binding Explorer.IsCompactMode}"
-                                Command="{Binding Explorer.SetViewModeCommand}" CommandParameter="Compact"
-                                ToolTip="압축 트리: 하위 폴더가 하나뿐인 폴더를 한 줄로 합칩니다" />
-                        <Button Style="{StaticResource HeaderTextButton}" Content="평면" Tag="{Binding Explorer.IsFlatMode}"
-                                Command="{Binding Explorer.SetViewModeCommand}" CommandParameter="Flat"
-                                ToolTip="평면: 보이는 파일만 한 목록으로" />
-                        <Button Style="{StaticResource HeaderButton}" Tag="{Binding Explorer.IsEditingVisibility}"
-                                Command="{Binding Explorer.ToggleVisibilityEditCommand}" ToolTip="보이는 항목 편집 (✎)">
-                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE70F;" />
+                <!-- Name first: when the pane narrows, the tools fold into "…" before the name is cut. -->
+                <local:OverflowToolsPanel Grid.Column="2">
+                    <DockPanel>
+                        <Button x:Name="RootCheck" DockPanel.Dock="Left" Style="{StaticResource CheckButton}"
+                                Command="{Binding Explorer.ToggleCheckCommand}" CommandParameter="{Binding}"
+                                Visibility="{Binding CheckState, Converter={StaticResource NullToCollapsed}}">
+                            <TextBlock x:Name="RootCheckGlyph" Style="{StaticResource DD.Glyph}" FontSize="13" Text="&#xE739;" />
+                        </Button>
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                    <StackPanel x:Name="Toolbar" Orientation="Horizontal" Visibility="Hidden">
+                        <Button Content="편집 끝내기" Margin="4,0" Padding="6,0" Focusable="False"
+                                Command="{Binding Explorer.ToggleVisibilityEditCommand}" ToolTip="체크한 항목을 저장하고 보통 보기로 돌아갑니다"
+                                Visibility="{Binding Explorer.IsEditingVisibility, Converter={StaticResource TrueToVisible}}" />
+                        <!-- Plain Buttons: a ToggleButton would overwrite its IsChecked binding on click. Tag = "on". -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,4,0"
+                                    Visibility="{Binding Explorer.SupportsVisibility, Converter={StaticResource TrueToVisible}}">
+                            <!-- View mode: one drop-down showing the current mode; a click opens the choices. -->
+                            <Button Style="{StaticResource HeaderTextButton}" Click="OnDropDownButtonClick"
+                                    ToolTip="보기 방식: 트리 / 압축 트리 / 평면">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Explorer.ViewModeText}" VerticalAlignment="Center" />
+                                    <TextBlock Style="{StaticResource DD.Glyph}" FontSize="8" Margin="4,1,0,0" Text="&#xE70D;" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="트리" Command="{Binding Explorer.SetViewModeCommand}" CommandParameter="Tree"
+                                                  IsCheckable="True" IsChecked="{Binding Explorer.IsTreeMode, Mode=OneWay}" />
+                                        <MenuItem Header="압축 트리" Command="{Binding Explorer.SetViewModeCommand}" CommandParameter="Compact"
+                                                  IsCheckable="True" IsChecked="{Binding Explorer.IsCompactMode, Mode=OneWay}"
+                                                  ToolTip="하위 폴더가 하나뿐인 폴더를 한 줄로 합칩니다" />
+                                        <MenuItem Header="평면" Command="{Binding Explorer.SetViewModeCommand}" CommandParameter="Flat"
+                                                  IsCheckable="True" IsChecked="{Binding Explorer.IsFlatMode, Mode=OneWay}"
+                                                  ToolTip="보이는 파일만 한 목록으로" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                            <Button Style="{StaticResource HeaderButton}" Tag="{Binding Explorer.IsEditingVisibility}"
+                                    Command="{Binding Explorer.ToggleVisibilityEditCommand}" ToolTip="보이는 항목 편집 (✎)">
+                                <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE70F;" />
+                            </Button>
+                        </StackPanel>
+                        <Button Style="{StaticResource HeaderButton}" Command="{Binding Explorer.CollapseAllCommand}" ToolTip="모두 접기">
+                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE70E;" />
+                        </Button>
+                        <Button Style="{StaticResource HeaderButton}" Command="{Binding Explorer.LoadCommand}" ToolTip="새로고침">
+                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE72C;" />
+                        </Button>
+                        <Button Style="{StaticResource HeaderButton}" Command="{Binding Explorer.CopyRootPathCommand}" ToolTip="루트 경로 복사">
+                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE8C8;" />
+                        </Button>
+                        <Button Style="{StaticResource HeaderButton}" Command="{Binding Explorer.RevealRootCommand}" ToolTip="Windows 탐색기에서 열기">
+                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE838;" />
                         </Button>
                     </StackPanel>
-                    <Button Style="{StaticResource HeaderButton}" Command="{Binding Explorer.CollapseAllCommand}" ToolTip="모두 접기">
-                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE70E;" />
+                    <!-- Shown instead of the tools when they do not fit next to the name. -->
+                    <Button x:Name="OverflowButton" Style="{StaticResource HeaderButton}" Click="OnDropDownButtonClick"
+                            ToolTip="더 보기" Visibility="Hidden">
+                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE712;" />
+                        <Button.ContextMenu>
+                            <ContextMenu Opened="OnContextMenuOpened">
+                                <MenuItem Header="편집 끝내기(_E)" Command="{Binding Explorer.ToggleVisibilityEditCommand}"
+                                          Visibility="{Binding Explorer.IsEditingVisibility, Converter={StaticResource TrueToVisible}}" />
+                                <MenuItem Header="보기(_B)" Visibility="{Binding Explorer.SupportsVisibility, Converter={StaticResource TrueToVisible}}">
+                                    <MenuItem Header="트리" Command="{Binding Explorer.SetViewModeCommand}" CommandParameter="Tree"
+                                              IsCheckable="True" IsChecked="{Binding Explorer.IsTreeMode, Mode=OneWay}" />
+                                    <MenuItem Header="압축 트리" Command="{Binding Explorer.SetViewModeCommand}" CommandParameter="Compact"
+                                              IsCheckable="True" IsChecked="{Binding Explorer.IsCompactMode, Mode=OneWay}" />
+                                    <MenuItem Header="평면" Command="{Binding Explorer.SetViewModeCommand}" CommandParameter="Flat"
+                                              IsCheckable="True" IsChecked="{Binding Explorer.IsFlatMode, Mode=OneWay}" />
+                                </MenuItem>
+                                <MenuItem Header="보이는 항목 편집(_I)" Command="{Binding Explorer.ToggleVisibilityEditCommand}"
+                                          IsCheckable="True" IsChecked="{Binding Explorer.IsEditingVisibility, Mode=OneWay}"
+                                          Visibility="{Binding Explorer.SupportsVisibility, Converter={StaticResource TrueToVisible}}" />
+                                <Separator Visibility="{Binding Explorer.SupportsVisibility, Converter={StaticResource TrueToVisible}}" />
+                                <MenuItem Header="모두 접기(_O)" Command="{Binding Explorer.CollapseAllCommand}" />
+                                <MenuItem Header="새로고침(_R)" Command="{Binding Explorer.LoadCommand}" />
+                                <MenuItem Header="루트 경로 복사(_C)" Command="{Binding Explorer.CopyRootPathCommand}" />
+                                <MenuItem Header="Windows 탐색기에서 열기(_X)" Command="{Binding Explorer.RevealRootCommand}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
                     </Button>
-                    <Button Style="{StaticResource HeaderButton}" Command="{Binding Explorer.LoadCommand}" ToolTip="새로고침">
-                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE72C;" />
-                    </Button>
-                    <Button Style="{StaticResource HeaderButton}" Command="{Binding Explorer.CopyRootPathCommand}" ToolTip="루트 경로 복사">
-                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE8C8;" />
-                    </Button>
-                    <Button Style="{StaticResource HeaderButton}" Command="{Binding Explorer.RevealRootCommand}" ToolTip="Windows 탐색기에서 열기">
-                        <TextBlock Style="{StaticResource DD.Glyph}" FontSize="12" Text="&#xE838;" />
-                    </Button>
-                </StackPanel>
+                </local:OverflowToolsPanel>
             </Grid>
             </Border>
             <DataTemplate.Triggers>
@@ -201,16 +243,20 @@
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Explorer.IsEditingVisibility}" Value="True">
                     <Setter TargetName="Toolbar" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="OverflowButton" Property="Visibility" Value="Visible" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding RootPath}" Value="{x:Null}">
                     <!-- Virtual project: no folder tools -->
                     <Setter TargetName="Toolbar" Property="IsEnabled" Value="False" />
+                    <Setter TargetName="OverflowButton" Property="IsEnabled" Value="False" />
                 </DataTrigger>
                 <Trigger SourceName="Root" Property="IsMouseOver" Value="True">
                     <Setter TargetName="Toolbar" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="OverflowButton" Property="Visibility" Value="Visible" />
                 </Trigger>
                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                     <Setter TargetName="Toolbar" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="OverflowButton" Property="Visibility" Value="Visible" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -414,6 +460,25 @@
     </UserControl.Resources>
 
     <DockPanel>
+        <!-- File search: matching files of every project in this list ("*.md", "agent", "docs\*.md; *.json"). -->
+        <Border DockPanel.Dock="Top" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource DD.Brush.Border}" Padding="4,3">
+            <Grid>
+                <TextBox x:Name="SearchBox" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Padding="20,1,22,1"
+                         AutomationProperties.Name="파일 검색" PreviewKeyDown="OnSearchBoxPreviewKeyDown"
+                         ToolTip="파일 이름 검색: 일부 글자, 와일드카드(*.md, a?.json), 경로(agents\*.md). 여러 개는 ; 로 구분. Esc: 지우기" />
+                <TextBlock Style="{StaticResource DD.Glyph}" FontSize="11" Margin="6,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                           Foreground="{DynamicResource DD.Brush.Text.Secondary}" IsHitTestVisible="False" Text="&#xE721;" />
+                <TextBlock Margin="22,0,24,0" VerticalAlignment="Center" IsHitTestVisible="False" FontStyle="Italic"
+                           Style="{StaticResource DD.Text.Secondary}" TextTrimming="CharacterEllipsis" Text="파일 검색 (예: *.md)"
+                           Visibility="{Binding SearchText, Converter={StaticResource EmptyToVisible}}" />
+                <Button Style="{StaticResource HeaderButton}" HorizontalAlignment="Right" Margin="0,0,2,0" Width="18" Height="18"
+                        Command="{Binding ClearSearchCommand}" ToolTip="검색 지우기 (Esc)"
+                        Visibility="{Binding HasSearchText, Converter={StaticResource TrueToVisible}}">
+                    <TextBlock Style="{StaticResource DD.Glyph}" FontSize="9" Text="&#xE711;" />
+                </Button>
+            </Grid>
+        </Border>
+
         <!-- Breadcrumb: full path of the selection (SPEC 2.3) -->
         <Border DockPanel.Dock="Top" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource DD.Brush.Border}"
                 Background="{DynamicResource DD.Brush.Panel.Background}" MinHeight="24" ToolTip="{Binding SelectedPath}">

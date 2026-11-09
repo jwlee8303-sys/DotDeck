@@ -514,7 +514,7 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 
 ### 선행 조건 (1c 확인 결과)
 - 충족: `SafeWriter`(`ExternalChangeKind`·`ExternalChangeException`), `ExternalChangeDetector`, `ShellViewModel.Files.cs`(`ResolveConflictAsync`·자동 다시 불러오기), content/트리 `FolderWatcher`, `BackupStore`+DPAPI, `SafeWriter.Restore`, `TextDiffService`/`DiffReviewDialog`.
-- 5a에서 보완: 세션 스냅샷은 주 백업 Prune(세트 50개)과 격리된 별도 `BackupStore`(`backups\sessions\<id>\`), `SaveAllCoreAsync(): Task<bool>` 분리, Job Object·ConPTY·Named Pipe 인프라 신설(`HookRunner`는 재사용하지 않음).
+- 5a에서 보완: 세션 스냅샷은 주 백업 Prune(세트 50개)과 격리된 별도 `BackupStore`(세션 폴더 `sessions\<id>\backups\`), `SaveAllCoreAsync(): Task<bool>` 분리, Job Object·ConPTY·Named Pipe 인프라 신설(`HookRunner`는 재사용하지 않음).
 
 ### 확정 결정
 | # | 결정 |
@@ -579,6 +579,12 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - 시작: 모두 저장 후 실행 → 범위 색인(제외 폴더 적용, 링크 미추적, 상한 초과 시 "색인 생략" 표시) → 범위 내 열린 문서를 세션 BackupStore 한 세트로 → 소규모 범위는 전체 캡처.
 - 실행 중: 가드가 범위 안 Write/Edit/NotebookEdit 직전 대상 원본을 `pre-write`로 경로별 1회 캡처(Claude만).
 - 종료/`변경 검토`: 재스캔 비교로 Modified/Created/Deleted + 이전 내용 유무. 되돌리기는 `SafeWriter.Restore`(현재본 `before-restore` 백업), Created는 휴지통, 요약 후 재수정은 해시로 감지해 확인, 이전 내용이 없으면 비활성+사유. 비밀 파일 diff는 SecretPresentation 규칙, 1MB 초과·바이너리는 크기 변화만.
+- 구현 (5a-8): 세션 BackupStore는 세션 폴더의 `backups`(DPAPI, 보관 무제한, 세션 폴더와 함께 삭제). 비밀·바이너리·2MB 초과 파일은 캡처하지 않는다.
+  - 색인이 불완전하면(상한 도달 또는 읽을 수 없는 폴더) Deleted를 추정하지 않고, 시작 색인에 없던 Created는 `PossiblyPreexisting`으로 표시해 휴지통 되돌리기를 막는다. 시작 색인이 온전하면 세션 중 생성 후 다시 쓴 파일은 사전 캡처가 있어도 Created.
+  - 시작 색인에 없지만 사전 캡처된 경로(색인 생략, 제외 폴더)도 요약에 포함. 단 색인이 온전하고 색인 대상 위치였던 경로는 세션 중 생긴 파일이므로 제외(생성→재쓰기→삭제가 "삭제 복원"이 되지 않게). 캡처된 파일은 크기·시간이 같아도 해시 비교.
+  - 사전 캡처는 `<session>\backups\capture.lock` 프로세스 간 락(2초) 안에서 조회·읽기·생성. 시간 초과 시 캡처 없이 쓰기 허용(훅 10초 제한 보호).
+  - 되돌리기 직전 대상이 세션 루트 안인지, 파일부터 루트 직전까지 reparse point가 없는지 다시 확인. 비강제 되돌리기는 `SafeWriter.Restore(..., RestoreExpectation)`로 요약 시점 해시(삭제는 부재)를 쓰기 직전에 재검증.
+  - 보류: 세션 백업 내부 `.lock` 10초 대기(세션 저장소의 다른 쓰기 주체 없음), 요약 시 2MB 초과 파일의 비강제 되돌리기는 시간 비교만, 범위 안 정션 아래 열린 문서는 읽기 사본이 캡처될 수 있음(되돌리기는 차단).
 
 ### 데이터 파일
 - `sessions.json`(`%APPDATA%\DotDeck\` / 샌드박스 `<home>\.dotdeck\roaming\`): `schemaVersion`, `presets[]`(프로젝트 **ID** 참조 → 이름·루트 변경 자동 반영, 없는 ID는 경고·실행 비활성), `lastAdditional{주ID: [추가ID]}`, `conversations{scopeKey: {claude.sessionId, codex.threadId}}`. 모르는 필드 보존.

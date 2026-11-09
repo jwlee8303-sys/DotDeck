@@ -20,7 +20,13 @@ public static class GuardHost
     private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <returns>The process exit code.</returns>
-    public static int RunGuard(IReadOnlyList<string> args, Stream stdin, Stream stdout, Stream stderr, IFinalPathResolver resolver)
+    /// <param name="beforeAllowedWrite">
+    /// Called with the session folder and the target of a write tool the guard did not block (pre-write capture,
+    /// DESIGN "스냅샷"). Its failures never change the decision.
+    /// </param>
+    public static int RunGuard(
+        IReadOnlyList<string> args, Stream stdin, Stream stdout, Stream stderr, IFinalPathResolver resolver,
+        Action<string, string>? beforeAllowedWrite = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         try
@@ -37,6 +43,17 @@ public static class GuardHost
             if (json is not null)
             {
                 Write(stdout, json);
+            }
+            else if (beforeAllowedWrite is not null && WriteTargetOf(input) is { } target)
+            {
+                try
+                {
+                    beforeAllowedWrite(Path.GetDirectoryName(args[1])!, target);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    // Capture is best effort: the write goes ahead, it just cannot be reverted later.
+                }
             }
 
             return 0;
@@ -71,6 +88,34 @@ public static class GuardHost
         }
 
         return 0;
+    }
+
+    /// <summary>The normalized target of Write/Edit/MultiEdit/NotebookEdit, or null for other tools.</summary>
+    internal static string? WriteTargetOf(string hookInputJson)
+    {
+        if (System.Text.Json.Nodes.JsonNode.Parse(hookInputJson) is not System.Text.Json.Nodes.JsonObject input
+            || input["tool_input"] is not System.Text.Json.Nodes.JsonObject toolInput)
+        {
+            return null;
+        }
+
+        static string? Text(System.Text.Json.Nodes.JsonNode? node) =>
+            node is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+
+        var raw = Text(input["tool_name"]) switch
+        {
+            "Write" or "Edit" or "MultiEdit" => Text(toolInput["file_path"]),
+            "NotebookEdit" => Text(toolInput["notebook_path"]) ?? Text(toolInput["file_path"]),
+            _ => null,
+        };
+        if (raw is null)
+        {
+            return null;
+        }
+
+        var cwd = Text(input["cwd"]);
+        var normalized = PathNormalizer.Normalize(raw, cwd is not null && Path.IsPathFullyQualified(cwd) ? cwd : null);
+        return normalized is { Kind: NormalizedPathKind.Path, FullPath: { } full } ? full : null;
     }
 
     private static string ReadInput(Stream stdin)

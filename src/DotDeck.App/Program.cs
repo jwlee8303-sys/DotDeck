@@ -18,7 +18,7 @@ public static class Program
             switch (args[0])
             {
                 case GuardHost.GuardSwitch:
-                    return RunWithStdio(s => GuardHost.RunGuard(args, s.In, s.Out, s.Err, WindowsFinalPathResolver.Instance));
+                    return RunWithStdio(s => GuardHost.RunGuard(args, s.In, s.Out, s.Err, WindowsFinalPathResolver.Instance, CapturePreWrite));
                 case GuardHost.HeartbeatSwitch:
                     return RunWithStdio(s => GuardHost.RunHeartbeat(args, s.In, TimeProvider.System));
             }
@@ -27,6 +27,14 @@ public static class Program
         var app = new App();
         app.InitializeComponent();
         return app.Run();
+    }
+
+    /// <summary>Keeps the original of a file Claude is about to write, in the session's own encrypted backups.</summary>
+    private static void CapturePreWrite(string sessionDirectory, string target)
+    {
+        var store = DotDeck.Core.Files.PhysicalFileStore.Instance;
+        var backups = DotDeck.Core.AiCli.Snapshots.SessionSnapshots.OpenStore(store, sessionDirectory, TimeProvider.System, new DpapiBackupProtector());
+        DotDeck.Core.AiCli.Snapshots.SessionSnapshots.CapturePreWrite(store, backups, target, new DotDeck.Core.AiCli.Snapshots.SnapshotLimits());
     }
 
     private sealed record Stdio(Stream In, Stream Out, Stream Err);

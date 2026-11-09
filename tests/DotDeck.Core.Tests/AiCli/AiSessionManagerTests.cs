@@ -120,6 +120,29 @@ public sealed class AiSessionManagerTests : IDisposable
     }
 
     [Fact]
+    public void Start_snapshots_the_scope_and_the_summary_reports_changes()
+    {
+        var file = Path.Combine(_web, "notes.md");
+        File.WriteAllText(file, "처음");
+        using var manager = Manager();
+
+        var session = manager.Start(Request("b"));
+
+        Assert.True(session.Snapshot!.FullCapture);
+        Assert.Equal(1, session.Snapshot.CapturedFiles);
+        File.WriteAllText(file, "AI가 바꾼 내용");
+        File.SetLastWriteTimeUtc(file, DateTime.UtcNow.AddMinutes(1));
+        File.WriteAllText(Path.Combine(_main, "new.md"), "새 파일");
+
+        var summary = manager.BuildChangeSummary(session)!;
+
+        Assert.Equal(
+            [("new.md", DotDeck.Core.AiCli.Snapshots.ChangeKind.Created), ("notes.md", DotDeck.Core.AiCli.Snapshots.ChangeKind.Modified)],
+            summary.Items.Select(i => (Path.GetFileName(i.Path), i.Kind)).OrderBy(x => x.Item1, StringComparer.Ordinal));
+        Assert.NotNull(summary.Items.Single(i => i.Path == file).PreviousFile);
+    }
+
+    [Fact]
     public void Sandbox_homes_are_passed_only_in_sandbox_mode()
     {
         using (var sandbox = Manager(Paths(HomeSource.CommandLine)))

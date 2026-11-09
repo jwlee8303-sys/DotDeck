@@ -3,6 +3,9 @@ using DotDeck.Core.AiCli.Context;
 using DotDeck.Core.AiCli.Launch;
 using DotDeck.Core.AiCli.Presets;
 using DotDeck.Core.AiCli.Scope;
+using DotDeck.Core.AiCli.Snapshots;
+using DotDeck.Core.Documents;
+using DotDeck.Core.Explorer;
 using DotDeck.Core.Files;
 using DotDeck.Core.Paths;
 using DotDeck.Core.Projects;
@@ -70,6 +73,11 @@ public sealed record AiSessionEnvironment
 
     /// <summary>Claude must run the SessionStart heartbeat hook within this time, or the session settings did not apply.</summary>
     public TimeSpan HeartbeatTimeout { get; init; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Encrypts captured contents like every DotDeck backup (DPAPI in the app).</summary>
+    public IBackupProtector? BackupProtector { get; init; }
+
+    public SnapshotLimits SnapshotLimits { get; init; } = new();
 }
 
 /// <summary>One running or finished CLI session.</summary>
@@ -115,6 +123,12 @@ public sealed class AiSession
     public string? Message { get; private set; }
 
     internal ICliProcess? Process { get; set; }
+
+    /// <summary>The scope index and captured contents taken just before the CLI started.</summary>
+    public SessionSnapshot? Snapshot { get; internal set; }
+
+    /// <summary>Roots indexed at start (kept even if the scope narrows later, so their changes are still reported).</summary>
+    internal IReadOnlyList<SnapshotRoot> SnapshotRoots { get; set; } = [];
 
     internal long ScopeGeneration { get; set; }
 
@@ -275,6 +289,15 @@ public sealed class AiSessionManager : IDisposable
             File.WriteAllText(Path.Combine(directory, SessionFileNames.Context), context, new UTF8Encoding(false));
             session.ScopeGeneration = 1;
             session.CommandLinePreview = plan.CommandLine;
+
+            // After the caller saved all documents: what the files look like before the AI touches them.
+            session.SnapshotRoots = [.. scope.Projects
+                .GroupBy(p => p.Root, StringComparer.OrdinalIgnoreCase)
+                .Select(g => new SnapshotRoot(g.Key, projects.FirstOrDefault(d => d.Id == g.First().ProjectId) is { } definition
+                    ? ExcludedFolderPolicy.For(definition)
+                    : new ExcludedFolderPolicy(ExcludedFolderPolicy.CommonDefaults)))];
+            session.Snapshot = SessionSnapshots.Capture(
+                session.SnapshotRoots, request.OpenDocuments, _env.Store, OpenBackups(session), _env.SnapshotLimits);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException)
         {
@@ -303,6 +326,26 @@ public sealed class AiSessionManager : IDisposable
         _ = WatchHeartbeatAsync(session);
         Changed?.Invoke(this, EventArgs.Empty);
         return session;
+    }
+
+    /// <summary>The session's own backup store (start capture and pre-write captures).</summary>
+    public BackupStore OpenBackups(AiSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        return SessionSnapshots.OpenStore(_env.Store, session.Directory, _env.Time, _env.BackupProtector);
+    }
+
+    /// <summary>Compares the scope now with the start snapshot ("변경 검토", also at the end of a session).</summary>
+    public ChangeSummary? BuildChangeSummary(AiSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (session.Snapshot is not { } start)
+        {
+            return null;
+        }
+
+        var now = ScopeIndex.Build(session.SnapshotRoots, _env.Store, _env.SnapshotLimits);
+        return ChangeSummaryBuilder.Build(start, now, OpenBackups(session), _env.Store, _env.SnapshotLimits);
     }
 
     /// <summary>Stops a running session (terminates its whole process tree).</summary>

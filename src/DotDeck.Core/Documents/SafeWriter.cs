@@ -33,6 +33,9 @@ public enum ExternalChangeKind
     Created,
 }
 
+/// <summary>The state a file must be in for a conditional restore: <see cref="Sha256"/> null means "must not exist".</summary>
+public sealed record RestoreExpectation(string? Sha256);
+
 /// <summary>The file changed on disk since it was read. Nothing was written.</summary>
 public sealed class ExternalChangeException(string path, ExternalChangeKind kind)
     : IOException($"File changed on disk ({kind}): {path}")
@@ -156,8 +159,10 @@ public sealed class SafeWriter(IFileStore store, BackupStore backups)
 
     /// <summary>
     /// Restores a backed-up file. The current file (if any) is backed up first, so a restore can itself be undone.
+    /// With <paramref name="expected"/>, throws <see cref="ExternalChangeException"/> (nothing written) unless the
+    /// current file is in that state.
     /// </summary>
-    public SaveResult Restore(BackupSet set, BackupFile file)
+    public SaveResult Restore(BackupSet set, BackupFile file, RestoreExpectation? expected = null)
     {
         ArgumentNullException.ThrowIfNull(set);
         ArgumentNullException.ThrowIfNull(file);
@@ -180,15 +185,25 @@ public sealed class SafeWriter(IFileStore store, BackupStore backups)
         }
 
         BackupSet? before = null;
-        string? expected = null;
+        string? currentHash = null;
         if (entry is not null)
         {
             var current = _store.ReadAllBytes(path);
+            currentHash = TextFileReader.ComputeHash(current);
+            if (expected is not null && !string.Equals(expected.Sha256, currentHash, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ExternalChangeException(path, expected.Sha256 is null ? ExternalChangeKind.Created : ExternalChangeKind.Modified);
+            }
+
             before = _backups.Create([new BackupSource(path, current)], "before-restore");
-            expected = TextFileReader.ComputeHash(current);
         }
         else
         {
+            if (expected is { Sha256: not null })
+            {
+                throw new ExternalChangeException(path, ExternalChangeKind.Deleted);
+            }
+
             var directory = System.IO.Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(directory))
             {
@@ -196,7 +211,7 @@ public sealed class SafeWriter(IFileStore store, BackupStore backups)
             }
         }
 
-        WriteAtomic(path, bytes, replace: entry is not null, expected);
+        WriteAtomic(path, bytes, replace: entry is not null, currentHash);
         var mtime = _store.GetEntry(path)?.LastWriteTimeUtc ?? DateTime.UtcNow;
         return new SaveResult(restored with { LastWriteTimeUtc = mtime }, before, Written: true);
     }

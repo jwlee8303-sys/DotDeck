@@ -132,6 +132,7 @@ public partial class App : Application
             Locate = cli => locator.Find(cli),
             GuardExecutable = Environment.ProcessPath ?? throw new InvalidOperationException("DotDeck 실행 파일 경로를 알 수 없습니다."),
             Presets = presets,
+            BackupProtector = new DpapiBackupProtector(),
         });
         return _aiSessions;
     }

@@ -604,3 +604,11 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - **보완 결정**: Grep이 폴더 대상으로 실행되면 가드는 폴더 안 비밀 파일 내용 노출을 막을 수 없다. 세션 settings.json에 `permissions.deny`로 비밀 파일 패턴(dotenv 계열, `*.pem`, `*.key`, `*.pfx`, `id_rsa*`, `id_ed25519*`, `auth.json`의 Read 규칙)을 함께 넣어 Claude 내장 Read 계열 규칙으로 보강한다(5a-5 `SessionFilesWriter`, 동작은 5a 수동 확인).
 - **Codex 지적 보류**: 대소문자 구분이 켜진 디렉터리(`fsutil file setCaseSensitiveInfo`)에서 대소문자만 다른 형제 폴더는 범위 비교(OrdinalIgnoreCase)로 구분되지 않는다. 기본 NTFS에서는 발생하지 않아 알려진 한계로 둔다. 후속 후보: 루트·대상 폴더의 `FILE_CASE_SENSITIVE_INFO`를 조회해 켜져 있으면 Unresolved.
 - **셸·검색 비밀 패턴(5a-3 보완)**: 비밀 표본 대조만으로는 `foo*.pem`, `.env.staging*` 같은 변형을 놓친다. 와일드카드를 빈 문자열·한 글자로 치환한 구체 이름도 `SecretFilePolicy`로 판정하고, 셸 경로 후보(`./auth.*`)에도 같은 판정을 적용한다. 정적 판정의 한계는 `permissions.deny` 비밀 규칙으로 보강한다.
+
+### 실측 기록 (5a-5, 2026-11-09)
+- **exec 형식 훅**: `command` + `args`(셸 없음) 훅이 공백·한글 경로의 실행 파일·인자로 정상 실행됨(Claude Code 2.1.319).
+- **비대화형 출력**: `-p --output-format stream-json`은 `--verbose` 없이 거부된다 → 빌더가 항상 함께 넘긴다.
+- **프롬프트 전달**: `-p`(Claude)와 `codex exec -`는 stdin 프롬프트를 받는다 → 사용자 프롬프트는 명령줄에 넣지 않는다(`-`로 시작하는 프롬프트가 옵션으로 해석되는 문제와 명령줄 길이 제한 회피).
+- **명령줄 인용**: `WindowsCommandLine.Join` 결과를 실제 `CommandLineToArgvW`로 분해해 원래 인자와 같은지 검증(App.Tests `CommandLineRoundTripTests`: 공백·후행 역슬래시·따옴표·한글·탭·줄바꿈·셸 특수문자·TOML 값).
+- **permissions.deny 비밀 규칙(Codex 5a-5 반영)**: 이름 패턴은 `SecretFilePolicy`가 비밀로 보는 이름을 모두 덮는다(`.env*`, `*.pem`, `*.key`, `*.pfx`, `id_rsa*`, `id_ed25519*`, `auth.json`). 상대 규칙(`**/`)은 기본 작업 폴더 아래에만 적용되므로 범위 루트마다 절대 규칙(`//c/<경로>/**/<패턴>`, 공식 문서: Windows 경로는 POSIX 형태로 정규화)을 함께 넣는다. UNC 루트와 규칙 문법 문자(`*?[]{}()"`)가 든 루트는 절대 규칙을 만들 수 없어 가드에만 의존한다. 권한 규칙의 `!` 예외는 같은 출처의 상대 규칙에만 적용되므로 쓰지 않는다 → dotenv 템플릿(`.example` 등)도 내장 Read/Edit에서 막힌다(안전 쪽 과차단, 가드는 허용).
+- **npm shim 확인**: `.cmd`/`.bat` 옆에 패키지 스크립트가 있어도 배치 파일 본문이 `%dp0%\node_modules\<패키지 스크립트>`를 실행할 때만 `node.exe <스크립트>`로 바꾼다. 그 밖의 배치 파일은 거부한다.

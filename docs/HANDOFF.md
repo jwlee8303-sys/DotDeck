@@ -115,6 +115,8 @@
 - 터미널(WebView2)에 포커스가 있을 때 Alt+Z 동작 미확인(활성 문서가 없으면 바인딩은 조용히 비활성).
 - 알려진 한계: 하드링크, 검사↔쓰기 사이 링크 교체(TOCTOU) — 변경 요약으로 사후 탐지.
 
+- 보류(v1.2.0 릴리스 전 Codex P2): `settings.json`의 `WordWrapExtensions`에 문자열이 아닌 원소가 있으면 `AppSettingsStore.Load`가 기본값을 반환하고, 다음 저장에서 테마·모르는 키 등 설정 전체를 덮어쓴다(손으로 손상시킨 파일에서만, 기존 손상 처리 경로). 다음 PATCH에서 필드 단위 관대한 파싱 또는 손상 파일 `.bak` 보존 + 테스트. 관련: `src/DotDeck.Core/Settings/AppSettings.cs`.
+
 ## 8. 참고
 - TODO/FIXME: 없음.
 - 스태시: 없음.

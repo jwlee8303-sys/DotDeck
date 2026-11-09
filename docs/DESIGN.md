@@ -590,6 +590,13 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - `sessions.json`(`%APPDATA%\DotDeck\` / 샌드박스 `<home>\.dotdeck\roaming\`): `schemaVersion`, `presets[]`(프로젝트 **ID** 참조 → 이름·루트 변경 자동 반영, 없는 ID는 경고·실행 비활성), `lastAdditional{주ID: [추가ID]}`, `conversations{scopeKey: {claude.sessionId, codex.threadId}}`. 모르는 필드 보존.
 - 세션 폴더 `%LOCALAPPDATA%\DotDeck\sessions\<id>\`: `scope.json`, `context.md`, `settings.json`, `mcp.json`, `bridge.key`(DPAPI), `guard.log`(경로·결정만, `SecretMasker` 적용), `heartbeat`, `index.json`, `summary.json`. 정리: 요약 수락·닫기 후 7일, 실행 중 세션 제외.
 
+### 세션 시작 대화상자 (5a-9 구현)
+- 진입점: 도구 메뉴 `Claude 세션 시작…`(Ctrl+Alt+C), 프로젝트 컨텍스트 메뉴 `이 프로젝트에서 Claude 시작…`. 5a의 비대화형은 프롬프트가 필요하므로 빠른 실행도 대화상자를 연다(주 프로젝트 미리 선택).
+- 기본 주 프로젝트: 활성 문서가 속한 프로젝트(가장 깊은 루트) → 프로젝트 영역 선택 행. 전역(기본 제공) 프로젝트는 기본값이 되지 않는다(명시 지정 시에만 선택, 경고 표시). 비활성 프로젝트는 사유와 함께 표시하되 선택 불가, 시스템·숨김 프로젝트는 표시하지 않는다.
+- 흐름: 모두 저장 → 미저장 변경이 남으면 확인 → 대화상자 → 작업 스레드에서 `AiSessionManager.Start` → 마지막 추가 프로젝트·프리셋 저장(`sessions.json`이 읽기 전용이면 프리셋 저장 비활성).
+- 명령줄 미리보기는 파일을 쓰거나 실행하지 않으며 세션 폴더 자리에 `(새 세션)`을 쓴다. 프롬프트는 표준 입력으로 전달되므로 명령줄에 나오지 않는다.
+- 준비 중(작업 스레드) 프로젝트가 제거되면 세션 등록 직후 범위를 다시 검사한다. 범위 갱신은 `_scopeSync` 락으로 직렬화.
+
 ### 프로세스 정리
 - 세션마다 Job(`KILL_ON_JOB_CLOSE`, breakaway 불허). `STARTUPINFOEX`에 `PROC_THREAD_ATTRIBUTE_JOB_LIST`(+ConPTY `PSEUDOCONSOLE`)로 생성과 동시에 할당, 대체는 `CREATE_SUSPENDED`→Assign→Resume. 중지: Ctrl+C → 3초 → `TerminateJobObject`. `ClosePseudoConsole`은 출력 읽기를 유지한 채 호출. 앱 종료 시 실행 중 세션이 있으면 확인. 상태줄 `AI n 실행 중`(클릭 시 세션 목록).
 

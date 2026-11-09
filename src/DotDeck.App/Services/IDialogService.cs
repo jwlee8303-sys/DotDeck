@@ -60,6 +60,9 @@ public interface IDialogService
     /// <summary>Settings dialog. Returns the new settings, or null when cancelled.</summary>
     DotDeck.Core.Settings.AppSettings? ShowSettings(DotDeck.Core.Settings.AppSettings current, string defaultBackupDirectory);
 
+    /// <summary>AI session start dialog (SPEC 11.3-3). Returns the validated request, or null when cancelled.</summary>
+    DotDeck.Core.AiCli.Sessions.AiSessionStartRequest? ShowSessionLaunch(SessionLaunchViewModel viewModel);
+
     /// <summary>Project backup dialog: returns the chosen project ids and destination folder, or null.</summary>
     (IReadOnlyList<string> ProjectIds, string Destination)? ShowProjectBackup(
         IReadOnlyList<(string Id, string Name, string Root)> projects, string? lastDestination);

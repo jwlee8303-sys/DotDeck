@@ -1,0 +1,105 @@
+<Window x:Class="DotDeck.App.Views.Dialogs.SessionLaunchDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:DotDeck.App.Converters"
+        Title="Claude 세션 시작" Width="620" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        Background="{DynamicResource DD.Brush.Panel.Background}"
+        Foreground="{DynamicResource DD.Brush.Text}"
+        FontFamily="{DynamicResource DD.Font.Ui}"
+        FontSize="{DynamicResource DD.FontSize.Ui}"
+        FocusManager.FocusedElement="{Binding ElementName=PromptBox}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+        <conv:NullToCollapsedConverter x:Key="NullToCollapsed" />
+    </Window.Resources>
+    <StackPanel Margin="16,14">
+        <TextBlock Text="주 프로젝트 (작업 폴더)" FontWeight="SemiBold" />
+        <ComboBox Margin="0,4,0,0" ItemsSource="{Binding PrimaryChoices}" SelectedItem="{Binding Primary}"
+                  AutomationProperties.Name="주 프로젝트">
+            <ComboBox.ItemContainerStyle>
+                <Style TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+                    <Setter Property="IsEnabled" Value="{Binding IsSelectable}" />
+                </Style>
+            </ComboBox.ItemContainerStyle>
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock>
+                        <Run Text="{Binding Name, Mode=OneWay}" />
+                        <Run Foreground="{DynamicResource DD.Brush.Text.Secondary}" Text="{Binding Root, Mode=OneWay}" />
+                        <Run Foreground="{DynamicResource DD.Brush.Warning}" Text="{Binding Warning, Mode=OneWay}" />
+                    </TextBlock>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <TextBlock Text="추가 프로젝트" Margin="0,12,0,4" FontWeight="SemiBold" />
+        <Border BorderThickness="1" BorderBrush="{DynamicResource DD.Brush.Border}" MaxHeight="160">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding AdditionalChoices}" Margin="6,4">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox Margin="0,2" IsChecked="{Binding IsSelected}" IsEnabled="{Binding IsSelectable}" ToolTip="{Binding Root}">
+                                <TextBlock>
+                                    <Run Text="{Binding Name, Mode=OneWay}" />
+                                    <Run Foreground="{DynamicResource DD.Brush.Text.Secondary}" Text="{Binding Root, Mode=OneWay}" />
+                                    <Run Foreground="{DynamicResource DD.Brush.Warning}" Text="{Binding Warning, Mode=OneWay}" />
+                                </TextBlock>
+                            </CheckBox>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+        <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{DynamicResource DD.Brush.Warning}"
+                   Visibility="{Binding IncludesGlobalProject, Converter={StaticResource BoolToVisible}}"
+                   Text="전역 프로젝트(~/.claude 등)가 범위에 들어갑니다. AI가 전역 설정을 수정할 수 있습니다." />
+
+        <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="CLI" FontWeight="SemiBold" />
+                <RadioButton Margin="0,4,0,0" Content="Claude Code" IsChecked="True" GroupName="Cli" />
+                <RadioButton Margin="0,2,0,0" Content="Codex" IsEnabled="False" GroupName="Cli" ToolTip="{Binding CodexNote}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+                <TextBlock Text="실행 방식" FontWeight="SemiBold" />
+                <RadioButton Margin="0,4,0,0" Content="명령 실행(비대화형)" IsChecked="True" GroupName="Mode" />
+                <RadioButton Margin="0,2,0,0" Content="대화형 터미널" IsEnabled="False" GroupName="Mode" ToolTip="{Binding InteractiveNote}" />
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Text="프롬프트" Margin="0,12,0,4" FontWeight="SemiBold" />
+        <TextBox x:Name="PromptBox" Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                 TextWrapping="Wrap" MinHeight="70" MaxHeight="160" VerticalScrollBarVisibility="Auto"
+                 AutomationProperties.Name="프롬프트" />
+
+        <TextBlock Text="옵션" Margin="0,12,0,4" FontWeight="SemiBold" />
+        <CheckBox Content="열린 문서 목록을 컨텍스트로 전달" IsChecked="{Binding IncludeOpenDocuments}" />
+        <CheckBox Margin="0,2,0,0" Content="이 범위의 이전 대화 이어가기" IsChecked="{Binding ResumeConversation}" />
+        <CheckBox Margin="0,2,0,0" Content="읽기 전용 셸 허용 (git status / diff / log만)" IsChecked="{Binding AllowReadOnlyShell}" />
+        <DockPanel Margin="0,2,0,0" IsEnabled="{Binding CanSavePresets}"
+                   ToolTip="sessions.json을 쓸 수 없으면(새 버전이 만든 파일 등) 프리셋을 저장할 수 없습니다.">
+            <CheckBox x:Name="SavePresetBox" Content="프리셋으로 저장:" IsChecked="{Binding SaveAsPreset}" VerticalAlignment="Center" />
+            <TextBox Margin="6,0,0,0" Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                     IsEnabled="{Binding IsChecked, ElementName=SavePresetBox}" AutomationProperties.Name="프리셋 이름" />
+        </DockPanel>
+
+        <Expander Header="명령줄 미리보기" Margin="0,12,0,0">
+            <TextBox Margin="0,4,0,0" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="120" VerticalScrollBarVisibility="Auto"
+                     FontFamily="{DynamicResource DD.Font.Editor}" Text="{Binding CommandLinePreview, Mode=OneWay}"
+                     AutomationProperties.Name="명령줄 미리보기" />
+        </Expander>
+
+        <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{DynamicResource DD.Brush.Error}" Text="{Binding Error}"
+                   Visibility="{Binding Error, Converter={StaticResource NullToCollapsed}}" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="시작" IsDefault="True" MinWidth="80" Click="OnStartClick" IsEnabled="{Binding HasSelectableProject}" />
+            <Button Content="취소" IsCancel="True" MinWidth="80" Margin="8,0,0,0" />
+        </StackPanel>
+    </StackPanel>
+</Window>

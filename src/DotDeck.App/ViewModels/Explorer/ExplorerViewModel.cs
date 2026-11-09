@@ -30,7 +30,8 @@ public sealed record ExplorerContext(
     Action<string>? OpenSystemNode = null,
     Func<ProjectDefinition?, bool, Task>? RegisterCustomFile = null,
     Func<ProjectDefinition?, string, Task>? UnregisterCustomFile = null,
-    Func<string, DotDeck.Core.Editors.EditorKind?, Task>? OpenAs = null);
+    Func<string, DotDeck.Core.Editors.EditorKind?, Task>? OpenAs = null,
+    Func<string, Task>? StartAiSession = null);
 
 /// <summary>
 /// One project's explorer. Its rows live in a list (<see cref="List"/>: the project area, or its own detached
@@ -631,6 +632,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
             _ = LoadAsync();
         }
     }
+
+    /// <summary>"이 프로젝트에서 Claude 시작": the session dialog with this project as the primary one.</summary>
+    [RelayCommand]
+    private Task StartAiSessionAsync() => _context.StartAiSession?.Invoke(Project.Id) ?? Task.CompletedTask;
+
+    public bool CanStartAiSession => _context.StartAiSession is not null;
 
     [RelayCommand]
     private void CopyRootPath()

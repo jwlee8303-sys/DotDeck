@@ -68,6 +68,34 @@ public sealed class AiSessionManagerTests : IDisposable
     }
 
     [Fact]
+    public void Preview_shows_the_command_line_without_writing_or_launching()
+    {
+        using var manager = Manager();
+
+        var preview = manager.PreviewCommandLine(Request("b"));
+
+        Assert.StartsWith("\"C:\\tools\\claude.exe\"", preview, StringComparison.OrdinalIgnoreCase);
+        // The prompt goes through standard input, never onto the command line.
+        Assert.DoesNotContain("README 정리해줘", preview, StringComparison.Ordinal);
+        Assert.Contains("표준 입력", preview, StringComparison.Ordinal);
+        Assert.Contains("(새 세션)", preview, StringComparison.Ordinal);
+        Assert.Empty(_launcher.Plans);
+        Assert.False(Directory.Exists(Paths().AiSessionsDir) && Directory.EnumerateFileSystemEntries(Paths().AiSessionsDir).Any());
+    }
+
+    [Fact]
+    public void Preview_returns_the_reason_when_the_request_cannot_start()
+    {
+        using var manager = Manager();
+
+        var preview = manager.PreviewCommandLine(Request() with { PrimaryProjectId = "unknown" });
+
+        Assert.DoesNotContain("claude.exe", preview, StringComparison.OrdinalIgnoreCase);
+        Assert.NotEmpty(preview);
+        Assert.Empty(_launcher.Plans);
+    }
+
+    [Fact]
     public async Task Start_prepares_the_session_folder_and_launches_the_plan()
     {
         using var manager = Manager();
@@ -232,6 +260,23 @@ public sealed class AiSessionManagerTests : IDisposable
     }
 
     [Fact]
+    public void Project_removed_while_the_session_starts_is_dropped_once_it_is_registered()
+    {
+        using var manager = Manager();
+        _launcher.OnStart = () =>
+        {
+            _projects.RemoveAt(1);
+            manager.OnProjectsChanged(); // the session is not registered yet: this call cannot see it
+        };
+
+        var session = manager.Start(Request("b"));
+
+        var scope = ScopeFile.Read(Path.Combine(session.Directory, "scope.json"));
+        Assert.Equal([_main], scope.Roots.Select(r => r.Path));
+        Assert.Equal(AiSessionState.Running, session.State);
+    }
+
+    [Fact]
     public void Moving_an_additional_project_removes_it_rather_than_widening_the_scope()
     {
         using var manager = Manager();
@@ -338,6 +383,9 @@ public sealed class AiSessionManagerTests : IDisposable
 
         public bool Fail { get; set; }
 
+        /// <summary>Runs inside Start (after the scope was made, before the session is registered).</summary>
+        public Action? OnStart { get; set; }
+
         public ICliProcess Start(CliLaunchPlan plan)
         {
             if (Fail)
@@ -345,6 +393,7 @@ public sealed class AiSessionManagerTests : IDisposable
                 throw new IOException("시작 실패");
             }
 
+            OnStart?.Invoke();
             Plans.Add(plan);
             var process = new FakeProcess();
             Processes.Add(process);

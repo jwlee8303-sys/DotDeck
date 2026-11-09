@@ -36,6 +36,7 @@
         <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
         <KeyBinding Gesture="Ctrl+Alt+S" Command="{Binding SaveActiveAsCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+F" Command="{Binding ShowGlobalSearchCommand}" />
+        <KeyBinding Gesture="Ctrl+Alt+C" Command="{Binding StartAiSessionCommand}" />
     </Window.InputBindings>
 
     <DockPanel>
@@ -107,6 +108,8 @@
                 <MenuItem Header="사용자 지정 파일 등록(경로 입력)(_G)..." Command="{Binding RegisterOtherFileCommand}" />
                 <MenuItem Header="사용자 지정 파일 추가(찾아보기)(_I)..." Command="{Binding AddImportantFileCommand}" />
                 <MenuItem Header="현재 파일을 사용자 지정 파일에서 빼기(_R)" Command="{Binding RemoveImportantFileCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
+                <Separator />
+                <MenuItem Header="Claude 세션 시작(_C)..." Command="{Binding StartAiSessionCommand}" InputGestureText="Ctrl+Alt+C" />
                 <Separator />
                 <MenuItem Header="관리자 권한으로 다시 시작(_A)" Command="{Binding RestartAsAdministratorCommand}" />
             </MenuItem>

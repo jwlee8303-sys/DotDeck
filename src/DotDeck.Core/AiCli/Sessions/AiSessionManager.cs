@@ -212,6 +212,57 @@ public sealed class AiSessionManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// The command line a start would run ("명령줄 미리보기", read-only), with a placeholder session folder. Nothing is
+    /// written. Returns the reason instead when the request cannot start.
+    /// </summary>
+    public string PreviewCommandLine(AiSessionStartRequest request) => PreviewCore(request);
+
+    /// <summary>Presets, last additional projects and conversation ids (null when sessions.json is not used).</summary>
+    public SessionPresetStore? Presets => _env.Presets;
+
+    private string PreviewCore(AiSessionStartRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var projects = _env.Projects();
+        var created = SessionScope.Create(request.PrimaryProjectId, request.AdditionalProjectIds, projects, _env.Paths, _env.Store);
+        if (created.Scope is not { } scope)
+        {
+            return created.Error ?? "세션 범위를 만들 수 없습니다.";
+        }
+
+        if (_env.Locate(request.Cli).Location is not { } cli)
+        {
+            return _env.Locate(request.Cli).Error ?? "CLI를 찾을 수 없습니다.";
+        }
+
+        try
+        {
+            var conversation = PickConversation(request, scope);
+            var plan = CliCommandBuilder.Build(new CliLaunchRequest
+            {
+                Cli = cli,
+                Mode = request.Mode,
+                Scope = scope,
+                SessionDirectory = Path.Combine(_env.Paths.AiSessionsDir, "(새 세션)"),
+                Context = "(컨텍스트 문서)",
+                ConversationId = conversation.Id,
+                Resume = conversation.Resume,
+                Prompt = request.Prompt,
+                AllowReadOnlyShell = request.AllowReadOnlyShell,
+                MaxBudgetUsd = request.MaxBudgetUsd,
+                SandboxClaudeConfigDir = _env.Paths.IsHomeOverridden ? _env.Paths.ClaudeHome : null,
+                SandboxCodexHome = _env.Paths.IsHomeOverridden ? _env.Paths.CodexHome : null,
+            });
+            // The prompt never appears on the command line (it is not limited by the 32K command-line length).
+            return plan.StandardInput is null ? plan.CommandLine : plan.CommandLine + Environment.NewLine + Environment.NewLine + "(프롬프트는 표준 입력으로 전달됩니다)";
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or InvalidOperationException)
+        {
+            return ex.Message;
+        }
+    }
+
     /// <exception cref="AiSessionStartException">The session cannot start (message for the user).</exception>
     public AiSession Start(AiSessionStartRequest request)
     {
@@ -324,6 +375,10 @@ public sealed class AiSessionManager : IDisposable
         var stderr = PumpAsync(session, session.Process.StandardError, isError: true);
         _ = WatchExitAsync(session, stdout, stderr);
         _ = WatchHeartbeatAsync(session);
+
+        // Projects removed while the session was being prepared (on a worker thread) were not seen by
+        // OnProjectsChanged: re-check now that the session is registered.
+        OnProjectsChanged();
         Changed?.Invoke(this, EventArgs.Empty);
         return session;
     }
@@ -365,6 +420,19 @@ public sealed class AiSessionManager : IDisposable
     /// </summary>
     public void OnProjectsChanged()
     {
+        lock (_scopeSync)
+        {
+            NarrowScopes();
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    // One scope update at a time (UI thread and a starting session may both call OnProjectsChanged).
+    private readonly Lock _scopeSync = new();
+
+    private void NarrowScopes()
+    {
         var projects = _env.Projects();
         foreach (var session in Sessions.Where(s => s.State == AiSessionState.Running))
         {
@@ -401,8 +469,6 @@ public sealed class AiSessionManager : IDisposable
                 Stop(session, $"범위 파일을 갱신하지 못해 세션을 중지했습니다: {ex.Message}");
             }
         }
-
-        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     public void Dispose()

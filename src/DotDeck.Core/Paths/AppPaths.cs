@@ -34,6 +34,12 @@ public sealed record AppPaths(string Home, HomeSource HomeSource, string Roaming
     /// <summary>User copies of the built-in catalogs (<c>&lt;product&gt;\&lt;name&gt;.json</c>) that replace them.</summary>
     public string CatalogsDir => Path.Combine(RoamingDataDir, "catalogs");
 
+    /// <summary>AI CLI session presets, last selections and conversation ids (SPEC 11.4).</summary>
+    public string AiSessionsFile => Path.Combine(RoamingDataDir, "sessions.json");
+
+    /// <summary>Per-session working files of AI CLI sessions (scope.json, settings.json, context.md, …).</summary>
+    public string AiSessionsDir => Path.Combine(LocalDataDir, "sessions");
+
     public string BackupsDir => Path.Combine(LocalDataDir, "backups");
 
     public string LogsDir => Path.Combine(LocalDataDir, "logs");

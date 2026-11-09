@@ -47,6 +47,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly SynchronizationContext? _ui;
     private readonly FileRoleResolver _roles;
     private readonly EditorOverrideStore _editorOverrides;
+    private readonly IClipboardService _clipboard;
     private int _scratchCounter;
 
     public ShellViewModel(ShellServices services, string version, bool isAdministrator)
@@ -55,6 +56,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Paths = services.Paths;
         _log = services.Log;
         _dialogs = services.Dialogs;
+        _clipboard = services.Clipboard;
         _buffers = new DocumentBufferManager(services.Reader);
         _writer = services.Writer;
         _backups = services.Backups;

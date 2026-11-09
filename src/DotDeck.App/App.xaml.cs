@@ -22,6 +22,7 @@ public partial class App : Application
 {
     private FileAppLog? _log;
     private DotDeck.Core.AiCli.Sessions.AiSessionManager? _aiSessions;
+    private ShellViewModel? _shell;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -88,6 +89,8 @@ public partial class App : Application
                 CreateEnvironmentStore(paths, store));
             var shell = new ShellViewModel(services, version, IsAdministrator());
             shell.AttachAiSessions(CreateAiSessionManager(paths, store, registry), registry);
+            shell.AttachTerminals(new JobProcessLauncher(), () => DotDeck.Core.AiCli.Launch.ShellTerminal.Locate(SystemProcessEnvironment.Instance, store), paths);
+            _shell = shell;
 
             var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log));
             MainWindow = window;
@@ -141,6 +144,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         // Running CLI trees end with their jobs (also if this never runs: the OS closes the job handles).
+        _shell?.CloseAllTerminals();
         _aiSessions?.Dispose();
         _log?.Info("DotDeck 종료");
         base.OnExit(e);

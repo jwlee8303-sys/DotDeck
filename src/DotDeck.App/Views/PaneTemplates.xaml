@@ -185,6 +185,10 @@
         </DockPanel>
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type tools:TerminalPaneViewModel}">
+        <toolViews:TerminalView />
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type tools:AiSessionsPaneViewModel}">
         <DockPanel Background="{DynamicResource DD.Brush.Panel.Background}">
             <ToolBar DockPanel.Dock="Top" ToolBarTray.IsLocked="True" Background="{DynamicResource DD.Brush.Panel.Background}">

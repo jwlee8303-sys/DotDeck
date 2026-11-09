@@ -66,6 +66,28 @@
     <Color x:Key="DD.Color.Warning">#FFCCA700</Color>
     <Color x:Key="DD.Color.Info">#FF3794FF</Color>
 
+    <!-- Terminal (xterm.js theme: background, foreground, cursor, selection, ANSI 16) -->
+    <Color x:Key="DD.Color.Terminal.Background">#FF1E1E1E</Color>
+    <Color x:Key="DD.Color.Terminal.Foreground">#FFCCCCCC</Color>
+    <Color x:Key="DD.Color.Terminal.Cursor">#FFFFFFFF</Color>
+    <Color x:Key="DD.Color.Terminal.Selection">#FF264F78</Color>
+    <Color x:Key="DD.Color.Terminal.Black">#FF000000</Color>
+    <Color x:Key="DD.Color.Terminal.Red">#FFCD3131</Color>
+    <Color x:Key="DD.Color.Terminal.Green">#FF0DBC79</Color>
+    <Color x:Key="DD.Color.Terminal.Yellow">#FFE5E510</Color>
+    <Color x:Key="DD.Color.Terminal.Blue">#FF2472C8</Color>
+    <Color x:Key="DD.Color.Terminal.Magenta">#FFBC3FBC</Color>
+    <Color x:Key="DD.Color.Terminal.Cyan">#FF11A8CD</Color>
+    <Color x:Key="DD.Color.Terminal.White">#FFE5E5E5</Color>
+    <Color x:Key="DD.Color.Terminal.BrightBlack">#FF666666</Color>
+    <Color x:Key="DD.Color.Terminal.BrightRed">#FFF14C4C</Color>
+    <Color x:Key="DD.Color.Terminal.BrightGreen">#FF23D18B</Color>
+    <Color x:Key="DD.Color.Terminal.BrightYellow">#FFF5F543</Color>
+    <Color x:Key="DD.Color.Terminal.BrightBlue">#FF3B8EEA</Color>
+    <Color x:Key="DD.Color.Terminal.BrightMagenta">#FFD670D6</Color>
+    <Color x:Key="DD.Color.Terminal.BrightCyan">#FF29B8DB</Color>
+    <Color x:Key="DD.Color.Terminal.BrightWhite">#FFFFFFFF</Color>
+
     <!-- File kinds (explorer icons) -->
     <Color x:Key="DD.Color.FileKind.Folder">#FFDCB67A</Color>
     <Color x:Key="DD.Color.FileKind.Markdown">#FF519ABA</Color>

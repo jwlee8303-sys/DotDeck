@@ -167,7 +167,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost, IClaudeFormServi
     {
         // Re-evaluated after every answer: edits made while a save runs (even to a buffer the user chose to
         // discard) must be asked about again. A "discard" holds only for the change count it was given for.
-        if (!ConfirmStopAiSessions())
+        if (!ConfirmStopAiSessions() || !ConfirmCloseTerminals())
         {
             return false;
         }

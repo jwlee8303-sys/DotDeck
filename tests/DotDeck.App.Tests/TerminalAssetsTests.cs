@@ -44,6 +44,9 @@ public sealed class TerminalAssetsTests
     [InlineData("https://term.dotdeck.local/xterm/xterm.js", "text/javascript; charset=utf-8")]
     [InlineData("https://TERM.dotdeck.local/xterm/xterm.css?v=2", "text/css; charset=utf-8")]
     [InlineData("https://term.dotdeck.local/addon-fit/addon-fit.js", "text/javascript; charset=utf-8")]
+    [InlineData("https://term.dotdeck.local/terminal.html", "text/html; charset=utf-8")]
+    [InlineData("https://term.dotdeck.local/terminal.js", "text/javascript; charset=utf-8")]
+    [InlineData("https://term.dotdeck.local/terminal.css", "text/css; charset=utf-8")]
     public void Page_files_are_served_by_exact_name(string url, string type)
     {
         var served = TerminalAssets.Open(new Uri(url));

@@ -622,6 +622,14 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - `THIRD-PARTY-NOTICES.txt`(저장소 루트)는 출력·게시 폴더에 복사된다(단일 파일 게시 시 exe 옆).
 - 업데이트 절차: npm pack으로 받은 tgz의 integrity 확인 → dist 교체 → 고지 파일·테스트·이 절의 해시 갱신.
 
+### 터미널 패널·PowerShell 터미널 (5b-3 구현)
+- 순서 조정: 일반 PowerShell 터미널(원래 5b-5)을 터미널 패널과 함께 넣어 패널을 바로 수동 확인할 수 있게 했다. 이후 5b-4 대화형 Claude 세션·범위 칩, 5b-5 변경 검토 연결·실행 중 수정 반영·문서.
+- Core `TerminalConnection`: 전용 스레드가 출력을 상태 유지 UTF-8 디코더로 읽고(읽기 경계에서 잘린 문자 보존), 최근 100만 자(UTF-16 약 2MB)를 재생 버퍼로 둔다(잘라낼 때 가능하면 줄 시작에서). `Attach`는 버퍼 반환과 구독을 원자적으로 한다. 입력은 단일 쓰기 작업(채널)이 콘솔에 쓰므로 UI가 막히지 않고, 콘솔이 끝난 뒤 입력은 버린다. `Resize`는 바뀐 경우에만 전달.
+- Core `ShellTerminal`: PATH의 `pwsh.exe`(절대 경로 항목만) → `%ProgramFiles%PowerShellpwsh.exe` → Windows PowerShell 5.1. 인자 `-NoLogo -NoExit -Command <UTF-8 콘솔 인코딩 초기화>`. 샌드박스 홈(`--home`)일 때만 `CLAUDE_CONFIG_DIR`·`CODEX_HOME`을 넘겨 터미널에서 실행한 CLI도 샌드박스를 쓴다(A4와 같은 규칙).
+- App `TerminalView`(WebView2): `https://term.dotdeck.local/terminal.html`만 탐색 허용, 요청은 GET + `TerminalAssets`만 200(CSP·nosniff·no-store 헤더), 그 외 403. DevTools·기본 메뉴·브라우저 단축키·호스트 개체·권한·다운로드·새 창·프레임 탐색 차단. 웹 메시지는 출처가 자기 페이지일 때만 처리: ready/input/binary/resize/copy. 출력은 디스패처 턴마다 모아 한 메시지로 보낸다. 다시 만들어진 뷰는 재생 버퍼로 복원.
+- 키: 선택이 있을 때 Ctrl+C(또는 Ctrl+Shift+C)는 복사(호스트 클립보드), 없으면 인터럽트. Ctrl+V·Shift+Insert는 브라우저 붙여넣기 이벤트로 xterm이 처리(bracketed paste). 색은 `DD.Color.Terminal.*`(배경·전경·커서·선택·ANSI 16, Dark/Light), 글꼴은 편집기 글꼴, 테마 전환 시 즉시 반영.
+- `TerminalPaneViewModel`(ContentId `tool.terminal:<id>`, 아래 영역, 레이아웃 복원 대상 아님): 종료되면 제목에 "(종료됨)"과 종료 코드 안내. 탭을 닫으면 실행 중일 때 확인 후 Job 전체 종료·제거, 거절하면 다시 표시. 앱 종료 시 실행 중 터미널이 있으면 확인. 진입점: 도구 메뉴 "새 PowerShell 터미널"(Ctrl+Alt+T), 작업 폴더는 활성 문서의 프로젝트 → 선택 프로젝트 → (샌드박스) 홈.
+
 ### 단계 (각 1커밋, 빌드 → 테스트 → `/codex-review` → 커밋)
 - 5a: 0 설계 문서 / 1 범위 모델 / 2 경로 정규화·범위 검사기 / 3 가드 판정·셸 분석 / 4 가드 모드·scope.json 갱신(+stdio·콜드 스타트·병합 실측) / 5 명령줄 빌더·CLI 탐색 / 6 프리셋·컨텍스트 / 7 Job 실행기·세션 관리자 / 8 스냅샷·변경 요약·되돌리기 / 9 세션 시작 대화상자·진입점 / 10 AI 작업 패널·변경 요약 대화상자 / 11 CHANGELOG·HANDOFF.
 - 5b: ConPTY / xterm 번들 / 터미널 패널 / 대화형 세션 탭·범위 칩 / PowerShell 터미널 / 변경 검토 연결 + 스크린샷 확인.

@@ -1,8 +1,8 @@
 # 인수인계 — DotDeck
 
 - 작성: 2026-11-09 (Claude Code)
-- 버전: `1.1.0`(`Directory.Build.props`, 미변경) · 브랜치 `feat/ai-cli` @ `2c979f8`(+ 5b 문서 커밋)
-- 한 줄 요약: **Phase 5a(비대화형 Claude 세션)와 5b(ConPTY + xterm.js 대화형 터미널, PowerShell 터미널, 대화형 Claude 세션·범위 칩) 구현과 단계별 Codex 검증·커밋을 마쳤다.** 다음은 사용자 5b 수동 확인 → 5c(MCP·Named Pipe·컨텍스트 고도화·Codex 지원·세션 폴더 정리).
+- 버전: `1.2.0` 릴리스(5a + 5b + 편집기 자동 줄 바꿈) · `feat/ai-cli` → PR #3으로 `main` 병합
+- 한 줄 요약: **Phase 5a(비대화형 Claude 세션)와 5b(ConPTY + xterm.js 대화형 터미널, PowerShell 터미널, 대화형 Claude 세션·범위 칩) 구현과 단계별 Codex 검증·커밋을 마쳤다.** `feat/editor-word-wrap`(Alt+Z 자동 줄 바꿈)을 병합해 v1.2.0으로 릴리스했다. **5c는 별도 개발로 넘긴다 — "4-1. 5c 인수인계" 절부터 읽는다.**
 
 ## 1. 프로젝트 개요
 - 개발 환경 설정 파일(~/.claude, ~/.codex, 환경변수 등)과 문서를 한 창에서 찾고·보고·수정하는 Windows 데스크톱 에디터. VS 2022 다크 테마 도킹 UI.
@@ -24,11 +24,11 @@
 ## 3. 현재 상태
 | 항목 | 상태 |
 |---|---|
-| 진행 단계 | Phase 5b 완료(5b-1 ~ 5b-5), 사용자 확인 대기 |
+| 진행 단계 | Phase 5a·5b 완료, 편집기 자동 줄 바꿈 병합, v1.2.0 릴리스. 5c 미착수 |
 | 빌드 | `dotnet build DotDeck.slnx` 경고 0·오류 0 (2026-11-09) |
-| 테스트 | 합계 1284 / 실패 0 / 건너뜀 2(심볼릭 링크 생성 권한, 기존) |
+| 테스트 | 합계 1313 / 실패 0 / 건너뜀 2(심볼릭 링크 생성 권한, 기존) — 병합 후 기준 |
 | Codex 검증 | 5b-1·5b-3·5b-4 코드 단계마다 `codex-verifier`로 검증·재검증 후 커밋(5b-4는 4회). 5b-2(원본 자산 번들)·5b-5(문서)는 해시·문서 확인만 |
-| 원격 동기화 | upstream 없음(push 안 함). push·PR은 사용자 확인 후 |
+| 원격 동기화 | `feat/ai-cli` push, PR #3(https://github.com/jwlee8303-sys/DotDeck/pull/3) → `main` 병합 |
 | 미커밋 변경 | 없음(문서 커밋 후). `.claude/`는 사용자 로컬 설정 — 커밋·수정 금지 |
 
 ### 5b 커밋
@@ -39,7 +39,8 @@
 | 4f0d611 | 5b-2 xterm.js 6.0.0·addon-fit 0.11.0 번들(SHA-256 고정, `.gitattributes -text`, 고지 파일) |
 | 67d3e79 | 5b-3 터미널 패널(WebView2 가상 호스트)·PowerShell 터미널 |
 | 2c979f8 | 5b-4 대화형 Claude 세션·범위 칩·같은 대화 재시작 |
-| (이번) | 5b-5 docs: 5b 변경 이력과 인수인계 갱신 |
+| bd363a9 | 5b-5 docs: 5b 변경 이력과 인수인계 갱신 |
+| a5048ac | Merge `feat/editor-word-wrap`(소프트 랩 Alt+Z, 상태줄 재배치). 충돌 해결: CHANGELOG 통합, 생성자, 키 바인딩, AI 배지를 상태줄 왼쪽으로. Codex 검증 지적 없음 |
 
 5a 커밋 목록은 `git log --oneline v1.1.0..453518d`로 본다.
 
@@ -47,9 +48,37 @@
 - 없음.
 
 ## 4. 다음 할 일
-1. **사용자 5b 확인** — 2절 순서. 완료 기준: 한글 입출력·크기 조절·테마·복사/붙여넣기 정상, 대화형 세션에서 범위 밖·비밀 파일 차단, 열린 탭 반영, 변경 검토·같은 대화 재시작 동작(SPEC 5b 완료 기준).
-2. **5c** — 내장 MCP 서버 / Named Pipe 호스트·브리지 / 컨텍스트 고도화 / Codex 대화형 지원 / 세션 폴더 정리(DESIGN의 7일·최근 20세션 정책) / 4개 시나리오 수동 확인. 시작 전에 단계 계획을 보여 주고 확인받는다.
-3. 릴리스는 `release` 스킬로만(버전 파일 직접 수정 금지). 5a+5b를 먼저 낼지는 사용자 결정.
+1. **사용자 수동 확인(5b·줄 바꿈)** — 2절 순서 + 터미널에 포커스가 있을 때 Alt+Z 동작. 완료 기준: SPEC 5b 완료 기준 충족. 문제가 나오면 `fix/…` 브랜치에서 PATCH(1.2.x).
+2. **5c 개발** — 아래 "4-1. 5c 인수인계" 절. 새 브랜치 `feat/ai-cli-5c`(main에서 분기). 시작 전에 단계 계획을 사용자에게 보여 주고 확인받는다.
+3. 릴리스는 `release` 스킬로만(버전 파일 직접 수정 금지). 5c 완료 시 MINOR(1.3.0).
+
+## 4-1. 5c 인수인계 (별도 개발)
+### 목표와 완료 기준
+- SPEC 5c(`docs/SPEC.md` Phase 표): 11.6 컨텍스트 1단계 고도화 + **내장 MCP 서버**(11.6 2단계 도구), Codex 지원.
+- 완료 기준: 경로를 말하지 않고 ① 열린 파일 수정 ② 특정 프로젝트에 파일 생성 ③ md 개수 세기 ④ 파일 분석 — 4가지 시나리오를 사용자가 샌드박스에서 수동 확인.
+- 릴리스 번호: DESIGN A13은 "5a 1.2.0 / 5b 1.3.0 / 5c 1.4.0"이었으나 5a·5b를 1.2.0으로 함께 냈으므로 5c는 **1.3.0**(5c 시작 시 A13 문구 갱신).
+
+### 제안 단계 (각 1커밋: 빌드 → 테스트 → `/codex-review` → 커밋)
+| 단계 | 내용 | 시작점(현재 코드) |
+|---|---|---|
+| 5c-1 | MCP 프로토콜 코어: `JsonRpcFraming`(줄 단위 JSON-RPC 2.0 stdio), `McpServer`(initialize·tools/list·tools/call), `IAiSessionHost` 인터페이스. 새 NuGet 없음(A1) | 새 네임스페이스 `src/DotDeck.Core/AiCli/Mcp/`(기존 `src/DotDeck.Core/Mcp/`는 사용자 MCP 설정 탐색용 — 이름 충돌 주의) |
+| 5c-2 | 도구 5종: `list_projects`, `get_open_documents`, `get_active_document`(선택 영역 포함), `find_files(project, pattern)`(표시 필터·제외 폴더 적용, 비밀 파일 제외), `open_in_editor(path)`. 범위 밖 경로는 반환·열기 금지(`ScopeChecker` 재사용), 출력은 `SecretMasker` | `ScopeChecker`, `ContextDocumentBuilder`, 탐색기 필터 |
+| 5c-3 | 브리지: `DotDeck.exe --dotdeck-mcp <sessionId>` 하위 모드(stdio ↔ Named Pipe), 앱 쪽 `NamedPipeMcpHost`(현재 사용자 ACL, 세션별 파이프 이름, `bridge.key` DPAPI 토큰 인증, 외부 네트워크 없음). 세션 폴더에 `mcp.json` 작성 → `--mcp-config` 전달 | `src/DotDeck.App/Program.cs`(가드·heartbeat 분기 옆), `GuardHost`의 스위치 상수, `CliLaunch.McpConfigPath`와 `CliCommandBuilder`(인자 자리 이미 있음), `SessionFilesWriter` |
+| 5c-4 | 가드: `mcp__dotdeck_session__*` 통과, 사용자 MCP 도구는 대화형 ask·비대화형 `--strict-mcp-config`(A7). 세션 종료·범위 축소 시 파이프 응답도 즉시 반영 | `GuardEvaluator`, `CliCommandBuilder` |
+| 5c-5 | 컨텍스트 1단계 고도화: 프로젝트 이름↔루트 표, 열린·활성 문서, 제외 폴더·표시 필터 규칙, "모호하면 후보 제시", "활성 문서 프로젝트 우선", MCP 도구 안내. 12,000자 상한(A3) | `src/DotDeck.Core/AiCli/Context/ContextDocumentBuilder.cs` |
+| 5c-6 | Codex 지원: `AiSessionManager.Start`의 Codex 거부 해제, `SessionLaunchViewModel.CodexNote` 제거. 비대화형 `codex exec … -s workspace-write --json -o <last.txt> -` + JSONL 파서, 대화형은 ConPTY 탭 `-a on-request --no-daemon`, 이어가기는 비대화형만(A10). `codex.cmd` 대신 `node.exe codex.js`(A9). Windows sandbox 미설정이면 경고하고 비대화형 비활성 | `AiSessionManager.cs`(`CliKind.Codex` 거부), `CliCommandBuilder.BuildCodex`, `CliLocator`, `SessionPresetStore`(`codex.threadId`) |
+| 5c-7 | 세션 폴더 정리: 요약 수락·닫기 후 7일 / 최근 20세션(A15), 실행 중 세션 제외, 앱 시작 시 백그라운드 | `%LOCALAPPDATA%\DotDeck\sessions\<id>\` |
+| 5c-8 | 문서·수동 확인: CHANGELOG, HANDOFF, DESIGN 5c 메모, 4개 시나리오 실행 방법 보고 | — |
+
+### 확인 필요(스파이크)
+- Claude Code `--mcp-config` 서버가 대화형·`-p` 모두에서 로드되는지, 도구 이름 접두(`mcp__<서버>__<도구>`)가 설계의 `mcp__dotdeck_session__*`와 맞는지 — 샌드박스 `claude --help`·실측.
+- Codex `--json`의 thread id 필드, Windows sandbox 설정 여부 판별 방법(DESIGN "명령줄" 절의 확인 필요).
+- Named Pipe 보안: 파이프 이름 추측·다른 사용자 접근 차단(ACL), 토큰 비교는 고정 시간.
+
+### 지켜야 할 것
+- 새 NuGet 금지(필요하면 사용자 승인). MCP는 직접 구현.
+- 실제 `~/.claude`·`~/.codex` 수정 금지(`--home`), 권한 우회 옵션 금지(`ForbiddenOptions`), MCP 결과에 비밀 파일 경로·내용 금지.
+- 설계 변경은 DESIGN "AI CLI 연동 설계"에 먼저 기록하고 사용자 확인 후 구현.
 
 ## 5. 결정 사항과 이유
 | 결정 | 이유 | 기각한 대안 |
@@ -82,7 +111,8 @@
 - 보류(Codex 지적, 영향 낮음): 5b-1 플러드+종료 교착 테스트는 시간 기반이며 이 OS(빌드 26200)에서는 24H2 이전 교착을 재현할 수 없음. 5a 보류 항목(세션 백업 `.lock` 10초, 2MB 초과 비강제 되돌리기, 정션 아래 읽기 사본 캡처, 대소문자 구분 폴더) 유지.
 - 재시작 흐름(저장 → 중지 → 대기 → 시작)의 UI 스레드 복귀는 ShellViewModel 수준이라 단위 테스트 없음(Core의 예약·대기 규칙은 테스트됨).
 - 수동 확인 미실행: 실제 Claude TUI 렌더링, 한글 IME, 크기 조절, 대화형 모드의 가드 거부 표시, 테마 전환 — 사용자 확인 필요(2절).
-- 세션 폴더 정리(7일·최근 20세션)는 5c에서 구현 예정.
+- 세션 폴더 정리(7일·최근 20세션)는 5c-7.
+- 터미널(WebView2)에 포커스가 있을 때 Alt+Z 동작 미확인(활성 문서가 없으면 바인딩은 조용히 비활성).
 - 알려진 한계: 하드링크, 검사↔쓰기 사이 링크 교체(TOCTOU) — 변경 요약으로 사후 탐지.
 
 ## 8. 참고
@@ -98,9 +128,9 @@
 ## 10. 세션 재개 프롬프트
 ```text
 D:\project\DotDeck 에서 작업을 이어받는다. 먼저 docs/HANDOFF.md와 CLAUDE.md, docs/SPEC.md 11절, docs/DESIGN.md "AI CLI 연동 설계"를 읽어라.
-브랜치는 feat/ai-cli, Phase 5a·5b는 커밋까지 끝났다. `git status --short`와 `git log --oneline -15`로 상태를 확인하고,
+Phase 5a·5b는 v1.2.0으로 main에 릴리스되었다. 5c는 main에서 feat/ai-cli-5c 브랜치를 만들어 진행한다. `git status --short`와 `git log --oneline -15`로 상태를 확인하고,
 `dotnet build DotDeck.slnx`와 `dotnet test --solution DotDeck.slnx`가 통과하는지 먼저 확인하라.
-HANDOFF "다음 할 일" 1번(사용자 5b 확인 결과 반영)부터 시작하고, 5c로 넘어가기 전에 단계 계획을 보여 주고 확인받아라.
+HANDOFF "4-1. 5c 인수인계" 절의 단계표로 계획을 보여 주고 확인받은 뒤 5c-1부터 시작하라. 스파이크 항목은 샌드박스에서 먼저 확인한다.
 실제 ~/.claude·~/.codex를 수정하지 말고 --home 샌드박스만 쓴다. push·PR은 사용자 확인 후에만 한다.
 ```
 
@@ -108,3 +138,4 @@ HANDOFF "다음 할 일" 1번(사용자 5b 확인 결과 반영)부터 시작하
 - 2026-11-08: Codex 전용 편집기(2a~2b, 보안 재설계 ②~⑤, 리뷰 반영 A~C) 진행 기록 — v1.1.0까지 반영, 상세는 git 이력.
 - 2026-11-09: Phase 5a(AI CLI 연동) 완료 상태로 전면 갱신, 이전 기록은 한 줄로 축약.
 - 2026-11-09: Phase 5b(대화형 터미널) 완료 반영 — 5b 커밋·결정·함정·수동 확인 순서 추가.
+- 2026-11-09: feat/editor-word-wrap 병합·v1.2.0 릴리스 반영, 5c 인수인계 절(단계·시작점·스파이크) 추가.

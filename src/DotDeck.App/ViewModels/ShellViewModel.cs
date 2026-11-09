@@ -157,10 +157,6 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public string Title => Paths.IsHomeOverridden ? $"DotDeck — 샌드박스: {Paths.Home}" : "DotDeck";
 
-    public string HomeStatusText => Paths.IsHomeOverridden ? $"샌드박스 홈: {Paths.Home}" : $"홈: {Paths.Home}";
-
-    public string PrivilegeStatusText => IsAdministrator ? "관리자" : "표준 사용자";
-
     public ObservableCollection<DocumentViewModel> Documents { get; } = [];
 
     public ObservableCollection<ToolPaneViewModel> Tools { get; }

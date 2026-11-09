@@ -185,26 +185,27 @@
                     <DockPanel LastChildFill="True" />
                 </ItemsPanelTemplate>
             </StatusBar.ItemsPanel>
-            <StatusBarItem DockPanel.Dock="Right" Content="{Binding PrivilegeStatusText}" />
-            <Separator DockPanel.Dock="Right" />
-            <StatusBarItem DockPanel.Dock="Right" Padding="0">
-                <Button Content="{Binding ScreenShareStatusText}" Command="{Binding ToggleScreenShareModeCommand}"
-                        ToolTip="화면 공유 모드 전환 (켜면 비밀값을 화면에서 가립니다)" AutomationProperties.Name="화면 공유 모드"
-                        Background="Transparent" BorderThickness="0" Foreground="{DynamicResource DD.Brush.Text.OnAccent}" Padding="6,0" />
-            </StatusBarItem>
-            <Separator DockPanel.Dock="Right" />
-            <StatusBarItem DockPanel.Dock="Right" Content="{Binding HomeStatusText}" />
-            <Separator DockPanel.Dock="Right" />
-            <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.Buffer.LineEndingText}"
-                           Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" ToolTip="줄바꿈" />
-            <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.Buffer.EncodingText}"
-                           Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" ToolTip="인코딩" />
-            <StatusBarItem DockPanel.Dock="Right" Padding="0"
+            <!-- Left: toggles (soft wrap of the active document, screen share mode). -->
+            <StatusBarItem DockPanel.Dock="Left" Padding="0"
                            Visibility="{Binding ActiveDocument.SupportsWordWrap, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}">
                 <Button Content="{Binding ActiveDocument.WordWrapStatusText}" Command="{Binding ActiveDocument.ToggleWordWrapCommand}"
                         ToolTip="자동 줄 바꿈 전환 (Alt+Z) — 화면 표시만 바뀌고 파일은 그대로입니다" AutomationProperties.Name="자동 줄 바꿈"
                         Background="Transparent" BorderThickness="0" Foreground="{DynamicResource DD.Brush.Text.OnAccent}" Padding="6,0" />
             </StatusBarItem>
+            <Separator DockPanel.Dock="Left"
+                       Visibility="{Binding ActiveDocument.SupportsWordWrap, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}" />
+            <StatusBarItem DockPanel.Dock="Left" Padding="0">
+                <Button Content="{Binding ScreenShareStatusText}" Command="{Binding ToggleScreenShareModeCommand}"
+                        ToolTip="화면 공유 모드 전환 (켜면 비밀값을 화면에서 가립니다)" AutomationProperties.Name="화면 공유 모드"
+                        Background="Transparent" BorderThickness="0" Foreground="{DynamicResource DD.Brush.Text.OnAccent}" Padding="6,0" />
+            </StatusBarItem>
+            <Separator DockPanel.Dock="Left" />
+
+            <!-- Right: status information, the line ending outermost. -->
+            <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.Buffer.LineEndingText}"
+                           Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" ToolTip="줄바꿈" />
+            <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.Buffer.EncodingText}"
+                           Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" ToolTip="인코딩" />
             <!-- Logical (file) line and column: AvalonEdit's caret counts document lines, not wrapped screen lines. -->
             <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.CaretText}"
                            Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" />
@@ -213,7 +214,10 @@
             <StatusBarItem DockPanel.Dock="Right" Content="{Binding ActiveTextDocument.FilePath}" MaxWidth="420"
                            ToolTip="{Binding ActiveTextDocument.FilePath}"
                            Visibility="{Binding HasActiveTextDocument, Converter={StaticResource BoolToVisible}}" />
-            <StatusBarItem Content="{Binding StatusMessage}" />
+            <!-- Fills the middle; the message hugs the information on the right. -->
+            <StatusBarItem HorizontalContentAlignment="Right">
+                <TextBlock Text="{Binding StatusMessage}" TextTrimming="CharacterEllipsis" ToolTip="{Binding StatusMessage}" />
+            </StatusBarItem>
         </StatusBar>
 
         <!-- Docking area -->

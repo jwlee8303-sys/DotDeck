@@ -614,6 +614,14 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - 입력 쓰기는 콘솔이 바쁘면 막힐 수 있으므로 호출자는 UI 스레드에서 쓰지 않는다(5b-3 세션이 전용 쓰기 작업을 둔다).
 - 테스트(App.Tests `TerminalLauncherTests`, 실제 cmd.exe): 출력·종료 코드·EOF, 한글 입력 왕복, 초기 크기·`Resize`(`mode con`), Terminate/Dispose 시 손자 종료, 읽는 쪽 없는 Dispose, 종료·Dispose 경합.
 
+### xterm.js 번들 (5b-2 구현)
+- 고정 버전: `@xterm/xterm` **6.0.0**(npm integrity `sha512-TQwDdQGt…3sMOYg==`), `@xterm/addon-fit` **0.11.0**(`sha512-jYcgT6xt…CPF7g==`). 둘 다 MIT. dist 파일을 수정 없이 `src/DotDeck.App/Assets/Terminal/{xterm,addon-fit}/`에 LICENSE와 함께 둔다.
+- SHA-256: `xterm.js` 14903579…d4a972, `xterm.css` 854a7c0f…3293c6, `addon-fit.js` ba3ea256…c18527(전체 값은 `THIRD-PARTY-NOTICES.txt`, App.Tests `TerminalAssetsTests`가 내장 리소스와 고지 파일 모두 대조).
+- `.gitattributes`로 두 폴더를 `-text` 처리(`core.autocrlf`가 줄바꿈을 바꿔 해시가 달라지는 것 방지).
+- 내장 리소스(`Terminal/<상대 경로>`)로 exe에 포함하고 `TerminalAssets.Open`이 `https://term.dotdeck.local/<정확한 경로>`의 html·js·css만 응답한다(다른 스킴·호스트·포트·사용자 정보·소스맵·LICENSE·미등록 경로는 null → 403). 디스크에서는 읽지 않는다.
+- `THIRD-PARTY-NOTICES.txt`(저장소 루트)는 출력·게시 폴더에 복사된다(단일 파일 게시 시 exe 옆).
+- 업데이트 절차: npm pack으로 받은 tgz의 integrity 확인 → dist 교체 → 고지 파일·테스트·이 절의 해시 갱신.
+
 ### 단계 (각 1커밋, 빌드 → 테스트 → `/codex-review` → 커밋)
 - 5a: 0 설계 문서 / 1 범위 모델 / 2 경로 정규화·범위 검사기 / 3 가드 판정·셸 분석 / 4 가드 모드·scope.json 갱신(+stdio·콜드 스타트·병합 실측) / 5 명령줄 빌더·CLI 탐색 / 6 프리셋·컨텍스트 / 7 Job 실행기·세션 관리자 / 8 스냅샷·변경 요약·되돌리기 / 9 세션 시작 대화상자·진입점 / 10 AI 작업 패널·변경 요약 대화상자 / 11 CHANGELOG·HANDOFF.
 - 5b: ConPTY / xterm 번들 / 터미널 패널 / 대화형 세션 탭·범위 칩 / PowerShell 터미널 / 변경 검토 연결 + 스크린샷 확인.

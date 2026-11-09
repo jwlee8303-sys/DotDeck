@@ -33,6 +33,12 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Editor\Highlighting\*.xshd" />
+    <!-- Terminal page (xterm.js + DotDeck page), served from memory on a virtual host; see TerminalAssets. -->
+    <EmbeddedResource Include="Assets\Terminal\**\*" LogicalName="Terminal/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

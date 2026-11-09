@@ -2,6 +2,8 @@
 이 프로젝트의 주요 변경사항을 기록합니다. 형식: Keep a Changelog, 버전: SemVer.
 
 ## [Unreleased]
+
+## [1.3.0] - 2026-11-09
 ### Changed
 - AI 세션 범위가 Claude·Codex 설정 폴더(Claude 전역·Codex 전역)일 때, CLI가 스스로 쓰는 기록(`.claude.json`, `history.jsonl`, `backups`·`sessions`·`cache`·`plugins/synced`·`plugins/cache`·`skills/synced` 등)은 세션 시작 백업과 변경 검토에서 제외. Claude 도구가 직접 쓴 파일(원본 캡처가 없는 새 파일·대용량·바이너리 포함)과 출처를 알 수 없는 변경은 계속 사용자 작업으로 표시. 사용자가 관리하는 플러그인 경로는 유지. 목록은 `catalogs/<CLI>/system-records.json`으로 덮어쓰기 가능
 ### Fixed

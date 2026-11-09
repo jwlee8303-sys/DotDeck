@@ -2,6 +2,8 @@
 이 프로젝트의 주요 변경사항을 기록합니다. 형식: Keep a Changelog, 버전: SemVer.
 
 ## [Unreleased]
+### Documentation
+- AI CLI 연동 사양(SPEC 11절)과 Phase 5a~5c 계획 추가: 프로젝트 범위 세션, 명령 실행·대화형 터미널, 컨텍스트 전달·내장 MCP, 범위 가드 훅, 변경 요약·되돌리기
 
 ## [1.1.0] - 2026-11-09
 ### Added

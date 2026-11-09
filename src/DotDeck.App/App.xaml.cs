@@ -133,6 +133,7 @@ public partial class App : Application
             GuardExecutable = Environment.ProcessPath ?? throw new InvalidOperationException("DotDeck 실행 파일 경로를 알 수 없습니다."),
             Presets = presets,
             BackupProtector = new DpapiBackupProtector(),
+            RecycleBin = _log is null ? null : new WindowsRecycleBin(_log),
         });
         return _aiSessions;
     }

@@ -1,0 +1,64 @@
+<Window x:Class="DotDeck.App.Views.Dialogs.ChangeReviewDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:DotDeck.App.Views.Controls"
+        xmlns:conv="clr-namespace:DotDeck.App.Converters"
+        Title="{Binding Title}"
+        Width="1000" Height="660" MinWidth="600" MinHeight="340"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        Background="{DynamicResource DD.Brush.Panel.Background}"
+        Foreground="{DynamicResource DD.Brush.Text}"
+        FontFamily="{DynamicResource DD.Font.Ui}"
+        FontSize="{DynamicResource DD.FontSize.Ui}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+        <conv:NullToCollapsedConverter x:Key="NullToCollapsed" />
+    </Window.Resources>
+
+    <DockPanel Margin="12">
+        <TextBlock DockPanel.Dock="Top" Text="{Binding Message}" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="이 파일 되돌리기" MinWidth="110" Command="{Binding RevertSelectedCommand}" />
+            <Button Content="모두 되돌리기" MinWidth="110" Margin="8,0,0,0" Command="{Binding RevertAllCommand}"
+                    IsEnabled="{Binding HasRevertible}" />
+            <Button Content="수락(닫기)" MinWidth="88" Margin="8,0,0,0" IsDefault="True" IsCancel="True" Command="{Binding AcceptCommand}" />
+        </StackPanel>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <ListBox Grid.Column="0" Margin="0,0,8,0" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
+                     AutomationProperties.Name="변경된 파일">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="2" ToolTip="{Binding Path}">
+                            <TextBlock>
+                                <Run Text="{Binding KindText, Mode=OneWay}" Foreground="{DynamicResource DD.Brush.Accent}" />
+                                <Run Text="{Binding Name, Mode=OneWay}" />
+                            </TextBlock>
+                            <TextBlock Text="{Binding Status}" Style="{StaticResource DD.Text.Secondary}" TextWrapping="Wrap"
+                                       Visibility="{Binding Status, Converter={StaticResource NullToCollapsed}}" />
+                            <TextBlock Text="{Binding BlockedReason}" Foreground="{DynamicResource DD.Brush.Warning}" TextWrapping="Wrap"
+                                       Visibility="{Binding BlockedReason, Converter={StaticResource NullToCollapsed}}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <Border Grid.Column="1" BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="1">
+                <DockPanel>
+                    <Button DockPanel.Dock="Top" Content="👁 diff 표시 / 가리기" Command="{Binding SelectedRow.RevealCommand}" HorizontalAlignment="Right"
+                            Visibility="{Binding SelectedRow.CanReveal, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}" />
+                    <TextBlock DockPanel.Dock="Top" Margin="6,4" Style="{StaticResource DD.Text.Secondary}"
+                               Text="{Binding SelectedRow.Path}" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedRow.Path}" />
+                    <TextBlock DockPanel.Dock="Top" Margin="6,0,6,4" TextWrapping="Wrap" Foreground="{DynamicResource DD.Brush.Warning}"
+                               Text="{Binding SelectedRow.Note}" Visibility="{Binding SelectedRow.Note, Converter={StaticResource NullToCollapsed}, FallbackValue=Collapsed}" />
+                    <controls:DiffView Lines="{Binding SelectedRow.Lines}" />
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

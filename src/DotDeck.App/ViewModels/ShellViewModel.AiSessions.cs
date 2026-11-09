@@ -38,7 +38,9 @@ public sealed partial class ShellViewModel
         {
             OnPropertyChanged(nameof(AiStatusText));
             OnPropertyChanged(nameof(HasRunningAiSessions));
+            OfferReviewForFinishedSessions();
         });
+        AiWork.Attach(manager);
 
         // Scope narrowing must not wait for anything: the guard reads scope.json on the next tool call.
         registry.Changed += (_, _) => manager.OnProjectsChanged();

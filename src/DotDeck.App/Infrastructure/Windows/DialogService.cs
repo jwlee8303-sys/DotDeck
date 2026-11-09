@@ -116,6 +116,12 @@ public sealed class DialogService : IDialogService
         return Modal(() => dialog.ShowDialog() == true) ? dialog.Request : null;
     }
 
+    public void ShowChangeReview(ChangeReviewViewModel viewModel)
+    {
+        var dialog = new ChangeReviewDialog(viewModel) { Owner = Owner };
+        Modal(dialog.ShowDialog);
+    }
+
     public (IReadOnlyList<string> ProjectIds, string Destination)? ShowProjectBackup(
         IReadOnlyList<(string Id, string Name, string Root)> projects, string? lastDestination)
     {

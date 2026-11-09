@@ -63,6 +63,9 @@ public interface IDialogService
     /// <summary>AI session start dialog (SPEC 11.3-3). Returns the validated request, or null when cancelled.</summary>
     DotDeck.Core.AiCli.Sessions.AiSessionStartRequest? ShowSessionLaunch(SessionLaunchViewModel viewModel);
 
+    /// <summary>AI change summary with per-file and full revert (SPEC 11.3-4). Reverts happen inside the dialog.</summary>
+    void ShowChangeReview(ChangeReviewViewModel viewModel);
+
     /// <summary>Project backup dialog: returns the chosen project ids and destination folder, or null.</summary>
     (IReadOnlyList<string> ProjectIds, string Destination)? ShowProjectBackup(
         IReadOnlyList<(string Id, string Name, string Root)> projects, string? lastDestination);

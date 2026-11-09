@@ -105,7 +105,8 @@ public sealed partial class ShellViewModel : ObservableObject
         Validation = new ValidationPaneViewModel();
         SearchResults = new SearchResultsPaneViewModel(services.Store, SearchRoots, OpenSearchHitAsync);
         HookTest = new HookTestPaneViewModel { Dialogs = services.Dialogs, WorkingDirectory = services.Paths.Home };
-        Tools = [Properties, Output, Validation, SearchResults, HookTest];
+        AiWork = new AiSessionsPaneViewModel(ReviewAiChangesAsync, ConfirmStopAiSession) { IsVisible = false };
+        Tools = [Properties, Output, Validation, SearchResults, HookTest, AiWork];
         Projects = new ProjectsPaneViewModel(explorerContext, services.Session, Tools.Add, tool => Tools.Remove(tool));
         Tools.Insert(0, Projects);
         Projects.List.PropertyChanged += (_, e) =>
@@ -168,6 +169,9 @@ public sealed partial class ShellViewModel : ObservableObject
     public SearchResultsPaneViewModel SearchResults { get; }
 
     public HookTestPaneViewModel HookTest { get; }
+
+    /// <summary>"AI 작업" panel: sessions, their output and the change review (SPEC 11.3-4).</summary>
+    public AiSessionsPaneViewModel AiWork { get; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveActiveCommand))]

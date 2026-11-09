@@ -6,6 +6,7 @@ using DotDeck.Core.AiCli.Scope;
 using DotDeck.Core.AiCli.Snapshots;
 using DotDeck.Core.Documents;
 using DotDeck.Core.Explorer;
+using DotDeck.Core.FileOperations;
 using DotDeck.Core.Files;
 using DotDeck.Core.Paths;
 using DotDeck.Core.Projects;
@@ -78,6 +79,9 @@ public sealed record AiSessionEnvironment
     public IBackupProtector? BackupProtector { get; init; }
 
     public SnapshotLimits SnapshotLimits { get; init; } = new();
+
+    /// <summary>Where reverted "created" files go. Without one, such reverts are refused (never a permanent delete).</summary>
+    public IRecycleBin? RecycleBin { get; init; }
 }
 
 /// <summary>One running or finished CLI session.</summary>
@@ -138,7 +142,82 @@ public sealed class AiSession
     /// <summary>State changed. Raised on a background thread.</summary>
     public event Action<AiSession>? StateChanged;
 
-    internal void RaiseOutput(string line, bool isError) => OutputLine?.Invoke(this, line, isError);
+    /// <summary>Recent output lines kept for viewers that attach late (the panel opens after the CLI started).</summary>
+    public const int OutputBufferLines = 5000;
+
+    /// <summary>Total characters kept (stream JSON lines can carry whole tool results).</summary>
+    public const long OutputBufferChars = 4L * 1024 * 1024;
+
+    private readonly Queue<(string Line, bool IsError)> _recent = new();
+    private long _recentChars;
+    private Action<AiSession, string, bool>[] _viewers = [];
+
+    /// <summary>True once Claude ran the SessionStart heartbeat hook, i.e. the session settings and the guard apply.</summary>
+    public bool GuardConnected { get; private set; }
+
+    internal void MarkGuardConnected()
+    {
+        lock (_gate)
+        {
+            if (GuardConnected)
+            {
+                return;
+            }
+
+            GuardConnected = true;
+        }
+
+        StateChanged?.Invoke(this);
+    }
+
+    /// <summary>
+    /// Returns the buffered lines and subscribes <paramref name="viewer"/> to later ones, atomically: every line is
+    /// seen exactly once, either in the returned list or through the callback (raised on a background thread).
+    /// </summary>
+    public IReadOnlyList<(string Line, bool IsError)> AttachOutput(Action<AiSession, string, bool> viewer)
+    {
+        ArgumentNullException.ThrowIfNull(viewer);
+        lock (_gate)
+        {
+            _viewers = [.. _viewers, viewer];
+            return [.. _recent];
+        }
+    }
+
+    public void DetachOutput(Action<AiSession, string, bool> viewer)
+    {
+        lock (_gate)
+        {
+            _viewers = [.. _viewers.Where(v => v != viewer)];
+        }
+    }
+
+    internal void RaiseOutput(string line, bool isError)
+    {
+        Action<AiSession, string, bool>[] viewers;
+        lock (_gate)
+        {
+            // A single huge line (a whole tool result) is passed to live viewers but never kept: the buffer
+            // stays within its size limit no matter what the CLI prints.
+            if (line.Length <= OutputBufferChars / 4)
+            {
+                _recent.Enqueue((line, isError));
+                _recentChars += line.Length;
+                while (_recent.Count > OutputBufferLines || _recentChars > OutputBufferChars)
+                {
+                    _recentChars -= _recent.Dequeue().Line.Length;
+                }
+            }
+
+            viewers = _viewers;
+        }
+
+        OutputLine?.Invoke(this, line, isError);
+        foreach (var viewer in viewers)
+        {
+            viewer(this, line, isError);
+        }
+    }
 
     /// <summary>Moves out of Running once; later calls are ignored (the first reason wins).</summary>
     internal bool Finish(AiSessionState state, int? exitCode, string? message)
@@ -403,6 +482,27 @@ public sealed class AiSessionManager : IDisposable
         return ChangeSummaryBuilder.Build(start, now, OpenBackups(session), _env.Store, _env.SnapshotLimits);
     }
 
+    /// <summary>Reverts changes of <paramref name="session"/>, limited to the roots indexed when it started.</summary>
+    public RevertPlanner CreateRevertPlanner(AiSession session, SafeWriter writer)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(writer);
+        return new RevertPlanner(_env.Store, writer, _env.RecycleBin ?? NoRecycleBin.Instance, _env.SnapshotLimits, session.Snapshot?.Roots ?? session.SnapshotRoots);
+    }
+
+    private sealed class NoRecycleBin : IRecycleBin
+    {
+        public static readonly NoRecycleBin Instance = new();
+
+        public bool CanRecycle(string path) => false;
+
+        public RecycleTicket Recycle(string path) => throw new IOException("휴지통을 사용할 수 없습니다.");
+
+        public bool Contains(RecycleTicket ticket) => false;
+
+        public void Restore(RecycleTicket ticket) => throw new IOException("휴지통을 사용할 수 없습니다.");
+    }
+
     /// <summary>Stops a running session (terminates its whole process tree).</summary>
     public void Stop(AiSession session, string? reason = null)
     {
@@ -567,6 +667,8 @@ public sealed class AiSessionManager : IDisposable
         process.Dispose();
     }
 
+    private static readonly TimeSpan HeartbeatPoll = TimeSpan.FromMilliseconds(250);
+
     private const string HeartbeatMissing = "세션 설정(가드 훅)이 적용되지 않아 세션을 중지했습니다. CLI 버전과 설정을 확인하세요.";
 
     private async Task WatchHeartbeatAsync(AiSession session)
@@ -579,10 +681,26 @@ public sealed class AiSessionManager : IDisposable
         var heartbeat = Path.Combine(session.Directory, Guard.GuardHost.HeartbeatFileName);
         var exited = session.Process!.Exited;
         var timeout = Task.Delay(_env.HeartbeatTimeout, _env.Time);
-        await Task.WhenAny(exited, timeout).ConfigureAwait(false);
-        if (exited.IsCompleted || File.Exists(heartbeat))
+        while (!timeout.IsCompleted && !exited.IsCompleted)
         {
+            if (File.Exists(heartbeat))
+            {
+                session.MarkGuardConnected();
+                return;
+            }
+
+            await Task.WhenAny(exited, timeout, Task.Delay(HeartbeatPoll, _env.Time)).ConfigureAwait(false);
+        }
+
+        if (File.Exists(heartbeat))
+        {
+            session.MarkGuardConnected();
             return;
+        }
+
+        if (exited.IsCompleted)
+        {
+            return; // WatchExitAsync decides (a run that never loaded the settings is a failure there).
         }
 
         if (session.Finish(AiSessionState.Failed, null, HeartbeatMissing))

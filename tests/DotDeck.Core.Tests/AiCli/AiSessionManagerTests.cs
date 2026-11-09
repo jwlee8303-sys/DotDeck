@@ -224,6 +224,92 @@ public sealed class AiSessionManagerTests : IDisposable
 
         Assert.Equal(AiSessionState.Running, session.State);
         Assert.False(_launcher.Last.Terminated);
+        Assert.True(session.GuardConnected);
+    }
+
+    [Fact]
+    public async Task Guard_connection_is_reported_as_soon_as_the_heartbeat_appears()
+    {
+        using var manager = Manager();
+        var session = manager.Start(Request());
+        var changes = 0;
+        session.StateChanged += _ => Interlocked.Increment(ref changes);
+        Assert.False(session.GuardConnected);
+
+        File.WriteAllText(Path.Combine(session.Directory, "heartbeat"), "x");
+
+        await Eventually(() => session.GuardConnected);
+        await Eventually(() => Volatile.Read(ref changes) == 1);
+        Assert.Equal(AiSessionState.Running, session.State);
+    }
+
+    [Fact]
+    public async Task Late_viewers_get_buffered_output_once_and_then_live_lines()
+    {
+        using var manager = Manager();
+        var session = manager.Start(Request());
+        _launcher.Last.WriteStdout("one\ntwo\n");
+        await Eventually(() => session.AttachOutput((_, _, _) => { }).Count == 2);
+
+        var live = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var buffered = session.AttachOutput((_, line, _) => live.Enqueue(line));
+        _launcher.Last.WriteStderr("three\n");
+        await Eventually(() => live.Count == 1);
+
+        Assert.Equal(["one", "two"], buffered.Select(l => l.Line));
+        Assert.Equal(["three"], live);
+
+        session.DetachOutput((_, _, _) => { }); // unknown viewers are ignored
+    }
+
+    [Fact]
+    public async Task Output_buffer_is_bounded_by_size()
+    {
+        using var manager = Manager();
+        var session = manager.Start(Request());
+        var big = new string('x', 1024 * 1024);
+        for (var i = 0; i < 6; i++)
+        {
+            _launcher.Last.WriteStdout(big + "\n");
+        }
+
+        _launcher.Last.WriteStdout("last\n");
+        await Eventually(() => session.AttachOutput((_, _, _) => { }) is { Count: > 0 } lines && lines[^1].Line == "last");
+
+        var kept = session.AttachOutput((_, _, _) => { });
+        Assert.True(kept.Sum(l => (long)l.Line.Length) <= AiSession.OutputBufferChars);
+        Assert.True(kept.Count < 7);
+    }
+
+    [Fact]
+    public async Task A_single_huge_line_reaches_live_viewers_but_is_not_buffered()
+    {
+        using var manager = Manager();
+        var session = manager.Start(Request());
+        var live = 0L;
+        session.AttachOutput((_, line, _) => Interlocked.Add(ref live, line.Length));
+
+        _launcher.Last.WriteStdout(new string('y', (int)AiSession.OutputBufferChars + 10) + "\nafter\n");
+        await Eventually(() => Interlocked.Read(ref live) >= AiSession.OutputBufferChars + 15);
+
+        var kept = session.AttachOutput((_, _, _) => { });
+        Assert.Equal(["after"], kept.Select(l => l.Line));
+    }
+
+    [Fact]
+    public void Revert_planner_without_a_recycle_bin_refuses_created_files()
+    {
+        using var manager = Manager();
+        var session = manager.Start(Request());
+        var created = Path.Combine(_main, "new.md");
+        File.WriteAllText(created, "x");
+        var item = manager.BuildChangeSummary(session)!.Items.Single(i => i.Path == created);
+
+        var planner = manager.CreateRevertPlanner(session, new DotDeck.Core.Documents.SafeWriter(PhysicalFileStore.Instance,
+            new DotDeck.Core.Documents.BackupStore(PhysicalFileStore.Instance, _temp.Combine("user-backups"), TimeProvider.System)));
+
+        Assert.Equal(DotDeck.Core.AiCli.Snapshots.RevertStatus.NotRevertible, planner.Revert(item).Status);
+        Assert.True(File.Exists(created));
     }
 
     [Fact]

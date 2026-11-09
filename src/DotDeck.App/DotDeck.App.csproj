@@ -6,6 +6,8 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>DotDeck</AssemblyName>
     <RootNamespace>DotDeck.App</RootNamespace>
+    <!-- Program.Main dispatches AI CLI helper modes (scope guard, heartbeat) before starting WPF. -->
+    <StartupObject>DotDeck.App.Program</StartupObject>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Required by LibraryImport source-generated P/Invoke marshalling. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

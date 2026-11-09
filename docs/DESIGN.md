@@ -596,3 +596,11 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - Core: 명령줄(공백·한글·`"`·끝 `\`·`%`·`&`·`'`·개행, 추가 폴더 0/1/3, Claude/Codex·모드 분기, TOML 이스케이프, 금지 옵션 미포함, `.cmd` 거부), 범위 검사(가짜 resolver로 대소문자·`..`·링크 체인·UNC·`\\.\`·ADS·8.3·형제 접두·축소 후 즉시 deny·손상 deny), 가드(도구별 입력 픽스처, 비밀 파일 deny, 예외 exit 2, 셸 분석), 프리셋 왕복·ID 기반 갱신, 컨텍스트 제외, 스냅샷→변경→되돌리기, A4 환경 변수 전달/미전달.
 - App: CommandLineToArgvW 왕복, 실제 정션 1건, `tests/DotDeck.FakeCli`(argv·cwd·환경 기록, stream-json/JSONL 출력, `--settings` PreToolUse 훅 실제 호출, 손자 프로세스로 Job 종료 검증).
 - 수동(샌드박스 홈): 훅 병합, 가드 지연, TUI 한글 IME, 크기 조절, 실행 중 탭 반영, SPEC 5c 4개 시나리오.
+
+### 실측 기록 (5a-4, 2026-11-09)
+- **가드 지연**: `dotnet publish -c Release -r win-x64 -p:PublishSingleFile=true`(SelfContained, 154MB) 산출물로 `--dotdeck-guard` 15회: p50 68ms(min 66, max 71). 새 빌드의 최초 1회는 6.9초(단일 파일 네이티브 라이브러리 추출·백신 검사로 추정, 이후 캐시). DotDeck 본체 실행 시 같은 추출이 먼저 일어나므로 세션 중 가드 호출에는 해당하지 않는다. 200ms 기준 충족 → ReadyToRun·별도 가드 exe 분리 불필요.
+- **WinExe stdio**: GUI 서브시스템 DotDeck.exe가 상속받은 stdin/stdout/stderr 파이프로 정상 입출력(App.Tests `GuardProcessTests`: 범위 안 무출력, 범위 밖 deny, scope.json 없음 exit 2). WPF는 초기화하지 않는다(`Program.Main` 분기).
+- **`--settings` 훅 병합(A5)**: 샌드박스 `CLAUDE_CONFIG_DIR`의 `settings.json`에 가짜 전역 SessionStart 훅 2개(guard_bash·protect_files 흉내), `--settings` 파일에 세션 훅 1개를 두고 Claude Code 2.1.319 `-p` 실행 → 세 훅의 마커 파일이 모두 생성됨(로그인 전 단계에서도 SessionStart 실행). **훅 목록은 병합되며 대체되지 않는다** → A5 대안(전역 hooks 복사) 불필요. PreToolUse 병합의 실제 모델 호출 확인은 샌드박스 로그인이 필요해 5a 수동 확인 항목으로 남긴다. 실행 후 샌드박스 설정 폴더에 `backups`, `plugins`, `projects`, `session-env`, `sessions`가 생겼으므로 A4 격리가 실제로 필요함을 확인.
+- **보완 결정**: Grep이 폴더 대상으로 실행되면 가드는 폴더 안 비밀 파일 내용 노출을 막을 수 없다. 세션 settings.json에 `permissions.deny`로 비밀 파일 패턴(dotenv 계열, `*.pem`, `*.key`, `*.pfx`, `id_rsa*`, `id_ed25519*`, `auth.json`의 Read 규칙)을 함께 넣어 Claude 내장 Read 계열 규칙으로 보강한다(5a-5 `SessionFilesWriter`, 동작은 5a 수동 확인).
+- **Codex 지적 보류**: 대소문자 구분이 켜진 디렉터리(`fsutil file setCaseSensitiveInfo`)에서 대소문자만 다른 형제 폴더는 범위 비교(OrdinalIgnoreCase)로 구분되지 않는다. 기본 NTFS에서는 발생하지 않아 알려진 한계로 둔다. 후속 후보: 루트·대상 폴더의 `FILE_CASE_SENSITIVE_INFO`를 조회해 켜져 있으면 Unresolved.
+- **셸·검색 비밀 패턴(5a-3 보완)**: 비밀 표본 대조만으로는 `foo*.pem`, `.env.staging*` 같은 변형을 놓친다. 와일드카드를 빈 문자열·한 글자로 치환한 구체 이름도 `SecretFilePolicy`로 판정하고, 셸 경로 후보(`./auth.*`)에도 같은 판정을 적용한다. 정적 판정의 한계는 `permissions.deny` 비밀 규칙으로 보강한다.

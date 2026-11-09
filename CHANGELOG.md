@@ -2,6 +2,14 @@
 이 프로젝트의 주요 변경사항을 기록합니다. 형식: Keep a Changelog, 버전: SemVer.
 
 ## [Unreleased]
+### Added
+- AI CLI 연동 5a — 프로젝트 범위 Claude Code 세션(명령 실행·비대화형)
+  - 세션 시작 대화상자(도구 메뉴 "Claude 세션 시작…" Ctrl+Alt+C, 프로젝트 메뉴 "이 프로젝트에서 Claude 시작…"): 주·추가 프로젝트, 프롬프트, 열린 문서 컨텍스트, 이전 대화 이어가기, 읽기 전용 셸 허용, 프리셋 저장, 명령줄 미리보기
+  - 범위 가드: Claude PreToolUse 훅(`DotDeck.exe --dotdeck-guard`)이 범위 밖 경로·비밀 파일·위험 셸 명령을 차단, 정션·심볼릭 링크·8.3·ADS·UNC 정규화, 프로젝트 제거 시 scope.json 즉시 축소, SessionStart heartbeat가 없으면 세션 실패 처리
+  - 세션 실행: 셸 없이 CLI 직접 실행, Job Object(KILL_ON_JOB_CLOSE)로 프로세스 트리 관리, 권한 우회 옵션 미사용, 샌드박스 홈(`--home`)에서만 CLAUDE_CONFIG_DIR·CODEX_HOME 전달
+  - AI 작업 패널: 세션 목록, stream-json 출력 요약(쓴 파일 내용·성공한 도구 결과는 표시하지 않음, 비밀값 가림), 가드 적용 상태, 중지, 변경 검토. 상태줄 "AI n 실행 중" 클릭으로 열기
+  - 스냅샷·변경 요약: 시작 시 범위 색인과 캡처(소규모 범위는 전체, 그 외 열린 문서), 쓰기 직전 원본 캡처(세션 폴더에 DPAPI 암호화), 세션 종료 시 변경 요약 대화상자(diff, 파일별·전체 되돌리기, 수락). 요약 이후 다시 바뀐 파일은 확인 후에만 덮어쓰고, 새 파일은 휴지통으로만 이동
+  - 세션 프리셋·마지막 추가 프로젝트·대화 ID 저장(`sessions.json`, 모르는 필드 보존)
 ### Documentation
 - AI CLI 연동 사양(SPEC 11절)과 Phase 5a~5c 계획 추가: 프로젝트 범위 세션, 명령 실행·대화형 터미널, 컨텍스트 전달·내장 MCP, 범위 가드 훅, 변경 요약·되돌리기
 - AI CLI 연동 설계(DESIGN "AI CLI 연동 설계") 추가와 사용자 결정 반영: 셸 없이 CLI 직접 실행, 범위 안 비밀 파일 차단, Codex는 샌드박스 쓰기 루트로 보호. DESIGN Q1(단일 파일은 SelfContained)·Q8(백업 보관은 세트 단위) 문구를 실제 동작에 맞게 수정

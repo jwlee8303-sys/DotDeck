@@ -25,6 +25,30 @@ public sealed partial class DiffReviewItem : ObservableObject
 
     public string Summary { get; }
 
+    private Func<string, Task<bool>>? _excludeBackup;
+    public bool CanExcludeBackup => _excludeBackup is not null;
+    public void EnableBackupExclusion(Func<string, Task<bool>> exclude, bool alreadyExcluded = false)
+    {
+        IsBackupExcluded = alreadyExcluded;
+        _excludeBackup = exclude;
+        OnPropertyChanged(nameof(CanExcludeBackup));
+        OnPropertyChanged(nameof(IsBackupExcluded));
+        OnPropertyChanged(nameof(CanAddBackupExclusion));
+    }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanAddBackupExclusion))]
+    private bool _isBackupExcluded;
+    public bool CanAddBackupExclusion => CanExcludeBackup && !IsBackupExcluded;
+    public Task ExclusionTask { get; private set; } = Task.CompletedTask;
+    partial void OnIsBackupExcludedChanged(bool value)
+    {
+        if (value && _excludeBackup is not null) ExclusionTask = ApplyExclusionAsync();
+    }
+    private async Task ApplyExclusionAsync()
+    {
+        if (!await _excludeBackup!(Path).ConfigureAwait(true)) IsBackupExcluded = false;
+    }
+
     /// <summary>Screen share mode hides the whole diff body until the eye button is pressed.</summary>
     public bool CanReveal { get; } = DotDeck.Core.Security.SecretPresentation.ScreenShareMode;
 
@@ -57,7 +81,7 @@ public sealed partial class DiffReviewViewModel : ObservableObject
 
     public ObservableCollection<DiffReviewItem> Items { get; }
 
-    public bool ShowsFileList => Items.Count > 1;
+    public bool ShowsFileList => Items.Count > 1 || Items.Any(i => i.CanExcludeBackup);
 
     public IReadOnlyList<DialogChoice> Choices { get; }
 
@@ -75,8 +99,9 @@ public sealed partial class DiffReviewViewModel : ObservableObject
     public event EventHandler? CloseRequested;
 
     [RelayCommand]
-    private void Choose(DialogChoice? choice)
+    private async Task ChooseAsync(DialogChoice? choice)
     {
+        await Task.WhenAll(Items.Select(i => i.ExclusionTask)).ConfigureAwait(true);
         Result = choice?.Id;
         CloseRequested?.Invoke(this, EventArgs.Empty);
     }

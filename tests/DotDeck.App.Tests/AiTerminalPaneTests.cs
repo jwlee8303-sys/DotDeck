@@ -78,6 +78,26 @@ public sealed class AiTerminalPaneTests : IDisposable
     }
 
     [Fact]
+    public async Task Mcp_response_is_discarded_when_scope_changes_during_a_call()
+    {
+        var (session, _) = Start();
+        var delayed = new DelayedMcpHost();
+        var host = new DotDeck.App.Infrastructure.Windows.LiveSessionHost(session, delayed);
+        var response = host.CallAsync("list_projects", new(), TestContext.Current.CancellationToken);
+        _manager.ExcludeProject(session, "b");
+        delayed.Result.SetResult(new System.Text.Json.Nodes.JsonObject { ["oldRoot"] = "must not be returned" });
+        await Assert.ThrowsAsync<InvalidOperationException>(() => response);
+        _manager.Stop(session);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => host.CallAsync("list_projects", new(), TestContext.Current.CancellationToken));
+    }
+
+    private sealed class DelayedMcpHost : DotDeck.Core.AiCli.Mcp.IAiSessionHost
+    {
+        public TaskCompletionSource<System.Text.Json.Nodes.JsonNode?> Result { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<System.Text.Json.Nodes.JsonNode?> CallAsync(string tool, System.Text.Json.Nodes.JsonObject arguments, CancellationToken cancellationToken) => Result.Task;
+    }
+
+    [Fact]
     public void Tab_shows_the_scope_as_chips_and_the_guard_state()
     {
         var (session, pane) = Start();

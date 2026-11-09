@@ -107,7 +107,7 @@ public sealed partial class ShellViewModel
         var review = new ChangeReviewViewModel(
             $"변경 검토 — {session.Title}",
             summary,
-            item => LoadChangeTexts(item, backups),
+            item => Exclusions.ReviewPolicy.IsExcluded(item.Path) ? new ChangeTexts(null, null, "변경검토 제외항목입니다.") : LoadChangeTexts(item, backups),
             (item, force) =>
             {
                 var result = planner.Revert(item, force);
@@ -122,8 +122,10 @@ public sealed partial class ShellViewModel
 
                 return result;
             },
-            _dialogs.Confirm);
+            _dialogs.Confirm,
+            path => AddExclusionAsync(DotDeck.Core.Settings.ExclusionKind.ChangeReview, path));
         _dialogs.ShowChangeReview(review);
+        if (review.IsAccepted) manager.MarkClosed(session);
 
         // Open documents of reverted files pick up the restored content through the usual external-change check.
         _ = CheckExternalChangesAsync(deep: true);

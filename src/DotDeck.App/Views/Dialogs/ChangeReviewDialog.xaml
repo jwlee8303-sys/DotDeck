@@ -35,7 +35,13 @@
                      AutomationProperties.Name="변경된 파일">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Margin="2" ToolTip="{Binding Path}">
+                        <DockPanel Margin="2" ToolTip="{Binding Path}">
+                            <CheckBox DockPanel.Dock="Left" Margin="0,0,6,0" VerticalAlignment="Top" IsChecked="{Binding IsExcluded}"
+                                      Content="검토 제외"
+                                      Visibility="{Binding CanExclude, Converter={StaticResource BoolToVisible}}"
+                                      ToolTip="변경검토 제외항목에 즉시 등록하고 검토·되돌리기에서 제외합니다."
+                                      AutomationProperties.Name="변경검토 제외" />
+                            <StackPanel>
                             <TextBlock>
                                 <Run Text="{Binding KindText, Mode=OneWay}" Foreground="{DynamicResource DD.Brush.Accent}" />
                                 <Run Text="{Binding Name, Mode=OneWay}" />
@@ -44,7 +50,8 @@
                                        Visibility="{Binding Status, Converter={StaticResource NullToCollapsed}}" />
                             <TextBlock Text="{Binding BlockedReason}" Foreground="{DynamicResource DD.Brush.Warning}" TextWrapping="Wrap"
                                        Visibility="{Binding BlockedReason, Converter={StaticResource NullToCollapsed}}" />
-                        </StackPanel>
+                            </StackPanel>
+                        </DockPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>

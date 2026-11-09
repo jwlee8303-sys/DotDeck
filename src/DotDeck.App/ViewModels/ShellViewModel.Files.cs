@@ -179,6 +179,12 @@ public sealed partial class ShellViewModel
             return;
         }
 
+        if (Exclusions.ReviewPolicy.IsExcluded(buffer.Path))
+        {
+            buffer.DismissedDiskHash = diskKey;
+            return; // Keep unsaved text without opening an excluded file's diff.
+        }
+
         var shownChangeCount = buffer.ChangeCount;
         switch (await ResolveConflictAsync(buffer, ExternalChangeKind.Modified, buffer.Document.Text, onSave: false).ConfigureAwait(true))
         {
@@ -267,7 +273,7 @@ public sealed partial class ShellViewModel
             _dialogs.ShowError("저장할 수 없는 파일", string.Join("\n\n", blocked));
         }
 
-        var changed = plans.Where(p => !p.Plan.IsUnchanged).ToList();
+        var changed = plans.Where(p => !p.Plan.IsUnchanged && !Exclusions.ReviewPolicy.IsExcluded(p.Buffer.Path)).ToList();
         if (changed.Count > 0 && !_skipSavePreview)
         {
             var review = new DiffReviewViewModel(
@@ -278,7 +284,7 @@ public sealed partial class ShellViewModel
             {
                 SkipLabel = "이번 실행 동안 저장 전 미리보기 생략",
             };
-            if (_dialogs.ShowDiffReview(review) != "save")
+            if (_dialogs.ShowDiffReview(await ConfigureBackupExclusionsAsync(review).ConfigureAwait(true)) != "save")
             {
                 StatusMessage = "저장을 취소했습니다.";
                 return;

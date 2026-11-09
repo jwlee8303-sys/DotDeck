@@ -15,6 +15,7 @@ public sealed record ScopeFileRoot
     public string? Name { get; init; }
 
     public required string Path { get; init; }
+
 }
 
 /// <summary>
@@ -40,6 +41,8 @@ public sealed record ScopeDocument
     public bool AllowOutsideReads { get; init; }
 
     public string? Home { get; init; }
+
+    public string? ExclusionsFile { get; init; }
 
     public GuardPolicy ToPolicy() => new()
     {

@@ -17,6 +17,7 @@ public static class SecretFilePolicy
     {
         var name = Normalize(fileName);
         return name.Equals("auth.json", StringComparison.OrdinalIgnoreCase)
+            || name.Equals(".credentials.json", StringComparison.OrdinalIgnoreCase)
             || (IsEnvName(name) && !IsEnvTemplate(name)) || IsKeyMaterialName(name);
     }
 

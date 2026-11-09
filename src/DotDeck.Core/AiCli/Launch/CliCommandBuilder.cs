@@ -177,10 +177,9 @@ public static class CliCommandBuilder
 
     private static CliLaunchPlan BuildCodex(CliLaunchRequest request)
     {
-        if (request.Resume)
+        if (request.Resume && (request.Mode != LaunchMode.NonInteractive || !Guid.TryParse(request.ConversationId, out _)))
         {
-            // A10: Codex resume arrives with Codex support in 5c.
-            throw new NotSupportedException("Codex 대화 이어가기는 아직 지원하지 않습니다");
+            throw new NotSupportedException("Codex 이어가기는 비대화형에서 유효한 대화 ID로만 지원합니다");
         }
 
         var args = new Args();
@@ -194,6 +193,7 @@ public static class CliCommandBuilder
             }
 
             args.Add("exec");
+            args.Add("--skip-git-repo-check");
             stdin = request.Prompt;
         }
 
@@ -204,6 +204,10 @@ public static class CliCommandBuilder
         }
 
         args.Add("-s", "workspace-write");
+        // Replace inherited grants with exactly the selected roots; keep --add-dir for CLI context as well.
+        args.Add("-c", "sandbox_workspace_write.writable_roots=[" + string.Join(",", request.Scope.Roots.Select(TomlString.Basic)) + "]");
+        if (request.WindowsSandboxMode is "elevated" or "unelevated" or "mxc")
+            args.Add("-c", "windows.sandbox=" + TomlString.Basic(request.WindowsSandboxMode));
         if (request.Mode == LaunchMode.NonInteractive)
         {
             // `codex exec` has no -a; the approval policy is set through config.
@@ -220,8 +224,21 @@ public static class CliCommandBuilder
             args.Add("-c", "developer_instructions=" + TomlString.Basic(request.Context));
         }
 
+        if (request.McpBridgeExecutable is { } bridge)
+        {
+            var sessionId = Path.GetFileName(request.SessionDirectory);
+            var tools = string.Join(",", Mcp.McpServer.Names.Select(name => TomlString.Basic(name) + "={approval_mode=\"approve\"}"));
+            var config = "mcp_servers.dotdeck_session={command=" + TomlString.Basic(bridge)
+                + ",args=[\"--dotdeck-mcp\"," + TomlString.Basic(sessionId)
+                + "],env={DOTDECK_MCP_DIRECTORY=" + TomlString.Basic(request.SessionDirectory)
+                + "},required=true,default_tools_approval_mode=\"prompt\",enabled_tools=["
+                + string.Join(",", Mcp.McpServer.Names.Select(TomlString.Basic)) + "],tools={" + tools + "}}";
+            args.Add("-c", config);
+        }
+
         if (request.Mode == LaunchMode.NonInteractive)
         {
+            if (request.Resume) args.Add("resume", request.ConversationId!);
             args.Add("--json", "-o", Path.Combine(request.SessionDirectory, SessionFileNames.LastMessage), "-");
         }
 

@@ -15,10 +15,11 @@ public sealed partial class ChangeRowViewModel : ObservableObject
     private readonly Func<ChangeItem, ChangeTexts> _load;
     private IReadOnlyList<DiffLine>? _lines;
 
-    internal ChangeRowViewModel(ChangeItem item, Func<ChangeItem, ChangeTexts> load)
+    internal ChangeRowViewModel(ChangeItem item, Func<ChangeItem, ChangeTexts> load, Func<string, Task<bool>>? exclude = null)
     {
         Item = item;
         _load = load;
+        _exclude = exclude;
     }
 
     public ChangeItem Item { get; }
@@ -37,7 +38,22 @@ public sealed partial class ChangeRowViewModel : ObservableObject
     /// <summary>Why the file cannot be reverted (null when it can).</summary>
     public string? BlockedReason => Item.RevertBlockedReason;
 
-    public bool CanRevert => BlockedReason is null && !IsDone;
+    public bool CanRevert => BlockedReason is null && !IsDone && !IsExcluded;
+
+    private readonly Func<string, Task<bool>>? _exclude;
+    public bool CanExclude => _exclude is not null;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRevert))]
+    private bool _isExcluded;
+    public Task ExclusionTask { get; private set; } = Task.CompletedTask;
+    partial void OnIsExcludedChanged(bool value)
+    {
+        if (value && _exclude is not null) ExclusionTask = ApplyExclusionAsync();
+    }
+    private async Task ApplyExclusionAsync()
+    {
+        if (!await _exclude!(Path).ConfigureAwait(true)) IsExcluded = false;
+    }
 
     /// <summary>Result of the last revert attempt.</summary>
     [ObservableProperty]
@@ -96,25 +112,39 @@ public sealed partial class ChangeReviewViewModel : ObservableObject
         ChangeSummary summary,
         Func<ChangeItem, ChangeTexts> load,
         Func<ChangeItem, bool, RevertResult> revert,
-        Func<string, string, bool> confirm)
+        Func<string, string, bool> confirm,
+        Func<string, Task<bool>>? exclude = null)
     {
         ArgumentNullException.ThrowIfNull(summary);
         ArgumentNullException.ThrowIfNull(load);
         Title = title;
         _revert = revert ?? throw new ArgumentNullException(nameof(revert));
         _confirm = confirm ?? throw new ArgumentNullException(nameof(confirm));
-        Rows = [.. summary.Items.Select(i => new ChangeRowViewModel(i, load))];
+        async Task<bool> Exclude(string path)
+        {
+            if (exclude is null || !await exclude(path).ConfigureAwait(true)) return false;
+            var row = Rows.FirstOrDefault(r => r.Path == path);
+            if (row is not null) Rows.Remove(row);
+            SelectedRow = Rows.FirstOrDefault();
+            RefreshCommands();
+            OnPropertyChanged(nameof(Message));
+            return true;
+        }
+        Rows = [.. summary.Items.Select(i => new ChangeRowViewModel(i, load, exclude is null ? null : Exclude))];
+        foreach (var row in Rows)
+            row.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ChangeRowViewModel.IsExcluded)) RefreshCommands(); };
         _selectedRow = Rows.FirstOrDefault();
-        Message = summary.Items.Count == 0
-            ? "세션이 범위 안 파일을 바꾸지 않았습니다."
-            : $"변경 {summary.Items.Count}개" + (summary.IndexTruncated ? " · 색인이 일부만 만들어져 놓친 변경이 있을 수 있습니다." : string.Empty);
+        _indexTruncated = summary.IndexTruncated;
+        _originalCount = summary.Items.Count;
     }
 
     public string Title { get; }
 
-    public string Message { get; }
+    private readonly bool _indexTruncated;
+    private readonly int _originalCount;
+    public string Message => Rows.Count == 0 ? (_originalCount == 0 ? "세션이 범위 안 파일을 바꾸지 않았습니다." : "모든 변경이 검토에서 제외되었습니다.") : $"변경 {Rows.Count}개" + (_indexTruncated ? " · 색인이 일부만 만들어져 놓친 변경이 있을 수 있습니다." : string.Empty);
 
-    public ObservableCollection<ChangeRowViewModel> Rows { get; }
+    public ObservableCollection<ChangeRowViewModel> Rows { get; } = [];
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RevertSelectedCommand))]
@@ -129,7 +159,7 @@ public sealed partial class ChangeReviewViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRevertSelected))]
     private void RevertSelected()
     {
-        if (SelectedRow is { } row)
+        if (SelectedRow is { CanRevert: true } row)
         {
             Revert(row, askForChanged: true);
             RefreshCommands();
@@ -169,7 +199,13 @@ public sealed partial class ChangeReviewViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Accept() => CloseRequested?.Invoke(this, EventArgs.Empty);
+    private void Accept()
+    {
+        IsAccepted = true;
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    public bool IsAccepted { get; private set; }
 
     private RevertStatus Revert(ChangeRowViewModel row, bool askForChanged)
     {

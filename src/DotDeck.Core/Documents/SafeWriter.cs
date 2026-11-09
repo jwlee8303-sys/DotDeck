@@ -147,7 +147,7 @@ public sealed class SafeWriter(IFileStore store, BackupStore backups)
         }
 
         var bytes = plan.NewBytes ?? TextEncodings.Encode(plan.NewText, plan.Encoding);
-        var backup = current is null ? null : _backups.Create([new BackupSource(path, current)], "save");
+        var backup = current is null ? null : _backups.CreateAutomatic([new BackupSource(path, current)], "save");
 
         // Re-check right before replacing so a change made while backing up is not silently overwritten.
         var expected = current is null ? null : TextFileReader.ComputeHash(current);
@@ -195,7 +195,7 @@ public sealed class SafeWriter(IFileStore store, BackupStore backups)
                 throw new ExternalChangeException(path, expected.Sha256 is null ? ExternalChangeKind.Created : ExternalChangeKind.Modified);
             }
 
-            before = _backups.Create([new BackupSource(path, current)], "before-restore");
+            before = _backups.CreateAutomatic([new BackupSource(path, current)], "before-restore");
         }
         else
         {

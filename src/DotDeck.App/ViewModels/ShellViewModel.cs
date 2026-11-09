@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.Services;
@@ -69,6 +69,13 @@ public sealed partial class ShellViewModel : ObservableObject
         _writer = services.Writer;
         _backups = services.Backups;
         _store = services.Store;
+        Exclusions = new DotDeck.Core.Settings.PathExclusionStore(_store, Paths.ExclusionsFile, recoverLoadFailure: true);
+        if (Exclusions.LoadWarning is { } exclusionWarning)
+        {
+            _log.Warning(exclusionWarning);
+            _dialogs.ShowError("제외항목 설정 확인 필요", exclusionWarning);
+        }
+        _backups.IsAutomaticBackupExcluded = path => Exclusions.BackupPolicy.IsExcluded(path);
         _session = services.Session;
         _environment = services.Environment;
         _ui = SynchronizationContext.Current;
@@ -109,7 +116,7 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Shell, services.Dialogs,
             new ExplorerFileOperations(services.FileOperations, services.Dialogs, services.Log, message => StatusMessage = message),
             services.Log, message => StatusMessage = message, new FolderWatcherFactory(), ExplorerPreferences, OpenFileAsync, OpenSystemNode,
-            RegisterCustomFileAsync, RemoveCustomFileAsync, OpenFileAsAsync, QuickStartAiSessionAsync);
+            RegisterCustomFileAsync, RemoveCustomFileAsync, OpenFileAsAsync, QuickStartAiSessionAsync, QuickStartCodexSessionAsync);
         Properties = new PropertiesPaneViewModel { DescribeRole = DescribeRole };
         Output = new OutputPaneViewModel(services.Log);
         Validation = new ValidationPaneViewModel();

@@ -51,7 +51,7 @@ public static class SessionSnapshots
         var sources = new List<BackupSource>();
         foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (ReadCapturable(store, path, limits) is { } bytes)
+            if (!sessionBackups.IsAutomaticBackupExcluded(path) && ReadCapturable(store, path, limits) is { } bytes)
             {
                 sources.Add(new BackupSource(path, bytes));
             }
@@ -59,7 +59,7 @@ public static class SessionSnapshots
 
         if (sources.Count > 0)
         {
-            sessionBackups.Create(sources, StartReason);
+            sessionBackups.CreateAutomatic(sources, StartReason);
         }
 
         return new SessionSnapshot(index, full, sources.Count) { Roots = [.. roots] };
@@ -91,13 +91,12 @@ public static class SessionSnapshots
                 store.WriteAllTextAtomic(record, JsonSerializer.Serialize(new ToolWrite(full, store.FileExists(full))));
             }
 
-            if (sessionBackups.ListFor(path).Count > 0 || ReadCapturable(store, path, limits) is not { } bytes)
+            if (sessionBackups.IsAutomaticBackupExcluded(path) || sessionBackups.ListFor(path).Count > 0 || ReadCapturable(store, path, limits) is not { } bytes)
             {
                 return false;
             }
 
-            sessionBackups.Create([new BackupSource(path, bytes)], PreWriteReason);
-            return true;
+            return sessionBackups.CreateAutomatic([new BackupSource(path, bytes)], PreWriteReason) is not null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException)
         {
@@ -169,11 +168,6 @@ public static class SessionSnapshots
             }
 
             var relativeFile = full[(rootPath.Length + 1)..];
-            if (root.SystemRecords.IsSystemFile(relativeFile))
-            {
-                continue;
-            }
-
             var relativeFolder = Path.GetDirectoryName(relativeFile) ?? string.Empty;
             var excluded = false;
             for (var folder = relativeFolder; folder.Length > 0; folder = Path.GetDirectoryName(folder) ?? string.Empty)

@@ -23,11 +23,7 @@ public sealed record SnapshotLimits
 }
 
 /// <summary>One root of the indexed scope with its project's excluded folders.</summary>
-public sealed record SnapshotRoot(string Path, ExcludedFolderPolicy Excluded)
-{
-    /// <summary>CLI system records under this root (when it is a CLI config folder): never indexed or captured.</summary>
-    public SystemRecordPolicy SystemRecords { get; init; } = SystemRecordPolicy.None;
-}
+public sealed record SnapshotRoot(string Path, ExcludedFolderPolicy Excluded);
 
 /// <summary>One indexed file.</summary>
 public sealed record IndexEntry(string Path, long Length, DateTime LastWriteTimeUtc);
@@ -39,7 +35,8 @@ public sealed record IndexEntry(string Path, long Length, DateTime LastWriteTime
 /// </summary>
 public sealed record ScopeIndex(IReadOnlyDictionary<string, IndexEntry> Files, bool Truncated)
 {
-    public static ScopeIndex Build(IReadOnlyList<SnapshotRoot> roots, IFileStore store, SnapshotLimits limits)
+    public static ScopeIndex Build(IReadOnlyList<SnapshotRoot> roots, IFileStore store, SnapshotLimits limits, Func<string, bool>? isExcluded = null,
+        Func<string, bool>? isDirectoryExcluded = null)
     {
         ArgumentNullException.ThrowIfNull(roots);
         ArgumentNullException.ThrowIfNull(store);
@@ -50,6 +47,7 @@ public sealed record ScopeIndex(IReadOnlyDictionary<string, IndexEntry> Files, b
         var incomplete = false;
         foreach (var root in roots)
         {
+            if (isDirectoryExcluded?.Invoke(root.Path) == true) continue;
             var pending = new Stack<(string Directory, string Relative)>();
             pending.Push((root.Path, string.Empty));
             while (pending.Count > 0 && !truncated)
@@ -70,9 +68,10 @@ public sealed record ScopeIndex(IReadOnlyDictionary<string, IndexEntry> Files, b
                 foreach (var child in children)
                 {
                     var childRelative = relative.Length == 0 ? child.Name : relative + "\\" + child.Name;
+                    if (child.IsDirectory ? isDirectoryExcluded?.Invoke(child.FullPath) == true : isExcluded?.Invoke(child.FullPath) == true) continue;
                     if (child.IsDirectory)
                     {
-                        if (!child.IsReparsePoint && !root.Excluded.IsExcluded(childRelative) && !root.SystemRecords.IsSystemFolder(childRelative))
+                        if (!child.IsReparsePoint && !root.Excluded.IsExcluded(childRelative))
                         {
                             pending.Push((child.FullPath, childRelative));
                         }
@@ -80,12 +79,7 @@ public sealed record ScopeIndex(IReadOnlyDictionary<string, IndexEntry> Files, b
                         continue;
                     }
 
-                    if (root.SystemRecords.IsSystemFile(childRelative))
-                    {
-                        continue;
-                    }
-
-                    if (files.Count >= limits.MaxIndexedFiles)
+if (files.Count >= limits.MaxIndexedFiles)
                     {
                         truncated = true;
                         break;

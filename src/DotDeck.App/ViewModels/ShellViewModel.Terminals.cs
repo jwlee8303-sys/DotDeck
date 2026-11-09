@@ -198,6 +198,7 @@ public sealed partial class ShellViewModel
         {
             // The manager owns the session's console and releases it after the exit (its replay stays available).
             _aiSessions?.Stop(session, "터미널 탭을 닫아 세션을 중지했습니다.");
+            _aiSessions?.MarkClosed(session);
         }
         else
         {

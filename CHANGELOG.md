@@ -3,6 +3,25 @@
 
 ## [Unreleased]
 
+### Added
+- 통합 설정 메뉴 "자동백업·변경검토 제외항목": 두 독립 목록, 파일·폴더 경로 입력/선택/제거, 폴더 하위 항목 제외. 저장 전 미리보기와 AI 변경검토의 좌측 체크박스로 즉시 등록
+- AI CLI 연동 5c: 세션 전용 내장 MCP 서버(`list_projects`, `get_open_documents`, `get_active_document`, `find_files`, `open_in_editor`). 실시간 편집기 상태·선택 영역, 프로젝트 표시 필터·제외 폴더 반영, 범위 밖·비밀 파일 제외와 결과 마스킹
+- `DotDeck.exe --dotdeck-mcp <sessionId>` stdio 브리지: 현재 사용자 전용 Named Pipe, DPAPI 인증 토큰, 세션 종료 시 연결 정리, 범위 변경 중 생성된 결과 폐기
+- Codex 대화형 터미널·비대화형 명령 실행, JSONL 출력 요약·대화 ID 저장·비대화형 이어가기. Windows sandbox 미설정 시 안내 및 비대화형 비활성화, 범위 축소 시 중지·재시작 안내
+- 컨텍스트 12,000자 상한과 MCP 도구 사용 안내. AI 작업·터미널의 Codex 상태 표시
+- 수락하거나 닫은 세션 폴더의 시작 시 백그라운드 정리(7일 또는 최근 20개 초과). 실행 중·미검토 세션과 링크가 포함된 폴더는 보존
+- 샌드박스 수동 확인 절차: `docs/PHASE5C-VALIDATION.md`
+- 프로젝트 제목 우클릭의 "이 프로젝트에서 Codex 시작" 빠른 실행
+
+### Fixed
+- 손상되거나 읽을 수 없는 제외항목 설정으로 앱 시작이 실패하던 문제. 경고 후 시작하며 원본 설정을 덮어쓰지 않도록 저장을 차단
+- 제외항목을 일반 저장·복원 전·덮어쓰기 백업과 AI 세션 스냅샷에 반영. 변경검토 제외는 색인·요약·되돌리기에 적용하며, 등록 전에 만든 되돌리기 요청도 수행 직전에 거부. 설정·체크박스 저장은 비동기로 처리
+- Codex 비대화형에서 `approval policy is never`로 DotDeck 프로젝트 조회·파일 검색까지 거부되던 문제. 내장 MCP 5개에만 명시적 승인 정책을 주고 도구 목록·서버 준비를 고정하며, 파일 쓰기 sandbox는 유지
+- Codex의 선택된 주·추가 프로젝트를 sandbox 쓰기 루트에도 명시. 명령·파일 변경 실패 상태와 안전한 오류 분류를 작업 패널에 표시하고, turn 실패를 정상 완료로 표시하지 않도록 수정
+
+### Changed
+- Claude·Codex 전용 시스템 기록 제외 클래스와 두 카탈로그를 제거하고 사용자 경로 목록으로 대체. 초기 목록은 비어 있으며, 자동백업과 변경검토는 각각 등록한 항목만 제외. 기존 백업은 보존
+
 ## [1.3.0] - 2026-11-09
 ### Changed
 - AI 세션 범위가 Claude·Codex 설정 폴더(Claude 전역·Codex 전역)일 때, CLI가 스스로 쓰는 기록(`.claude.json`, `history.jsonl`, `backups`·`sessions`·`cache`·`plugins/synced`·`plugins/cache`·`skills/synced` 등)은 세션 시작 백업과 변경 검토에서 제외. Claude 도구가 직접 쓴 파일(원본 캡처가 없는 새 파일·대용량·바이너리 포함)과 출처를 알 수 없는 변경은 계속 사용자 작업으로 표시. 사용자가 관리하는 플러그인 경로는 유지. 목록은 `catalogs/<CLI>/system-records.json`으로 덮어쓰기 가능

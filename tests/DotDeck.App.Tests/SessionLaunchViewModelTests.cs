@@ -53,6 +53,55 @@ public sealed class SessionLaunchViewModelTests : IDisposable
         });
 
     [Fact]
+    public void Codex_keeps_multiple_additional_projects_in_both_launch_modes()
+    {
+        var vm = new SessionLaunchViewModel([Folder("a"), Folder("b"), Folder("c")], _paths, PhysicalFileStore.Instance, "a", _ => [], _ => "preview", codexSandboxConfigured: true);
+        vm.IsCodex = true;
+        foreach (var project in vm.AdditionalChoices) project.IsSelected = true;
+        foreach (var interactive in new[] { true, false })
+        {
+            vm.IsInteractive = interactive;
+            vm.Prompt = "test.md 수정";
+            var request = vm.TryBuildRequest();
+            Assert.NotNull(request);
+            Assert.Equal(CliKind.Codex, request.Cli);
+            Assert.Equal("a", request.PrimaryProjectId);
+            Assert.Equal(["b", "c"], request.AdditionalProjectIds);
+        }
+        vm.IsCodex = false;
+        vm.IsCodex = true;
+        Assert.Equal(["b", "c"], vm.TryBuildRequest()!.AdditionalProjectIds);
+    }
+
+    [Fact]
+    public void Codex_non_interactive_is_disabled_until_windows_sandbox_is_configured()
+    {
+        var vm = Create([Folder("a")], "a");
+        vm.IsCodex = true;
+        Assert.False(vm.IsClaude);
+        Assert.False(vm.CanRunNonInteractive);
+        vm.IsInteractive = false;
+        vm.Prompt = "analyze";
+        Assert.Null(vm.TryBuildRequest());
+        Assert.Contains("sandbox", vm.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Configured_codex_can_run_commands_but_interactive_resume_is_refused()
+    {
+        var vm = new SessionLaunchViewModel([Folder("a")], _paths, PhysicalFileStore.Instance, "a", _ => [], _ => "preview", codexSandboxConfigured: true);
+        vm.IsCodex = true;
+        vm.IsInteractive = false;
+        vm.Prompt = "analyze";
+        var request = vm.TryBuildRequest();
+        Assert.Equal(CliKind.Codex, request!.Cli);
+        Assert.Equal(LaunchMode.NonInteractive, request.Mode);
+        vm.IsInteractive = true;
+        vm.ResumeConversation = true;
+        Assert.Null(vm.TryBuildRequest());
+    }
+
+    [Fact]
     public void Lists_only_selectable_primaries_and_preselects_the_given_project()
     {
         ProjectDefinition[] projects =

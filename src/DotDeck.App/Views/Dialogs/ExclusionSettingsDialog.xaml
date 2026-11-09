@@ -1,0 +1,51 @@
+<Window x:Class="DotDeck.App.Views.Dialogs.ExclusionSettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="자동백업·변경검토 제외항목" Width="780" Height="500" MinWidth="620" MinHeight="380"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource DD.Brush.Panel.Background}" Foreground="{DynamicResource DD.Brush.Text}"
+        FontFamily="{DynamicResource DD.Font.Ui}" FontSize="{DynamicResource DD.FontSize.Ui}">
+    <Window.Resources>
+        <DataTemplate x:Key="ExclusionList">
+            <DockPanel Margin="10">
+                <StackPanel DockPanel.Dock="Top">
+                    <TextBlock Text="전체 경로를 입력하거나 파일·폴더를 선택하세요. 폴더는 하위 항목까지 적용됩니다." TextWrapping="Wrap" />
+                    <DockPanel Margin="0,8,0,4">
+                        <Button DockPanel.Dock="Right" Content="추가" Command="{Binding AddCommand}" Margin="6,0,0,0" />
+                        <CheckBox DockPanel.Dock="Right" Content="폴더 경로" IsChecked="{Binding IsFolder}" VerticalAlignment="Center" Margin="6,0" />
+                        <TextBox Text="{Binding PathText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="제외할 전체 경로" />
+                    </DockPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="파일 선택..." Command="{Binding BrowseFilesCommand}" />
+                        <Button Content="폴더 선택..." Command="{Binding BrowseFolderCommand}" Margin="6,0,0,0" />
+                        <Button Content="선택 항목 제거" Command="{Binding RemoveCommand}" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Error}" Foreground="{DynamicResource DD.Brush.Error}" TextWrapping="Wrap" />
+                </StackPanel>
+                <ListBox ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}" HorizontalContentAlignment="Stretch">
+                    <ListBox.ItemTemplate><DataTemplate>
+                        <DockPanel Margin="3" ToolTip="{Binding Path}">
+                            <TextBlock Text="{Binding KindText}" Width="38" />
+                            <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                    </DataTemplate></ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </DataTemplate>
+    </Window.Resources>
+    <DockPanel Margin="12">
+        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" TextWrapping="Wrap"
+                   Text="두 목록은 독립적입니다. 백업 제외는 백업만 막고, 변경검토 제외는 검토 목록과 되돌리기에서 제외합니다. 기존 백업은 삭제하지 않습니다." />
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+            <TextBlock Text="{Binding Error}" Foreground="{DynamicResource DD.Brush.Error}" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="저장" Command="{Binding SaveCommand}" IsDefault="True" MinWidth="80" />
+                <Button Content="취소" IsCancel="True" MinWidth="80" Margin="8,0,0,0" />
+            </StackPanel>
+        </StackPanel>
+        <TabControl>
+            <TabItem Header="자동백업 제외항목"><ContentControl Content="{Binding Backup}" ContentTemplate="{StaticResource ExclusionList}" /></TabItem>
+            <TabItem Header="변경검토 제외항목"><ContentControl Content="{Binding Review}" ContentTemplate="{StaticResource ExclusionList}" /></TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

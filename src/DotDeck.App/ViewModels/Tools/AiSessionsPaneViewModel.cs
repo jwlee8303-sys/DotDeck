@@ -80,6 +80,7 @@ public sealed partial class AiSessionsPaneViewModel : ToolPaneViewModel
     {
         foreach (var item in Sessions.Where(s => !s.IsRunning).ToList())
         {
+            _manager?.MarkClosed(item.Session);
             item.Detach();
             _cleared.Add(item.Session.Id);
             Sessions.Remove(item);
@@ -146,6 +147,7 @@ public sealed partial class AiSessionItemViewModel : ObservableObject
 
     public string StateText => Session.State switch
     {
+        AiSessionState.Running when Session.Cli == CliKind.Codex => "실행 중 · Codex sandbox",
         AiSessionState.Running when !Session.GuardConnected => "실행 중 · 가드 확인 대기",
         AiSessionState.Running => "실행 중 · 가드 적용됨",
         AiSessionState.Exited => "완료",
@@ -190,7 +192,7 @@ public sealed partial class AiSessionItemViewModel : ObservableObject
     {
         var events = Session.Cli == CliKind.Claude
             ? ClaudeStreamParser.Parse(line, isError)
-            : [new AiOutputEvent(AiOutputKind.Raw, DotDeck.Core.Security.SecretMasker.MaskText(line), isError)];
+            : CodexJsonlParser.Parse(line, isError);
         foreach (var e in events)
         {
             Lines.Add(e);

@@ -56,12 +56,14 @@ public sealed partial class SessionLaunchViewModel : ObservableObject
         string? primaryProjectId,
         Func<string, IReadOnlyList<string>> lastAdditional,
         Func<AiSessionStartRequest, string> preview,
-        bool canSavePresets = true)
+        bool canSavePresets = true,
+        bool codexSandboxConfigured = false)
     {
         ArgumentNullException.ThrowIfNull(projects);
         _preview = preview ?? throw new ArgumentNullException(nameof(preview));
         _lastAdditional = lastAdditional ?? throw new ArgumentNullException(nameof(lastAdditional));
         CanSavePresets = canSavePresets;
+        CodexSandboxConfigured = codexSandboxConfigured;
 
         var rows = projects
             .Where(p => !p.Hidden)
@@ -143,7 +145,22 @@ public sealed partial class SessionLaunchViewModel : ObservableObject
     private string? _error;
 
     /// <summary>Shown next to the disabled choices.</summary>
-    public string CodexNote => "Codex는 다음 단계(5c)에서 지원합니다.";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsClaude))]
+    [NotifyPropertyChangedFor(nameof(CanRunNonInteractive), nameof(CodexWarning))]
+    private bool _isCodex;
+
+    public bool IsClaude { get => !IsCodex; set => IsCodex = !value; }
+
+    public bool CodexSandboxConfigured { get; }
+
+    public bool CanRunNonInteractive => !IsCodex || CodexSandboxConfigured;
+
+    public string? CodexWarning => !IsCodex ? null : CodexSandboxConfigured
+        ? "Codex는 Windows sandbox와 사후 변경 검토를 사용합니다. Claude 파일 가드와 읽기 제한은 적용되지 않습니다."
+        : "Windows sandbox 미설정: 비대화형 실행을 사용할 수 없습니다. Codex에서 sandbox를 설정한 뒤 다시 시작하세요.";
+
+    partial void OnIsCodexChanged(bool value) => RefreshPreview();
 
     public bool HasSelectableProject => PrimaryChoices.Any(c => c.IsSelectable);
 
@@ -171,6 +188,9 @@ public sealed partial class SessionLaunchViewModel : ObservableObject
 
     private string? Validate()
     {
+        if (!IsInteractive && !CanRunNonInteractive) return CodexWarning;
+        if (IsCodex && IsInteractive && ResumeConversation)
+            return "Codex 이어가기는 비대화형에서만 지원합니다. 새 대화로 시작하세요.";
         if (Primary is not { IsSelectable: true })
         {
             return "주 프로젝트를 선택하세요.";
@@ -188,7 +208,7 @@ public sealed partial class SessionLaunchViewModel : ObservableObject
     {
         PrimaryProjectId = Primary?.Id ?? string.Empty,
         AdditionalProjectIds = [.. AdditionalChoices.Where(c => c.IsSelected).Select(c => c.Id)],
-        Cli = CliKind.Claude,
+        Cli = IsCodex ? CliKind.Codex : CliKind.Claude,
         Mode = IsInteractive ? LaunchMode.Interactive : LaunchMode.NonInteractive,
         Prompt = IsInteractive ? null : Prompt.Trim(),
         IncludeOpenDocuments = IncludeOpenDocuments,

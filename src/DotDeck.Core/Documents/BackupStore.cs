@@ -69,6 +69,14 @@ public sealed class BackupStore
 
     public int Retention { get; set; }
 
+    public Func<string, bool> IsAutomaticBackupExcluded { get; set; } = _ => false;
+
+    public BackupSet? CreateAutomatic(IReadOnlyList<BackupSource> sources, string reason)
+    {
+        var included = sources.Where(s => !IsAutomaticBackupExcluded(s.OriginalPath)).ToArray();
+        return included.Length == 0 ? null : Create(included, reason);
+    }
+
     /// <summary>Creates one backup set holding all <paramref name="sources"/>, then prunes old sets.</summary>
     public BackupSet Create(IReadOnlyList<BackupSource> sources, string reason)
     {

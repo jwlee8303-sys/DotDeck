@@ -63,7 +63,7 @@ public sealed record ChangeSummary(IReadOnlyList<ChangeItem> Items, bool IndexTr
 /// <summary>Compares the start index with the scope now and attaches the earliest captured content per file.</summary>
 public static class ChangeSummaryBuilder
 {
-    public static ChangeSummary Build(SessionSnapshot start, ScopeIndex now, BackupStore sessionBackups, IFileStore store, SnapshotLimits limits)
+    public static ChangeSummary Build(SessionSnapshot start, ScopeIndex now, BackupStore sessionBackups, IFileStore store, SnapshotLimits limits, Func<string, bool>? isExcluded = null)
     {
         ArgumentNullException.ThrowIfNull(start);
         ArgumentNullException.ThrowIfNull(now);
@@ -74,6 +74,7 @@ public static class ChangeSummaryBuilder
         {
             foreach (var file in set.Files)
             {
+                if (isExcluded?.Invoke(file.OriginalPath) == true) continue;
                 previous.TryAdd(file.OriginalPath, (set, file));
             }
         }
@@ -81,6 +82,7 @@ public static class ChangeSummaryBuilder
         var items = new List<ChangeItem>();
         foreach (var (path, before) in start.Index.Files)
         {
+            if (isExcluded?.Invoke(path) == true) continue;
             if (!now.Files.TryGetValue(path, out var after))
             {
                 // A file missing from a cut-short index may simply not have been reached.
@@ -116,6 +118,7 @@ public static class ChangeSummaryBuilder
 
         foreach (var (path, after) in now.Files)
         {
+            if (isExcluded?.Invoke(path) == true) continue;
             // With a complete start index, a path missing from it did not exist then, even if a later write captured
             // it (a file created and then written again in the session): it stays "created". Only when the index was
             // cut short does a capture show the file may be older; it is then reported below as modified.
@@ -147,9 +150,11 @@ public static class ChangeSummaryBuilder
             }
         }
 
-        // System records are absent from both indexes. A tool write is user work even without a content backup.
+        // Explicit writes to ordinary excluded paths remain user work, including those without a content backup.
+        // Known CLI runtime records stay excluded regardless of provenance.
         foreach (var write in SessionSnapshots.ReadToolWrites(store, sessionBackups))
         {
+            if (isExcluded?.Invoke(write.Path) == true) continue;
             if (previous.ContainsKey(write.Path) || SessionSnapshots.IsInScope(write.Path, start.Roots)
                 || items.Any(i => string.Equals(i.Path, write.Path, StringComparison.OrdinalIgnoreCase)))
             {
@@ -260,11 +265,13 @@ public sealed record RevertResult(ChangeItem Item, RevertStatus Status, string? 
 /// re-checked against the session roots right before acting: a target or parent folder that became a link (junction,
 /// symlink) since the summary is refused, so a revert can never write outside the scope.
 /// </summary>
-public sealed class RevertPlanner(IFileStore store, SafeWriter writer, IRecycleBin recycleBin, SnapshotLimits limits, IReadOnlyList<SnapshotRoot> roots)
+public sealed class RevertPlanner(IFileStore store, SafeWriter writer, IRecycleBin recycleBin, SnapshotLimits limits, IReadOnlyList<SnapshotRoot> roots, Func<string, bool>? isExcluded = null)
 {
     public RevertResult Revert(ChangeItem item, bool force = false)
     {
         ArgumentNullException.ThrowIfNull(item);
+        if (isExcluded?.Invoke(item.Path) == true)
+            return new(item, RevertStatus.NotRevertible, "변경검토 제외항목이므로 되돌릴 수 없습니다.");
         if (item.RevertBlockedReason is { } blocked)
         {
             return new(item, RevertStatus.NotRevertible, blocked);

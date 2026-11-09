@@ -198,6 +198,24 @@ public sealed class CliCommandBuilderTests : IDisposable
     }
 
     [Fact]
+    public void Codex_approves_only_the_five_scoped_session_tools_and_pins_all_selected_roots()
+    {
+        var plan = CliCommandBuilder.Build(Request(Codex, LaunchMode.NonInteractive) with
+        {
+            McpBridgeExecutable = @"C:\Program Files\DotDeck\DotDeck.exe",
+        });
+        var config = Assert.Single(plan.Arguments, a => a.StartsWith("mcp_servers.dotdeck_session=", StringComparison.Ordinal));
+        var parsed = DotDeck.Core.Toml.TomlEditDocument.Parse(System.Text.Encoding.UTF8.GetBytes(config));
+        Assert.Contains("required=true", config, StringComparison.Ordinal);
+        Assert.Contains("default_tools_approval_mode=\"prompt\"", config, StringComparison.Ordinal);
+        foreach (var name in DotDeck.Core.AiCli.Mcp.McpServer.Names)
+            Assert.Contains(parsed.Entries, e => e.Path.SequenceEqual(new[] { "mcp_servers", "dotdeck_session", "tools", name, "approval_mode" }) && e.Literal == "\"approve\"");
+        Assert.Equal(5, parsed.Entries.Count(e => e.Path.LastOrDefault() == "approval_mode"));
+        Assert.Contains("sandbox_workspace_write.writable_roots=[" + string.Join(",", _scope.Roots.Select(TomlString.Basic)) + "]", plan.Arguments);
+        Assert.Contains("approval_policy=\"never\"", plan.Arguments);
+    }
+
+    [Fact]
     public void Codex_interactive_command_line()
     {
         var plan = CliCommandBuilder.Build(Request(Codex, LaunchMode.Interactive) with { ConversationId = null });
@@ -209,9 +227,16 @@ public sealed class CliCommandBuilderTests : IDisposable
     }
 
     [Fact]
-    public void Codex_resume_is_not_supported_yet()
+    public void Codex_resume_keeps_scope_and_json_output_in_non_interactive_mode()
     {
-        Assert.Throws<NotSupportedException>(() => CliCommandBuilder.Build(Request(Codex, LaunchMode.NonInteractive) with { Resume = true }));
+        var plan = CliCommandBuilder.Build(Request(Codex, LaunchMode.NonInteractive) with { Resume = true });
+        Assert.Contains("resume", plan.Arguments);
+        Assert.Equal("3f2a6c1e-1111-4222-8333-944455556666", plan.Arguments[IndexAfter(plan.Arguments, "resume")]);
+        Assert.Contains("workspace-write", plan.Arguments);
+        Assert.Contains("--add-dir", plan.Arguments);
+        Assert.Contains("--json", plan.Arguments);
+        Assert.Equal("-", plan.Arguments[^1]);
+        Assert.Throws<NotSupportedException>(() => CliCommandBuilder.Build(Request(Codex, LaunchMode.Interactive) with { Resume = true }));
     }
 
     [Theory]

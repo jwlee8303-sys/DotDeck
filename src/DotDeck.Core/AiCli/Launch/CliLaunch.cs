@@ -55,6 +55,10 @@ public sealed record CliLaunchRequest
     /// <summary>Session MCP config (5c); null until DotDeck's MCP server exists.</summary>
     public string? McpConfigPath { get; init; }
 
+    public string? McpBridgeExecutable { get; init; }
+
+    public string? WindowsSandboxMode { get; init; }
+
     /// <summary>
     /// Sandbox homes (A4): set only when DotDeck runs with <c>--home</c>/<c>DOTDECK_HOME</c>; null in real-home mode
     /// so the user's own CLI configuration is used.

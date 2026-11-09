@@ -90,6 +90,29 @@ public sealed class GuardProcessTests : IDisposable
     }
 
     [Fact]
+    public void Guard_uses_explicit_backup_exclusions_but_keeps_other_file_backups()
+    {
+        var runtime = Path.Combine(_root, "state.json");
+        var user = Path.Combine(_root, "test.md");
+        File.WriteAllText(runtime, "fake runtime record");
+        File.WriteAllText(user, "fake user document");
+        var exclusionsFile = Path.Combine(_temp, "exclusions.json");
+        var exclusions = new DotDeck.Core.Settings.PathExclusionStore(DotDeck.Core.Files.PhysicalFileStore.Instance, exclusionsFile);
+        exclusions.Add(DotDeck.Core.Settings.ExclusionKind.AutomaticBackup, runtime);
+        ScopeFile.Write(_scope, new ScopeDocument
+        {
+            SessionId = "s",
+            Roots = [new ScopeFileRoot { Path = _root }],
+            ExclusionsFile = exclusionsFile,
+        });
+        Assert.Equal(0, RunGuard(Input(runtime)).Exit);
+        var backups = Path.Combine(Path.GetDirectoryName(_scope)!, "backups");
+        Assert.False(Directory.Exists(backups) && Directory.EnumerateFiles(backups, "manifest.json", SearchOption.AllDirectories).Any());
+        Assert.Equal(0, RunGuard(Input(user)).Exit);
+        Assert.Single(Directory.EnumerateFiles(backups, "manifest.json", SearchOption.AllDirectories));
+    }
+
+    [Fact]
     public void Guard_process_is_silent_inside_scope()
     {
         var (exit, stdout, _) = RunGuard(Input(Path.Combine(_root, "새 파일.md")));

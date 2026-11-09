@@ -88,9 +88,17 @@ public partial class App : Application
                 backups,
                 CreateEnvironmentStore(paths, store));
             var shell = new ShellViewModel(services, version, IsAdministrator());
+            backups.IsAutomaticBackupExcluded = path => shell.Exclusions.BackupPolicy.IsExcluded(path);
             shell.AttachAiSessions(CreateAiSessionManager(paths, store, registry), registry);
             shell.AttachTerminals(new JobProcessLauncher(), () => DotDeck.Core.AiCli.Launch.ShellTerminal.Locate(SystemProcessEnvironment.Instance, store), paths);
             _shell = shell;
+
+            _ = Task.Run(() =>
+            {
+                try { DotDeck.Core.AiCli.Sessions.SessionRetention.Prune(paths.AiSessionsDir, DateTimeOffset.UtcNow); }
+                catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+                { _log.Warning("이전 AI 세션 폴더 정리를 완료하지 못했습니다."); }
+            });
 
             var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log));
             MainWindow = window;
@@ -117,17 +125,6 @@ public partial class App : Application
         Shutdown(1);
     }
 
-    private DotDeck.Core.AiCli.Snapshots.SystemRecordPolicy LoadSystemRecords(string resource, IFileStore store, AppPaths paths)
-    {
-        var loaded = DotDeck.Core.Catalogs.CatalogResources.Load(resource, DotDeck.Core.AiCli.Snapshots.SystemRecordPolicy.Parse, store, paths.CatalogsDir);
-        if (loaded.Warning is { } warning)
-        {
-            _log?.Warning(warning);
-        }
-
-        return loaded.Value;
-    }
-
     private DotDeck.Core.AiCli.Sessions.AiSessionManager CreateAiSessionManager(AppPaths paths, IFileStore store, ProjectRegistry registry)
     {
         var presets = new DotDeck.Core.AiCli.Presets.SessionPresetStore(store, paths.AiSessionsFile);
@@ -149,9 +146,28 @@ public partial class App : Application
             Presets = presets,
             BackupProtector = new DpapiBackupProtector(),
             RecycleBin = _log is null ? null : new WindowsRecycleBin(_log),
-            // Overridable like the other catalogs (%APPDATA%\DotDeck\catalogs\<CLI>\system-records.json).
-            ClaudeSystemRecords = LoadSystemRecords(DotDeck.Core.AiCli.Snapshots.SystemRecordPolicy.ClaudeResource, store, paths),
-            CodexSystemRecords = LoadSystemRecords(DotDeck.Core.AiCli.Snapshots.SystemRecordPolicy.CodexResource, store, paths),
+            CodexSandboxMode = () => DotDeck.Core.AiCli.Launch.CodexSandboxPolicy.ReadMode(store, paths.CodexHome),
+            FinalPathResolver = WindowsFinalPathResolver.Instance,
+            StartMcpHost = session =>
+            {
+                var tools = new DotDeck.Core.AiCli.Mcp.SessionTools(
+                    () => session.State == DotDeck.Core.AiCli.Sessions.AiSessionState.Running ? session.Scope : null,
+                    () => registry.Projects, store, WindowsFinalPathResolver.Instance,
+                    ct => Dispatcher.InvokeAsync(() => _shell?.ReadAiEditorContext() ?? new DotDeck.Core.AiCli.Mcp.EditorContext([], null), DispatcherPriority.Normal, ct).Task,
+                    (path, ct) => Dispatcher.InvokeAsync(() => _shell?.OpenAiFileAsync(session, path) ?? Task.CompletedTask, DispatcherPriority.Normal, ct).Task.Unwrap(),
+                    session.Request.GlobalExtensions, session.Request.IncludeOpenDocuments);
+                var host = new NamedPipeMcpHost(session.Directory, session.Id, new LiveSessionHost(session, tools));
+                try
+                {
+                    System.IO.File.WriteAllText(System.IO.Path.Combine(session.Directory, NamedPipeMcpHost.ConfigFile),
+                        NamedPipeMcpHost.BuildConfig(Environment.ProcessPath!, session.Directory, session.Id), new System.Text.UTF8Encoding(false));
+                    return host;
+                }
+                catch { host.Dispose(); throw; }
+            },
+            BackupExcluded = path => _shell?.Exclusions.BackupPolicy.IsExcluded(path) ?? false,
+            ReviewExcluded = path => _shell?.Exclusions.ReviewPolicy.IsExcluded(path) ?? false,
+            ReviewDirectoryExcluded = path => _shell?.Exclusions.ReviewPolicy.IsDirectoryExcluded(path) ?? false,
         });
         return _aiSessions;
     }

@@ -177,6 +177,7 @@ public sealed partial class TerminalPaneViewModel : ToolPaneViewModel
 
         SessionState = session.State switch
         {
+            AiSessionState.Running when session.Cli == DotDeck.Core.AiCli.Launch.CliKind.Codex => "Codex sandbox · 읽기 제한 없음",
             AiSessionState.Running => session.GuardConnected ? "가드 적용됨" : "가드 확인 대기",
             AiSessionState.Exited => "종료됨",
             AiSessionState.Stopped => "중지됨" + (session.Message is { } m ? ": " + m : string.Empty),

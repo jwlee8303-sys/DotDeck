@@ -116,6 +116,12 @@ public sealed class DialogService : IDialogService
         return Modal(() => dialog.ShowDialog() == true) ? dialog.Request : null;
     }
 
+    public void ShowExclusions(ExclusionSettingsViewModel model)
+    {
+        var dialog = new ExclusionSettingsDialog(model) { Owner = Owner };
+        Modal(dialog.ShowDialog);
+    }
+
     public void ShowChangeReview(ChangeReviewViewModel viewModel)
     {
         var dialog = new ChangeReviewDialog(viewModel) { Owner = Owner };

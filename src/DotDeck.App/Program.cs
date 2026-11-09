@@ -21,6 +21,8 @@ public static class Program
                     return RunWithStdio(s => GuardHost.RunGuard(args, s.In, s.Out, s.Err, WindowsFinalPathResolver.Instance, CapturePreWrite));
                 case GuardHost.HeartbeatSwitch:
                     return RunWithStdio(s => GuardHost.RunHeartbeat(args, s.In, TimeProvider.System));
+                case NamedPipeMcpHost.BridgeSwitch:
+                    return RunWithStdio(s => NamedPipeMcpHost.RunBridgeAsync(args, s.In, s.Out).GetAwaiter().GetResult());
             }
         }
 
@@ -33,7 +35,10 @@ public static class Program
     private static void CapturePreWrite(string sessionDirectory, string target)
     {
         var store = DotDeck.Core.Files.PhysicalFileStore.Instance;
+        var scope = DotDeck.Core.AiCli.Scope.ScopeFile.Read(Path.Combine(sessionDirectory, DotDeck.Core.AiCli.Launch.SessionFileNames.Scope));
         var backups = DotDeck.Core.AiCli.Snapshots.SessionSnapshots.OpenStore(store, sessionDirectory, TimeProvider.System, new DpapiBackupProtector());
+        if (scope.ExclusionsFile is { } exclusionsFile)
+            backups.IsAutomaticBackupExcluded = new DotDeck.Core.Settings.PathExclusionStore(store, exclusionsFile).BackupPolicy.IsExcluded;
         DotDeck.Core.AiCli.Snapshots.SessionSnapshots.CapturePreWrite(store, backups, target, new DotDeck.Core.AiCli.Snapshots.SnapshotLimits());
     }
 

@@ -119,13 +119,14 @@
                 <MenuItem Header="사용자 지정 파일 추가(찾아보기)(_I)..." Command="{Binding AddImportantFileCommand}" />
                 <MenuItem Header="현재 파일을 사용자 지정 파일에서 빼기(_R)" Command="{Binding RemoveImportantFileCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
                 <Separator />
-                <MenuItem Header="Claude 세션 시작(_C)..." Command="{Binding StartAiSessionCommand}" InputGestureText="Ctrl+Alt+C" />
+                <MenuItem Header="AI 세션 시작(_C)..." Command="{Binding StartAiSessionCommand}" InputGestureText="Ctrl+Alt+C" />
                 <MenuItem Header="새 PowerShell 터미널(_P)" Command="{Binding OpenTerminalCommand}" InputGestureText="Ctrl+Alt+T" />
                 <Separator />
                 <MenuItem Header="관리자 권한으로 다시 시작(_A)" Command="{Binding RestartAsAdministratorCommand}" />
             </MenuItem>
             <MenuItem Header="설정(_S)">
                 <MenuItem Header="환경 설정(_O)..." Command="{Binding OpenSettingsCommand}" />
+                <MenuItem Header="자동백업·변경검토 제외항목(_E)..." Command="{Binding OpenExclusionsCommand}" />
                 <MenuItem Header="프로젝트 백업(_B)..." Command="{Binding BackupProjectsCommand}" />
             </MenuItem>
             <MenuItem Header="창(_W)">

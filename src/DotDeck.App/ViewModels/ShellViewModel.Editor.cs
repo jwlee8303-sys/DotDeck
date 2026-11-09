@@ -55,8 +55,15 @@ public sealed partial class ShellViewModel : ITextDocumentHost, IClaudeFormServi
     /// Opens <paramref name="path"/> in an editor tab. A preview open reuses the single preview tab and never asks
     /// questions (large files need an explicit open); binary files are only described.
     /// </summary>
-    public async Task OpenFileAsync(string path, bool preview)
+    public Task OpenFileAsync(string path, bool preview) => OpenFileCoreAsync(path, preview, null);
+
+    private async Task OpenFileCoreAsync(string path, bool preview, Func<bool>? authorized)
     {
+        void CheckAuthorization()
+        {
+            if (authorized is not null && !authorized()) throw new UnauthorizedAccessException("AI 세션 범위가 변경되었거나 파일을 열 수 없습니다.");
+        }
+        CheckAuthorization();
         // Every open supersedes earlier pending previews: a slow preview must not replace a newer one.
         var request = ++_openRequest;
         if (ActivateExisting(path, preview))
@@ -67,6 +74,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost, IClaudeFormServi
         try
         {
             var probe = await Task.Run(() => _buffers.Reader.Probe(path)).ConfigureAwait(true);
+            CheckAuthorization();
             if (probe.IsBinary)
             {
                 StatusMessage = $"바이너리 파일이라 열지 않습니다: {System.IO.Path.GetFileName(path)} ({FormatSize(probe.Length)})";
@@ -93,7 +101,13 @@ public sealed partial class ShellViewModel : ITextDocumentHost, IClaudeFormServi
             }
 
             await PrepareRoleAsync(path).ConfigureAwait(true);
+            CheckAuthorization();
             var buffer = await _buffers.AcquireAsync(path).ConfigureAwait(true);
+            if (authorized is not null && !authorized())
+            {
+                _buffers.Release(buffer);
+                throw new UnauthorizedAccessException("AI 세션 범위가 변경되었습니다.");
+            }
 
             // Re-check after the read: a concurrent open may have created the tab, or a newer preview won.
             if ((preview && request != _openRequest) || ActivateExisting(path, preview))
@@ -259,7 +273,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost, IClaudeFormServi
         }
 
         // SPEC 6: every write is previewed as a diff first (can be skipped for the rest of the session).
-        if (approved is null && preview && !_skipSavePreview && !plan.IsUnchanged)
+        if (approved is null && preview && !_skipSavePreview && !plan.IsUnchanged && !Exclusions.ReviewPolicy.IsExcluded(buffer.Path))
         {
             var review = new DiffReviewViewModel(
                 "저장 전 확인",
@@ -269,7 +283,7 @@ public sealed partial class ShellViewModel : ITextDocumentHost, IClaudeFormServi
             {
                 SkipLabel = "이번 실행 동안 저장 전 미리보기 생략",
             };
-            if (_dialogs.ShowDiffReview(review) != "save")
+            if (_dialogs.ShowDiffReview(await ConfigureBackupExclusionsAsync(review).ConfigureAwait(true)) != "save")
             {
                 StatusMessage = "저장을 취소했습니다.";
                 return false;

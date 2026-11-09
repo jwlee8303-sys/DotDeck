@@ -26,6 +26,8 @@ public sealed record AppPaths(string Home, HomeSource HomeSource, string Roaming
 
     public string SettingsFile => Path.Combine(RoamingDataDir, "settings.json");
 
+    public string ExclusionsFile => Path.Combine(RoamingDataDir, "exclusions.json");
+
     public string TemplatesDir => Path.Combine(RoamingDataDir, "templates");
 
     /// <summary>"다음 형식으로 열기" choices per file.</summary>

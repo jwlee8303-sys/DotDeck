@@ -510,6 +510,26 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 ---
 
 ## AI CLI 연동 설계 (SPEC 11, Phase 5, 2026-11-09 승인)
+
+### 5c 구현 메모 (2026-11-09)
+
+- 사용자 피드백 보완: 프로젝트 우클릭 Codex 빠른 시작, Codex의 주·추가 프로젝트 선택 유지와 두 실행 모드 테스트. `sandbox_workspace_write.writable_roots`는 상속 값을 선택한 루트 목록으로 교체하고 `--add-dir`도 유지한다(아래 초기 구현의 빈 목록에서 보완).
+- 실제 비대화형 실패 기록에서 `approval policy is never`로 프로젝트 조회·파일 검색이 거부된 것을 확인했다. 자체 MCP 승인 누락을 수정: `required=true`, `enabled_tools` 5개, 서버 기본 승인 `prompt`, 5개 도구별 `approval_mode="approve"`. 외부 MCP·임의 새 도구에는 적용하지 않으며 native `workspace-write`·`approval_policy="never"`는 유지한다. MCP annotation에 조회 도구 readOnlyHint를 추가했다. Codex 0.167.0의 격리된 임시 홈 `app-server config/read`에서 설정 인식을 확인했다. 참고: [공식 MCP 승인 설정](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+- 제외에 대한 최종 지시는 아래 "경로 기반 자동백업·변경검토 제외" 절이다. CLI 전용 카탈로그는 제거했고 사용자 경로 두 목록으로 대체했다. scope.json에는 공통 제외 설정 파일 경로만 전달한다.
+
+- 기준: main `36651f4`(v1.3.0), 개발 브랜치 `feat/ai-cli-5c`. 새 NuGet·버전 파일·프로젝트 설정 변경 없음. 수동 완료 기준은 [PHASE5C-VALIDATION.md](PHASE5C-VALIDATION.md)에서 별도로 확인한다.
+- Core `AiCli/Mcp`: 줄 단위 JSON-RPC 2.0 직접 구현(256Ki 문자 메시지 제한). initialize의 지원 프로토콜 협상, 알림 무응답, ping, tools/list·tools/call. 메타데이터와 도구 결과만 stdout으로 반환한다. 결과 문자열은 JSON 이스케이프 전에 SecretMasker, 예외는 고정 안내로 바꾼다. 큰 결과는 조용히 자르지 않고 오류로 안내한다.
+- 도구 5종: 세션 범위의 프로젝트만 반환. 열린/활성 문서는 호출 시 UI dispatcher에서 조회하고 활성 문서의 선택 영역은 최대 16,000자. 문서 전달 옵션을 끄면 두 조회도 비운다. `find_files`는 기존 VisibleProjectSource·ExplorerFileSearch를 사용하고 최종 경로 ScopeChecker·비밀 정책을 적용한다. 결과/탐색 상한은 `truncated`, 읽지 못한 폴더는 `incomplete`로 알린다. 이름 중복 시 ID로 지정하게 한다.
+- 브리지는 `DotDeck.exe --dotdeck-mcp <sessionId>`이며 세션 디렉터리는 MCP 자식 환경 `DOTDECK_MCP_DIRECTORY`로 전달한다. 현재 사용자만 접근하는 .NET Named Pipe(`PipeOptions.CurrentUserOnly`, Windows ACL 적용)와 32바이트 난수 토큰을 사용한다. `bridge.key`는 DPAPI(CurrentUser), 토큰은 고정 시간 비교, 인증은 5초 제한. 네트워크 리스너 없음. 세션 종료 시 호스트 취소, 도구 실행 중 범위가 바뀌면 결과 폐기. 파일 열기는 UI에서 비동기 단계 후에도 세션 범위를 확인한다.
+- Claude는 세션 `mcp.json`을 `--mcp-config`로 연결한다. 자체 MCP 가드 통과·외부 MCP ask·비대화형 strict 정책은 기존 구현 재사용. 도움말의 MCP 인자·builtin tools 구분을 확인했으며 실제 모델에서 서버 로드와 도구 접두 확인은 수동 대기다.
+- Codex는 기존 npm shim 검증·`node.exe codex.js` 탐색을 재사용한다. `-c mcp_servers.dotdeck_session={command,args,env}`로 서버 주입, 전역 설정 파일 수정 없음. 명령 실행은 `exec --skip-git-repo-check`(일반 폴더 지원), `-s workspace-write`, `approval_policy="never"`, `--json -o <last-message.txt> -`. 상속된 범위 외 쓰기 허용을 막기 위해 `sandbox_workspace_write.writable_roots=[]`를 고정한다.
+- Codex 비대화형 이어가기는 `exec` 공통 범위 옵션 뒤 `resume <threadId> --json -o <last-message.txt> -`. 설치 도움말로 문법을 확인했다. `thread.started.thread_id`를 검증·저장하고 Claude heartbeat를 요구하지 않는다. 대화형은 `-a on-request --no-daemon`, 새 대화만 허용한다. 범위가 줄면 native sandbox가 실행 중 갱신되지 않으므로 세션을 중지하고 재시작을 안내한다.
+- Windows sandbox 감지는 런타임에 Codex 홈의 `config.toml`만 읽어 명시적인 `windows.sandbox`(`elevated`/`unelevated`/`mxc`)를 확인한다. 알려지지 않은 값·손상·파일 부재는 미설정. 비대화형 비활성·대화형 경고, 감지한 모드는 명령줄에서 고정한다. CLI의 실제 OS 준비·계정 검증을 대신하지 않으며 실패를 우회하지 않는다. UI의 미리보기 입력마다 파일을 파싱하지 않도록 확인 결과를 사용한다.
+- Codex 네이티브 도구에 Claude의 비밀 파일 가드와 읽기 제한은 적용되지 않는다(A9). 내장 MCP는 두 CLI 모두 비밀/범위 밖 결과를 제외한다. 터미널·작업 패널 상태도 “가드 확인 대기” 대신 Codex sandbox로 표시한다.
+- 컨텍스트 상한은 A3의 12,000자로 조정. 기존 표·모호성·활성 문서 우선·표시 규칙을 유지하고 MCP 사용법을 추가했다. 최종 경로가 범위 밖 또는 비밀인 열린 문서도 초기 컨텍스트에서 제외한다.
+- 세션 폴더는 수락/닫기 시 `closed` 시각을 남긴다. 다음 앱 시작에 7일 경과 **또는** 최신 20개 초과 폴더 정리. `session.lease`를 프로세스 종료까지 잡아 다른 앱 인스턴스의 실행 세션도 보호한다. 미검토·유효하지 않은 ID·링크가 포함된 폴더는 삭제하지 않는다.
+- 공식 참고(설치 CLI 도움말과 함께 확인): [Codex MCP](https://learn.chatgpt.com/docs/extend/mcp?surface=cli), [Windows sandbox](https://learn.chatgpt.com/docs/windows/windows-sandbox). Codex 설정과 CLI 지원 모드는 설치 버전에 따라 다를 수 있다.
+
 근거: SPEC 11절, 설치 CLI 도움말(Claude Code 2.1.319, codex-cli 0.167.0), Claude Code 공식 hooks·settings 문서(2026-11-09 조회). "확인 필요"는 해당 단계 스파이크에서 실측 후 이 절에 결과를 기록한다.
 
 ### 선행 조건 (1c 확인 결과)
@@ -531,7 +551,7 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 | A10 | Codex 이어가기는 비대화형(`codex exec resume <id>`)만. 대화형은 새 세션 |
 | A11 | 범위 외 허용: 훅 입력 `scratchpad_dir`(읽기·쓰기), `<CLAUDE_CONFIG_DIR>\{skills,agents,commands,plugins,rules}`(읽기만). 플랜 파일 경로는 실측 후 추가 |
 | A12 | **범위 안 비밀 파일(SPEC 2.3 자물쇠 대상, 링크는 최종 대상 기준)은 대화형·비대화형 모두 deny**(Read·쓰기 도구·Glob/Grep 대상). 전역 protect_files와 동작을 맞춘다 |
-| A13 | 릴리스: 5a → 1.2.0, 5b → 1.3.0, 5c → 1.4.0 (`/release`) |
+| A13 | 실제 릴리스: 5a·5b → 1.2.0, CLI 시스템 기록 보완 → 1.3.0. 5c 구현은 Unreleased로 기록하며 다음 MINOR 릴리스 번호는 별도 승인 시 확정한다. 버전 파일은 개발 단계에서 변경하지 않는다 |
 | A14 | 비대화형 기본: `--max-budget-usd` 미지정(옵션), "읽기 전용 셸 허용" 끔 |
 | A15 | 스냅샷 기준(설정 노출): 시작 시 전체 캡처는 텍스트 2,000개·합계 20MB 이하, 색인 상한 50,000개, 해시는 2MB 이하 파일, 세션 폴더 보관 7일/최근 20세션 |
 
@@ -639,16 +659,14 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - AI 작업 패널: 대화형 세션은 "터미널 보기"로 탭을 열거나 다시 만든다(종료 후에도 재생 버퍼 표시). 출력 목록 대신 안내 문구.
 - 미확인(수동): 실제 Claude TUI 표시·한글 IME·크기 조절, 대화형에서 가드 훅 deny 표시. 샌드박스 로그인이 필요해 5b 끝 수동 확인 항목으로 둔다.
 
-### CLI 시스템 기록 (사용자 결정 2026-11-09)
-- 문제: 범위 루트가 CLI 설정 폴더(Claude 전역 = `CLAUDE_CONFIG_DIR`/`~\.claude`)이면 Claude Code가 시작·종료 때 스스로 쓰는 기록(`.claude.json`, `history.jsonl`, `backups\`, `sessions\`, `plugins\synced\`·`plugins\cache\`, `skills\synced\` 등)이 세션 변경으로 잡혀 매번 변경 검토 창이 뜨고, 시작 캡처가 이 파일들을 백업했다. 샌드박스 실측(2.1.319): 한 세션에서 바뀐 21개 중 사용자 작업은 1개.
-- 판정(사용자 승인): ① Claude 도구(Write/Edit 등)가 쓴 파일 → 경로와 무관하게 사용자 작업(가드가 쓰기 직전 캡처, 캡처된 경로는 항상 요약) ② 도구 기록 없음 + 시스템 기록 카탈로그 → CLI 시스템 기록: 색인·시작 캡처·변경 요약·되돌리기에서 제외 ③ 도구 기록 없음 + 카탈로그 밖 → 출처 불명이므로 사용자 작업으로 취급(셸 명령·외부 편집·카탈로그에 없는 새 CLI 기록).
-- 구현: Core `SystemRecordPolicy`(설정 폴더 기준 상대 경로, `/파일`·`/폴더/`, 대소문자 무시, `..`·드라이브 경로 무시). 카탈로그는 내장 `Catalogs/{Claude,Codex}/system-records.json`(schemaVersion 1), `%APPDATA%\DotDeck\catalogs\<CLI>\system-records.json`으로 덮어쓰기. `SnapshotRoot.SystemRecords`를 `AiSessionManager`가 `AppPaths.ClaudeHome`/`CodexHome`와의 상대 위치에 맞춰 채운다(관련 없는 일반 프로젝트는 모든 파일 유지). `ScopeIndex.Build`는 시스템 폴더를 내려가지 않고 시스템 파일을 색인하지 않으며, `SessionSnapshots.IsInScope`도 제외 → 시작 캡처(열린 문서 포함)에서 빠지고, 도구가 쓴 경우는 사전 캡처 또는 도구 경로 기록으로 요약된다.
-- Claude 카탈로그: `.claude.json`, `.credentials.json`(로그인 정보: SPEC 2.3 비밀 패턴에 없어 이전에는 시작 캡처될 수 있었음), `history.jsonl`, `backups\`, `cache\`, `sessions\`, `session-env\`, `plugins\synced\`·`plugins\cache\`, `skills\synced\`, 기존 기본 제외 폴더(`projects\`, `file-history\`, `todos\`, `shell-snapshots\`, `statsig\`, `debug\`). `settings.json`은 사용자 설정이기도 해서 넣지 않는다(③). Codex는 `sessions\`, `log\`만(5c에서 실측 후 보강).
-- 루트 위치(Codex 지적 반영): 카탈로그는 루트가 설정 폴더와 같을 때뿐 아니라 설정 폴더를 품은 상위 루트(홈 등, 경로 앞에 상대 경로를 붙임)와 설정 폴더 안의 하위 루트(아래 항목만, 루트가 시스템 폴더면 전부)에도 적용하고, Claude·Codex 카탈로그를 합친다(`SystemRecordPolicy.RelativeTo`·`Combine`).
-- 시작 색인에 없던 경로(제외 폴더·시스템 기록·잘린 색인)가 사전 캡처 후 삭제되면 `StartStateUnknown`으로 되돌리기를 막는다(세션 중 생성→재수정→삭제된 파일을 세션 중 내용으로 다시 만들지 않음, Codex 지적 반영).
-- 보류(Codex P3): 루트가 정션·8.3·최종 경로 형태라 `AppPaths`와 문자열이 다르면 카탈로그가 적용되지 않음(시스템 기록이 다시 보일 뿐, 안전 쪽). 사용자 환경 변수 `CLAUDE_CONFIG_DIR`로 옮긴 설정 폴더는 `AppPaths.ClaudeHome`이 아니므로 대상 아님.
-- 도구 기록 보완: 가드는 원본 캡처와 별개로 세션 백업 폴더의 `tool-writes/`에 경로·첫 도구 호출 전 존재 여부만 원자적으로 기록한다(파일 내용 없음, 프로세스 간 캡처 락 공유). 새 파일·대용량·바이너리도 시스템 기록 경로에 도구가 쓰면 검토에 표시하되, 시작 상태나 원본을 확인할 수 없으면 되돌리기는 막는다. 원본 캡처 없이 생성 후 삭제되어 남지 않은 경로는 표시하지 않는다. 분류는 표시·백업만 바꾸며 가드의 범위·비밀 파일 판정은 그대로다.
-
+### 경로 기반 자동백업·변경검토 제외 (최신 사용자 결정)
+- 기존 Claude·Codex 전용 SystemRecordPolicy, 카탈로그 2개, 가드의 시스템 기록 경로 전달, 관련 전용 테스트를 제거했다. 제품이 CLI 이름으로 숨기는 제외 규칙은 없다. 기존 사용자 카탈로그 파일은 사용하지 않으며 사용자 파일 자체는 삭제하지 않는다.
+- 설정 메뉴는 `자동백업·변경검토 제외항목` 하나이며 두 탭의 목록은 독립적이다. 파일·폴더 전체 경로 직접 입력, 파일 선택, 폴더 선택, 제거를 제공한다. 폴더는 자신과 모든 하위 파일을 포함하고 파일은 정확한 경로만 일치한다. 대소문자·경로 경계·UNC·확장 경로·링크의 상위 경로를 고려한다.
+- `<roaming>/exclusions.json`의 `automaticBackup`·`changeReview` 배열에 `{path,isDirectory}`를 저장한다. 알 수 없는 키는 보존한다. 잘못된 문서는 조용히 빈 목록으로 덮어쓰지 않는다. 원자적 저장 성공 후 새 불변 정책을 게시한다.
+- BackupStore.CreateAutomatic을 SafeWriter 저장·복원 전 백업, 붙여넣기 덮어쓰기 백업, AI 시작·쓰기 전 스냅샷에 사용한다. 자동백업 제외는 검토 색인을 지우지 않으며, 변경검토 제외도 자동백업 생성을 막지 않는다. 기존 백업은 삭제하지 않는다.
+- AiSessionEnvironment는 현재 백업·검토 정책을 콜백으로 조회한다. 검토 색인·요약·diff 로딩에서 제외하고 RevertPlanner도 수행 직전에 다시 검사한다. 강제 되돌리기로도 검토 제외를 무시하지 못한다. 가드는 scope.json의 ExclusionsFile 경로에서 현재 목록을 읽는다.
+- 저장 전 백업 미리보기에는 좌측 백업 제외 체크박스, AI 변경검토에는 좌측 검토 제외 체크박스를 둔다. 체크 시 즉시 저장하며 검토 행은 등록 성공 후 제거한다. 해제는 통합 설정에서 한다. 백업 제외 등록 중에는 실제 저장 선택이 기다리고, 검토 제외 등록 중에는 해당 행을 되돌릴 수 없다. 설정·체크박스의 파일 쓰기는 작업 스레드에서 수행한다.
+- CLI 전용 제외 제거와 별개로 인증 파일에 대한 비밀 정책은 유지한다. .credentials.json은 공통 SecretFilePolicy와 가드의 비밀 파일 규칙에 포함해 이전 카탈로그 제거로 보호가 사라지지 않게 했다.
 ### 단계 (각 1커밋, 빌드 → 테스트 → `/codex-review` → 커밋)
 - 5a: 0 설계 문서 / 1 범위 모델 / 2 경로 정규화·범위 검사기 / 3 가드 판정·셸 분석 / 4 가드 모드·scope.json 갱신(+stdio·콜드 스타트·병합 실측) / 5 명령줄 빌더·CLI 탐색 / 6 프리셋·컨텍스트 / 7 Job 실행기·세션 관리자 / 8 스냅샷·변경 요약·되돌리기 / 9 세션 시작 대화상자·진입점 / 10 AI 작업 패널·변경 요약 대화상자 / 11 CHANGELOG·HANDOFF.
 - 5b: ConPTY / xterm 번들 / 터미널 패널 / 대화형 세션 탭·범위 칩 / PowerShell 터미널 / 변경 검토 연결 + 스크린샷 확인.

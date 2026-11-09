@@ -22,7 +22,7 @@ public static class SessionFilesWriter
     /// them: a deliberate over-block on the safe side.
     /// </summary>
     public static IReadOnlyList<string> SecretNamePatterns { get; } =
-        [".env*", "*.pem", "*.key", "*.pfx", "id_rsa*", "id_ed25519*", "auth.json"];
+        [".env*", "*.pem", "*.key", "*.pfx", "id_rsa*", "id_ed25519*", "auth.json", ".credentials.json"];
 
     /// <summary>
     /// Permission rule paths for the secret patterns: <c>**/</c> (relative to the working directory) plus one absolute

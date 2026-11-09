@@ -60,6 +60,8 @@ public interface IDialogService
     /// <summary>Settings dialog. Returns the new settings, or null when cancelled.</summary>
     DotDeck.Core.Settings.AppSettings? ShowSettings(DotDeck.Core.Settings.AppSettings current, string defaultBackupDirectory);
 
+    void ShowExclusions(ExclusionSettingsViewModel model) { }
+
     /// <summary>AI session start dialog (SPEC 11.3-3). Returns the validated request, or null when cancelled.</summary>
     DotDeck.Core.AiCli.Sessions.AiSessionStartRequest? ShowSessionLaunch(SessionLaunchViewModel viewModel);
 

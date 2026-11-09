@@ -89,14 +89,20 @@ public sealed record AiSessionEnvironment
 
     public SnapshotLimits SnapshotLimits { get; init; } = new();
 
-    /// <summary>Claude Code's own records in <see cref="AppPaths.ClaudeHome"/> (left out of snapshots and summaries).</summary>
-    public SystemRecordPolicy ClaudeSystemRecords { get; init; } = SystemRecordPolicy.Claude;
+    public Func<string, bool> BackupExcluded { get; init; } = _ => false;
 
-    /// <summary>Codex CLI's own records in <see cref="AppPaths.CodexHome"/>.</summary>
-    public SystemRecordPolicy CodexSystemRecords { get; init; } = SystemRecordPolicy.Codex;
+    public Func<string, bool> ReviewExcluded { get; init; } = _ => false;
+
+    public Func<string, bool> ReviewDirectoryExcluded { get; init; } = _ => false;
 
     /// <summary>Where reverted "created" files go. Without one, such reverts are refused (never a permanent delete).</summary>
     public IRecycleBin? RecycleBin { get; init; }
+
+    public Func<AiSession, IDisposable>? StartMcpHost { get; init; }
+
+    public Func<string?> CodexSandboxMode { get; init; } = () => null;
+
+    public IFinalPathResolver? FinalPathResolver { get; init; }
 }
 
 /// <summary>One running or finished CLI session.</summary>
@@ -141,7 +147,13 @@ public sealed class AiSession
     /// <summary>Why the session failed or was stopped (user-facing).</summary>
     public string? Message { get; private set; }
 
+    internal string? CliFailure { get; set; }
+
     internal ICliProcess? Process { get; set; }
+
+    internal IDisposable? McpHost { get; set; }
+
+    internal IDisposable? DirectoryLease { get; set; }
 
     /// <summary>The console of an interactive session (null for command runs). Kept after the exit for its replay.</summary>
     public TerminalConnection? Terminal { get; internal set; }
@@ -170,6 +182,7 @@ public sealed class AiSession
     {
         Terminal?.Dispose();
         Process?.Dispose();
+        DirectoryLease?.Dispose();
     }
 
     /// <summary>The scope index and captured contents taken just before the CLI started.</summary>
@@ -283,9 +296,11 @@ public sealed class AiSession
             Message = message;
         }
 
+        McpHost?.Dispose();
         StateChanged?.Invoke(this);
         return true;
     }
+
 }
 
 /// <summary>
@@ -344,6 +359,18 @@ public sealed class AiSessionManager : IDisposable
     /// <summary>Presets, last additional projects and conversation ids (null when sessions.json is not used).</summary>
     public SessionPresetStore? Presets => _env.Presets;
 
+    private string? _codexSandboxMode;
+
+    public bool IsCodexSandboxConfigured
+    {
+        get
+        {
+            var mode = _env.CodexSandboxMode();
+            Volatile.Write(ref _codexSandboxMode, mode);
+            return mode is "elevated" or "unelevated" or "mxc";
+        }
+    }
+
     private string PreviewCore(AiSessionStartRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -374,13 +401,16 @@ public sealed class AiSessionManager : IDisposable
                 Prompt = request.Prompt,
                 AllowReadOnlyShell = request.AllowReadOnlyShell,
                 MaxBudgetUsd = request.MaxBudgetUsd,
+                McpConfigPath = _env.StartMcpHost is null ? null : Path.Combine(_env.Paths.AiSessionsDir, "(새 세션)", "mcp.json"),
+                McpBridgeExecutable = _env.StartMcpHost is null ? null : _env.GuardExecutable,
+                WindowsSandboxMode = request.Cli == CliKind.Codex ? Volatile.Read(ref _codexSandboxMode) : null,
                 SandboxClaudeConfigDir = _env.Paths.IsHomeOverridden ? _env.Paths.ClaudeHome : null,
                 SandboxCodexHome = _env.Paths.IsHomeOverridden ? _env.Paths.CodexHome : null,
             });
             // The prompt never appears on the command line (it is not limited by the 32K command-line length).
             return plan.StandardInput is null ? plan.CommandLine : plan.CommandLine + Environment.NewLine + Environment.NewLine + "(프롬프트는 표준 입력으로 전달됩니다)";
         }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or InvalidOperationException or AiSessionStartException)
         {
             return ex.Message;
         }
@@ -390,9 +420,11 @@ public sealed class AiSessionManager : IDisposable
     public AiSession Start(AiSessionStartRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Cli == CliKind.Codex)
+        // Pin exactly the mode that passed validation, even if config.toml changes during preparation.
+        var windowsSandboxMode = request.Cli == CliKind.Codex ? _env.CodexSandboxMode() : null;
+        if (request.Cli == CliKind.Codex && request.Mode == LaunchMode.NonInteractive && windowsSandboxMode is not ("elevated" or "unelevated" or "mxc"))
         {
-            throw new AiSessionStartException("Codex 세션은 이후 단계(5c)에서 지원합니다.");
+            throw new AiSessionStartException("Windows sandbox 설정을 확인할 수 없어 비대화형 Codex 실행을 비활성화했습니다. Codex에서 sandbox를 설정한 뒤 다시 시도하세요.");
         }
 
         if (request.Mode == LaunchMode.Interactive && _env.TerminalLauncher is null)
@@ -435,6 +467,7 @@ public sealed class AiSessionManager : IDisposable
                 IncludeOpenDocuments = request.IncludeOpenDocuments,
                 OpenDocuments = request.OpenDocuments,
                 ActiveDocument = request.ActiveDocument,
+                FinalPathResolver = _env.FinalPathResolver,
             });
 
             plan = CliCommandBuilder.Build(new CliLaunchRequest
@@ -449,6 +482,9 @@ public sealed class AiSessionManager : IDisposable
                 Prompt = request.Mode == LaunchMode.NonInteractive ? request.Prompt : null,
                 AllowReadOnlyShell = request.AllowReadOnlyShell,
                 MaxBudgetUsd = request.MaxBudgetUsd,
+                McpConfigPath = _env.StartMcpHost is null ? null : Path.Combine(directory, "mcp.json"),
+                McpBridgeExecutable = _env.StartMcpHost is null ? null : _env.GuardExecutable,
+                WindowsSandboxMode = windowsSandboxMode,
                 SandboxClaudeConfigDir = _env.Paths.IsHomeOverridden ? _env.Paths.ClaudeHome : null,
                 SandboxCodexHome = _env.Paths.IsHomeOverridden ? _env.Paths.CodexHome : null,
             });
@@ -469,7 +505,7 @@ public sealed class AiSessionManager : IDisposable
                 .GroupBy(p => p.Root, StringComparer.OrdinalIgnoreCase)
                 .Select(g => new SnapshotRoot(g.Key, projects.FirstOrDefault(d => d.Id == g.First().ProjectId) is { } definition
                     ? ExcludedFolderPolicy.For(definition)
-                    : new ExcludedFolderPolicy(ExcludedFolderPolicy.CommonDefaults)) { SystemRecords = SystemRecordsFor(g.Key) })];
+                    : new ExcludedFolderPolicy(ExcludedFolderPolicy.CommonDefaults)))];
             session.Snapshot = SessionSnapshots.Capture(
                 session.SnapshotRoots, request.OpenDocuments, _env.Store, OpenBackups(session), _env.SnapshotLimits);
         }
@@ -485,6 +521,8 @@ public sealed class AiSessionManager : IDisposable
         {
             try
             {
+                session.DirectoryLease = new FileStream(Path.Combine(directory, SessionRetention.LeaseFile), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                session.McpHost = _env.StartMcpHost?.Invoke(session);
                 if (request.Mode == LaunchMode.Interactive)
                 {
                     session.Terminal = new TerminalConnection(_env.TerminalLauncher!.Start(plan, TerminalSize.Default), TerminalSize.Default);
@@ -496,6 +534,8 @@ public sealed class AiSessionManager : IDisposable
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
             {
+                session.McpHost?.Dispose();
+                session.DirectoryLease?.Dispose();
                 throw new AiSessionStartException($"CLI를 실행하지 못했습니다: {ex.Message}", ex);
             }
 
@@ -565,19 +605,13 @@ public sealed class AiSessionManager : IDisposable
         }
     }
 
-    /// <summary>
-    /// The CLI system records under a scope root: the root may be a CLI config folder, contain one (the home folder)
-    /// or lie inside one. Any CLI may write there, so both catalogs apply regardless of the session's CLI.
-    /// </summary>
-    private SystemRecordPolicy SystemRecordsFor(string root) => SystemRecordPolicy.Combine(
-        _env.ClaudeSystemRecords.RelativeTo(_env.Paths.ClaudeHome, root),
-        _env.CodexSystemRecords.RelativeTo(_env.Paths.CodexHome, root));
-
     /// <summary>The session's own backup store (start capture and pre-write captures).</summary>
     public BackupStore OpenBackups(AiSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
-        return SessionSnapshots.OpenStore(_env.Store, session.Directory, _env.Time, _env.BackupProtector);
+        var backups = SessionSnapshots.OpenStore(_env.Store, session.Directory, _env.Time, _env.BackupProtector);
+        backups.IsAutomaticBackupExcluded = _env.BackupExcluded;
+        return backups;
     }
 
     /// <summary>Compares the scope now with the start snapshot ("변경 검토", also at the end of a session).</summary>
@@ -589,8 +623,8 @@ public sealed class AiSessionManager : IDisposable
             return null;
         }
 
-        var now = ScopeIndex.Build(session.SnapshotRoots, _env.Store, _env.SnapshotLimits);
-        return ChangeSummaryBuilder.Build(start, now, OpenBackups(session), _env.Store, _env.SnapshotLimits);
+        var now = ScopeIndex.Build(session.SnapshotRoots, _env.Store, _env.SnapshotLimits, _env.ReviewExcluded, _env.ReviewDirectoryExcluded);
+        return ChangeSummaryBuilder.Build(start, now, OpenBackups(session), _env.Store, _env.SnapshotLimits, _env.ReviewExcluded);
     }
 
     /// <summary>Reverts changes of <paramref name="session"/>, limited to the roots indexed when it started.</summary>
@@ -598,7 +632,7 @@ public sealed class AiSessionManager : IDisposable
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(writer);
-        return new RevertPlanner(_env.Store, writer, _env.RecycleBin ?? NoRecycleBin.Instance, _env.SnapshotLimits, session.Snapshot?.Roots ?? session.SnapshotRoots);
+        return new RevertPlanner(_env.Store, writer, _env.RecycleBin ?? NoRecycleBin.Instance, _env.SnapshotLimits, session.Snapshot?.Roots ?? session.SnapshotRoots, _env.ReviewExcluded);
     }
 
     private sealed class NoRecycleBin : IRecycleBin
@@ -622,6 +656,12 @@ public sealed class AiSessionManager : IDisposable
         {
             session.TerminateProcess();
         }
+    }
+
+    public void MarkClosed(AiSession session)
+    {
+        if (session.State != AiSessionState.Running)
+            SessionRetention.MarkClosed(session.Directory, _env.Time.GetUtcNow());
     }
 
     /// <summary>
@@ -666,6 +706,8 @@ public sealed class AiSessionManager : IDisposable
                 ScopeFile.Write(Path.Combine(session.Directory, SessionFileNames.Scope), ScopeDocumentFor(session, narrowed, generation));
                 session.ScopeGeneration = generation;
                 session.Scope = narrowed;
+                if (session.Cli == CliKind.Codex)
+                    Stop(session, "Codex 범위가 축소되어 중지했습니다. 새 범위로 세션을 다시 시작하세요.");
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -712,6 +754,8 @@ public sealed class AiSessionManager : IDisposable
                 ScopeFile.Write(Path.Combine(session.Directory, SessionFileNames.Scope), ScopeDocumentFor(session, narrowed, generation));
                 session.ScopeGeneration = generation;
                 session.Scope = narrowed;
+                if (session.Cli == CliKind.Codex)
+                    Stop(session, "Codex 범위가 축소되어 중지했습니다. 새 범위로 세션을 다시 시작하세요.");
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -739,16 +783,24 @@ public sealed class AiSessionManager : IDisposable
         UpdatedAt = _env.Time.GetUtcNow(),
         Roots = [.. scope.Projects
             .GroupBy(p => p.Root, StringComparer.OrdinalIgnoreCase)
-            .Select(g => new ScopeFileRoot { ProjectId = g.First().ProjectId, Name = g.First().Name, Path = g.Key })],
+            .Select(g => new ScopeFileRoot
+            {
+                ProjectId = g.First().ProjectId, Name = g.First().Name, Path = g.Key,
+            })],
         ReadOnlyRoots = [.. ClaudeReadOnlyFolders.Select(f => Path.Combine(_env.Paths.ClaudeHome, f))],
         Home = _env.Paths.Home,
+        ExclusionsFile = _env.Paths.ExclusionsFile,
     };
 
     private (string? Id, bool Resume) PickConversation(AiSessionStartRequest request, SessionScope scope)
     {
-        if (request.Cli != CliKind.Claude)
+        if (request.Cli == CliKind.Codex)
         {
-            return (null, false);
+            if (request.ResumeConversation && request.Mode == LaunchMode.Interactive)
+                throw new AiSessionStartException("Codex 대화형 세션은 새 대화로 시작하세요. 이어가기는 비대화형에서 지원합니다.");
+            var previousId = request.ResumeConversationId ?? _env.Presets?.GetConversation(scope.Key)?.CodexThreadId;
+            return request.ResumeConversation && Guid.TryParse(previousId, out var thread)
+                ? (thread.ToString("D"), true) : (null, false);
         }
 
         if (request.ResumeConversation && request.ResumeConversationId is { } explicitId && Guid.TryParse(explicitId, out _))
@@ -784,13 +836,20 @@ public sealed class AiSessionManager : IDisposable
         }
     }
 
-    private static async Task PumpAsync(AiSession session, Stream stream, bool isError)
+    private async Task PumpAsync(AiSession session, Stream stream, bool isError)
     {
         try
         {
             using var reader = new StreamReader(stream, new UTF8Encoding(false), detectEncodingFromByteOrderMarks: false);
             while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
             {
+                if (!isError && session.Cli == CliKind.Codex && CodexJsonlParser.ThreadId(line) is { } threadId)
+                {
+                    session.ConversationId = threadId;
+                    RememberConversation(session.Scope, session.Cli, threadId);
+                }
+                if (!isError && session.Cli == CliKind.Codex && CodexJsonlParser.TerminalFailure(line) is { } failure)
+                    session.CliFailure = failure;
                 session.RaiseOutput(line, isError);
             }
         }
@@ -812,7 +871,11 @@ public sealed class AiSessionManager : IDisposable
         session.TerminateProcess();
         await outputRead.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
-        if (session.Cli == CliKind.Claude && !File.Exists(Path.Combine(session.Directory, Guard.GuardHost.HeartbeatFileName)))
+        if (session.CliFailure is { } failure)
+        {
+            session.Finish(AiSessionState.Failed, code, failure);
+        }
+        else if (session.Cli == CliKind.Claude && !File.Exists(Path.Combine(session.Directory, Guard.GuardHost.HeartbeatFileName)))
         {
             session.Finish(AiSessionState.Failed, code, HeartbeatMissing);
         }

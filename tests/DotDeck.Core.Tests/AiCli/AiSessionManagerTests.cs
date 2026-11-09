@@ -39,7 +39,8 @@ public sealed class AiSessionManagerTests : IDisposable
     private AppPaths Paths(HomeSource source = HomeSource.CommandLine) =>
         new(_temp.Combine("home"), source, _temp.Combine("roaming"), _temp.Combine("local"));
 
-    private AiSessionManager Manager(AppPaths? paths = null, SessionPresetStore? presets = null, TimeSpan? heartbeat = null, bool terminals = false) => new(new AiSessionEnvironment
+    private AiSessionManager Manager(AppPaths? paths = null, SessionPresetStore? presets = null, TimeSpan? heartbeat = null, bool terminals = false,
+        string? sandbox = null, Func<AiSession, IDisposable>? mcp = null, Func<string?>? sandboxProvider = null) => new(new AiSessionEnvironment
     {
         Paths = paths ?? Paths(),
         Store = PhysicalFileStore.Instance,
@@ -50,10 +51,108 @@ public sealed class AiSessionManagerTests : IDisposable
         GuardExecutable = @"C:\Program Files\DotDeck\DotDeck.exe",
         Presets = presets,
         HeartbeatTimeout = heartbeat ?? TimeSpan.FromMinutes(5),
+        CodexSandboxMode = sandboxProvider ?? (() => sandbox),
+        StartMcpHost = mcp,
     });
 
     [Fact]
-    public void Cli_system_records_apply_only_to_the_cli_config_folder()
+    public async Task Codex_jsonl_thread_is_remembered_and_resumed_without_claude_heartbeat()
+    {
+        var presets = new SessionPresetStore(PhysicalFileStore.Instance, _temp.Combine("presets.json"));
+        presets.Load();
+        using var manager = Manager(presets: presets, sandbox: "elevated");
+        var session = manager.Start(Request("b") with { Cli = CliKind.Codex });
+        const string thread = "3f2a6c1e-1111-4222-8333-944455556666";
+        _launcher.Last.WriteStdout("{\"type\":\"thread.started\",\"thread_id\":\"" + thread + "\"}\n");
+        await Eventually(() => presets.GetConversation(session.Scope.Key)?.CodexThreadId == thread);
+        Assert.Equal(thread, session.ConversationId);
+        Assert.Contains("windows.sandbox=\"elevated\"", _launcher.Plans[0].Arguments);
+        Assert.Contains("sandbox_workspace_write.writable_roots=[" + string.Join(",", session.Scope.Roots.Select(TomlString.Basic)) + "]", _launcher.Plans[0].Arguments);
+        _launcher.Last.Exit(0);
+        await Eventually(() => session.State == AiSessionState.Exited);
+        var resumed = manager.Start(Request("b") with { Cli = CliKind.Codex, ResumeConversation = true });
+        Assert.Equal(thread, resumed.ConversationId);
+        Assert.Contains("resume", _launcher.Plans[1].Arguments);
+        Assert.DoesNotContain("--resume", _launcher.Plans[1].Arguments);
+    }
+
+    [Fact]
+    public void The_validated_codex_sandbox_mode_is_pinned_even_if_configuration_changes()
+    {
+        var reads = 0;
+        using var manager = Manager(sandboxProvider: () => reads++ == 0 ? "elevated" : null);
+        manager.Start(Request() with { Cli = CliKind.Codex });
+        Assert.Equal(1, reads);
+        Assert.Contains("windows.sandbox=\"elevated\"", _launcher.Plans[0].Arguments);
+    }
+
+    [Fact]
+    public void Unsupported_codex_resume_returns_a_preview_message_instead_of_throwing()
+    {
+        using var manager = Manager();
+        var preview = manager.PreviewCommandLine(Request() with { Cli = CliKind.Codex, Mode = LaunchMode.Interactive, ResumeConversation = true });
+        Assert.Contains("비대화형", preview, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Codex_recoverable_error_followed_by_a_completed_turn_remains_successful()
+    {
+        using var manager = Manager(sandbox: "elevated");
+        var session = manager.Start(Request() with { Cli = CliKind.Codex });
+        _launcher.Last.WriteStdout("{\"type\":\"error\",\"message\":\"retrying stream\"}\n{\"type\":\"turn.completed\"}\n");
+        _launcher.Last.Exit(0);
+        await Eventually(() => session.State != AiSessionState.Running);
+        Assert.Equal(AiSessionState.Exited, session.State);
+    }
+
+    [Fact]
+    public async Task Codex_turn_failure_is_not_reported_as_success_even_with_zero_process_exit()
+    {
+        using var manager = Manager(sandbox: "elevated");
+        var session = manager.Start(Request() with { Cli = CliKind.Codex });
+        _launcher.Last.WriteStdout("{\"type\":\"turn.failed\",\"error\":{\"message\":\"approval policy is never\"}}\n");
+        _launcher.Last.Exit(0);
+        await Eventually(() => session.State != AiSessionState.Running);
+        Assert.Equal(AiSessionState.Failed, session.State);
+        Assert.Contains("approval policy", session.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Codex_scope_reduction_stops_the_native_session_and_requires_restart()
+    {
+        using var manager = Manager(terminals: true);
+        var session = manager.Start(Request("b") with { Cli = CliKind.Codex, Mode = LaunchMode.Interactive });
+        Assert.Null(manager.ExcludeProject(session, "b"));
+        Assert.Equal(AiSessionState.Stopped, session.State);
+        Assert.True(_terminals.Terminals[0].Terminated);
+        Assert.Empty(session.Scope.Additional);
+    }
+
+    [Fact]
+    public void Mcp_resources_are_released_on_stop_and_failed_launch()
+    {
+        var lease = new CountedDisposable();
+        using var manager = Manager(mcp: _ => lease);
+        var session = manager.Start(Request());
+        Assert.Contains("--mcp-config", _launcher.Plans[0].Arguments);
+        manager.Stop(session);
+        manager.Stop(session);
+        Assert.Equal(1, lease.Count);
+        var failedLease = new CountedDisposable();
+        using var failing = Manager(mcp: _ => failedLease);
+        _launcher.Fail = true;
+        Assert.Throws<AiSessionStartException>(() => failing.Start(Request()));
+        Assert.Equal(1, failedLease.Count);
+    }
+
+    private sealed class CountedDisposable : IDisposable
+    {
+        public int Count;
+        public void Dispose() => Count++;
+    }
+
+    [Fact]
+    public void Cli_folders_have_no_implicit_exclusions()
     {
         var paths = Paths();
         Directory.CreateDirectory(paths.ClaudeHome);
@@ -66,7 +165,7 @@ public sealed class AiSessionManagerTests : IDisposable
         var session = manager.Start(Request("a") with { PrimaryProjectId = "c" });
 
         var files = session.Snapshot!.Index.Files.Keys;
-        Assert.DoesNotContain(Path.Combine(paths.ClaudeHome, ".claude.json"), files);
+        Assert.Contains(Path.Combine(paths.ClaudeHome, ".claude.json"), files);
         Assert.Contains(Path.Combine(paths.ClaudeHome, "test.md"), files);
         Assert.Contains(Path.Combine(_main, ".claude.json"), files); // an ordinary project keeps every file
     }
@@ -429,7 +528,7 @@ public sealed class AiSessionManagerTests : IDisposable
     }
 
     [Theory]
-    [InlineData(CliKind.Codex, LaunchMode.NonInteractive, "프롬프트", "5c")]
+    [InlineData(CliKind.Codex, LaunchMode.NonInteractive, "프롬프트", "Windows sandbox")]
     [InlineData(CliKind.Claude, LaunchMode.Interactive, "프롬프트", "대화형")]
     [InlineData(CliKind.Claude, LaunchMode.NonInteractive, " ", "프롬프트")]
     public void Unsupported_or_incomplete_requests_are_refused(CliKind cli, LaunchMode mode, string prompt, string expected)

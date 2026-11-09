@@ -31,7 +31,8 @@ public sealed record ExplorerContext(
     Func<ProjectDefinition?, bool, Task>? RegisterCustomFile = null,
     Func<ProjectDefinition?, string, Task>? UnregisterCustomFile = null,
     Func<string, DotDeck.Core.Editors.EditorKind?, Task>? OpenAs = null,
-    Func<string, Task>? StartAiSession = null);
+    Func<string, Task>? StartAiSession = null,
+    Func<string, Task>? StartCodexSession = null);
 
 /// <summary>
 /// One project's explorer. Its rows live in a list (<see cref="List"/>: the project area, or its own detached
@@ -638,6 +639,11 @@ public sealed partial class ExplorerViewModel : ObservableObject
     private Task StartAiSessionAsync() => _context.StartAiSession?.Invoke(Project.Id) ?? Task.CompletedTask;
 
     public bool CanStartAiSession => _context.StartAiSession is not null;
+
+    [RelayCommand]
+    private Task StartCodexSessionAsync() => _context.StartCodexSession?.Invoke(Project.Id) ?? Task.CompletedTask;
+
+    public bool CanStartCodexSession => _context.StartCodexSession is not null;
 
     [RelayCommand]
     private void CopyRootPath()

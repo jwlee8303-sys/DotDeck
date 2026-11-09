@@ -574,7 +574,7 @@ public sealed class FileOperationService
 
         try
         {
-            _backups.Create(sources, "붙여넣기 덮어쓰기");
+            _backups.CreateAutomatic(sources, "붙여넣기 덮어쓰기");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

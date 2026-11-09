@@ -1,5 +1,67 @@
 # 인수인계 — DotDeck
 
+## 릴리스 1.4.0 (2026-11-09)
+
+- 사용자 요청에 따라 5c·Codex 연동·통합 제외 설정을 main에 통합하고 v1.4.0으로 릴리스한다. 아래의 미커밋·버전 미변경 설명은 작업 당시 기록이다.
+- 릴리스 전 독립 검토 P2 1건 반영: 제외 설정 손상 시 앱은 경고 후 시작하고 원본을 보존한다. 복구 후 재시작 전까지 제외 설정 저장은 차단한다. 가드의 설정 읽기는 계속 엄격하게 실패한다.
+- Release 빌드 경고·오류 0, 전체 테스트 1380개 중 통과 1378·실패 0·링크 권한 관련 건너뜀 2. 공백 린트 통과. 실제 WPF 조작·실제 모델 시나리오는 미실행이다.
+
+## 최신 변경 — 통합 경로 제외 설정
+
+- 사용자 최종 지시: 메뉴는 "자동백업·변경검토 제외항목" 하나, 내부 두 목록은 독립적으로 적용. 파일/폴더 전체 경로 직접 입력·선택·제거, 폴더 하위 항목 제외, 저장 전 미리보기/AI 변경검토의 좌측 체크박스로 즉시 등록한다.
+- Core `Settings/PathExclusions.cs`: 경로 모델·정책·원자적 저장. `<roaming>/exclusions.json`의 automaticBackup/changeReview 배열, 초기 목록 없음, 알 수 없는 키 보존. 잘못된 설정을 빈 값으로 덮어쓰지 않는다.
+- App `ExclusionSettingsViewModel`, `ExclusionSettingsDialog`, `ShellViewModel.Exclusions.cs`와 메뉴·검토 체크박스 추가. 파일 쓰기는 UI 밖에서 수행한다. 백업 제외 등록 완료 전 실제 저장을 기다리며, 검토 제외 등록 중인 행은 되돌릴 수 없다.
+- 자동백업 제외: SafeWriter 저장/복원 전, 파일 덮어쓰기, AI 시작/쓰기 전 캡처. 변경검토 제외: 저장 전 diff, AI 요약·diff·되돌리기. 두 목록은 서로의 기능을 차단하지 않는다. 기존 백업은 보존한다.
+- Claude·Codex 전용 SystemRecordPolicy, system-records.json 2개, 전용 테스트·App 로더·가드 경로 전달을 삭제했다. 기존 카탈로그와 아래 과거 인계의 자동 분류 설명은 현재 적용되지 않는다. 인증 파일 비밀 정책은 별도로 유지한다.
+- 핵심 변경 파일: Core PathExclusions/BackupStore/SafeWriter/SessionSnapshot/ScopeIndex/ChangeSummary/AiSessionManager, App ExclusionSettingsDialog/ExclusionSettingsViewModel/ShellViewModel.Exclusions/DiffReview/ChangeReview/Program, 관련 Core·App 테스트.
+- 실행 중인 기존 앱은 종료하지 않았다. 빌드·테스트 출력은 `obj/exclusions-validation/`로 격리했다. 새 실행 파일은 `obj/exclusions-validation/bin/DotDeck.App/release/DotDeck.exe`다. 기존 앱을 닫고 동일한 `--home`으로 실행해 통합 설정과 두 체크박스를 수동 확인한다.
+- 버전·의존성·프로젝트 설정·커밋·푸시는 변경하지 않았다. 아래 5c 인계와 시스템 기록 분류는 과거 기록이며 이 절이 우선한다.
+- 검증: 격리 출력 경로 Release 빌드 경고·오류 0, 전체 테스트 1377개 중 성공 1375·실패 0·기존 링크 권한 관련 건너뜀 2. 새 정책과 독립 적용·즉시 등록·등록 중 저장 대기·강제 되돌리기 차단을 검증했다. 폐기된 전용 분류 테스트는 경로 기반 테스트로 대체했다. 실제 WPF 화면 수동 조작은 미실행이다.
+
+## 현재 인계 — Phase 5c (2026-11-09)
+
+사용자 피드백 보완:
+
+- 프로젝트 제목 우클릭에 Codex 대화형 빠른 시작 추가. 시작 화면에서 Codex도 주 프로젝트 + 여러 추가 프로젝트 선택 유지(두 모드·CLI 전환 테스트). 선택 범위를 `--add-dir` 및 sandbox writable_roots에 모두 전달한다.
+- 비대화형 `test.md` 미수정의 실제 샌드박스 최종 응답: 프로젝트 조회·검색이 `approval policy is never`로 거부됨. 원인은 자체 MCP 도구 승인 정책 누락. 내장 5개 도구에만 `approval_mode="approve"`, 서버 기본 `prompt`·도구 허용 목록·`required=true`를 설정했다. 조회 도구 readOnlyHint도 명시했다. 실제 Codex 0.167.0 `app-server`의 `config/read`로 5개 설정 인식을 확인했으며 모델 호출·인증 파일 접근은 하지 않았다.
+- 알려진 시스템 기록은 AI 도구가 직접 썼어도 백업·검토에서 제외한다. scope.json에 제외 경로/전체 제외 여부를 전달해 가드 사전 캡처에도 적용. 기존 시스템 캡처·도구 기록도 검토에서 제외한다. Codex 상태 DB·WAL·SHM, 이력·캐시·임시 기록 카탈로그를 보강했다.
+- Codex 실패 도구의 종료 코드·실패 상태·안전한 권한/sandbox 오류 분류를 표시한다. 모델 응답 완료를 파일 수정 성공으로 표현하지 않는다.
+- 실행 중 Debug 앱은 종료하지 않았다. 검증은 `Release`로 분리했다. 새 코드로 재확인하려면 기존 앱을 사용자가 닫고 `dotnet run --project src/DotDeck.App -c Release -- --home D:\Temp\DotDeckTest`로 실행한다. 실제 모델에서 동일 요청 재실행은 사용자 확인 대기다.
+
+- 브랜치: `feat/ai-cli-5c`, 기준 `main` = `36651f4`(v1.3.0). 작업 시작 시 미커밋 변경 없음.
+- 5c-1~7 구현 및 자동 검증 완료. 5c-8 문서 작성 완료, **실제 모델을 쓰는 4개 수동 시나리오는 사용자 확인 대기**. 절차: [PHASE5C-VALIDATION.md](PHASE5C-VALIDATION.md).
+- 버전 파일·패키지·프로젝트 설정은 변경하지 않았다. 커밋·푸시·PR·릴리스도 하지 않았다. 기존 인계의 “5c는 1.3.0”은 이미 나온 시스템 기록 보완 릴리스 때문에 유효하지 않다. 다음 버전은 별도 승인 시 정한다.
+
+| 항목 | 구현 위치·동작 |
+|---|---|
+| MCP 프로토콜·도구 | Core `AiCli/Mcp/{JsonRpcFraming,McpServer,SessionTools}.cs`. initialize·ping·tools/list·tools/call, 도구 5종, 줄 단위 UTF-8, 메시지·결과 상한, 오류에 원문 경로·본문 노출 금지 |
+| 범위·편집기 | 현재 세션 범위 검사, 최종 경로·비밀 파일 제외, 탐색기 표시 필터·제외 폴더, 활성 문서 선택 영역 마스킹, 파일 열기 전·비동기 처리 후 재검증 |
+| 보안 브리지 | App `Infrastructure/Windows/NamedPipeMcpHost.cs`, `Program.cs`의 `--dotdeck-mcp`. 현재 사용자 전용 파이프, DPAPI 토큰 인증(고정 시간 비교), 종료 시 취소. 범위 변경 중 나온 도구 결과는 폐기 |
+| CLI 연결 | Claude 세션별 `mcp.json` + `--mcp-config`. 비대화형 `--strict-mcp-config`, 자체 MCP 허용·외부 MCP ask는 기존 가드 재사용. Codex는 `-c mcp_servers.dotdeck_session=...`로 세션 서버만 주입(전역 파일 수정 없음) |
+| 컨텍스트 | 프로젝트 이름↔루트·활성 문서 우선·모호하면 후보·제외/표시 규칙·MCP 안내. 상한 12,000자, 최종 경로로 열린 문서 필터 |
+| Codex | UI 선택, `workspace-write`, 명시적 Windows sandbox 설정 검사·고정, inherited writable_roots 제거, JSONL 요약·thread ID 저장·비대화형 resume. 비대화형은 sandbox 미설정 시 비활성. 범위 축소 시 중지 후 재시작 |
+| 정리 | Core `SessionRetention.cs`. 수락·닫기 표시 후 7일 또는 최근 20개 초과, 앱 시작 시 백그라운드. lease로 다른 앱 인스턴스의 실행 세션도 보호. 미검토·링크 포함 폴더 보존 |
+
+검증:
+
+- `dotnet build DotDeck.slnx -c Release`: 경고 0·오류 0.
+- `dotnet test --solution DotDeck.slnx -c Release`: 1393개 중 성공 1391, 실패 0, 기존 심볼릭 링크 권한 관련 건너뜀 2. 기준 실행 1345개에서 5c 및 피드백 테스트 48개를 추가했다.
+- 실제 WinExe 브리지 인증·한글 JSON 왕복·정상 EOF, 위조 인증 차단을 자동 테스트했다. Codex exec resume 옵션은 설치 CLI 도움말로 문법을 확인했다.
+- 별도 `/codex-review` 도구/독립 검증 에이전트 실행은 하지 않았다. 자체 변경 검토와 빌드·테스트를 수행했다.
+
+다음 작업은 수동 확인이다. 실제 홈의 인증 파일을 읽거나 복사하지 않고 `--home` 샌드박스에서 사용자가 로그인한다. 수동 확인에서 문제가 발견되면 이 브랜치에서 수정하고, 릴리스·버전 변경·커밋·푸시는 사용자의 별도 요청 후에만 진행한다.
+
+알려진 제한:
+
+- Codex에는 Claude PreToolUse 가드·비밀 파일 차단·읽기 제한이 없다(A9). 내장 MCP의 응답·파일 열기 제한은 두 CLI에 동일하게 적용한다. Codex 네이티브 파일 도구·셸까지 같은 가드가 적용된다고 안내하지 않는다.
+- Windows sandbox 설정 감지는 `config.toml`의 명시적 `windows.sandbox` 값만 확인한다. OS 준비 완료·로그인은 CLI가 검증하며 실패를 우회하지 않는다. 프로필/관리형 설정만으로 모드가 공급되면 비대화형이 보수적으로 비활성일 수 있다.
+- 실제 모델·Claude의 MCP 로드/접두·외부 MCP 승인 화면, Codex TUI·프로비저닝 확인은 수동 대기다.
+- 실행 중단·충돌로 수락/닫기 표시가 없는 세션은 자동 삭제하지 않는다. 링크 교체 경합(TOCTOU)·하드링크는 기존 한계다.
+
+## 이전 인계 기록 — 5b 완료 당시
+
+아래는 이전 인계 원문이며 현재 상태·다음 단계·버전 안내는 위 **현재 인계**가 우선한다. 특히 main은 이후 v1.3.0으로 릴리스되었다.
+
 - 작성: 2026-11-09 (Claude Code)
 - 버전: `1.2.0` 릴리스(5a + 5b + 편집기 자동 줄 바꿈) · `feat/ai-cli` → PR #3으로 `main` 병합
 - 한 줄 요약: **Phase 5a(비대화형 Claude 세션)와 5b(ConPTY + xterm.js 대화형 터미널, PowerShell 터미널, 대화형 Claude 세션·범위 칩) 구현과 단계별 Codex 검증·커밋을 마쳤다.** `feat/editor-word-wrap`(Alt+Z 자동 줄 바꿈)을 병합해 v1.2.0으로 릴리스했다. **5c는 별도 개발로 넘긴다 — "4-1. 5c 인수인계" 절부터 읽는다.**

@@ -32,21 +32,24 @@ dotnet run --project src/DotDeck.App -- --home D:\tmp\dotdeck-home
 ```powershell
 dotnet build DotDeck.slnx
 dotnet test --solution DotDeck.slnx
-dotnet publish src/DotDeck.App -c Release -r win-x64 -p:PublishSingleFile=true
+dotnet publish src/DotDeck.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o publish/app
 ```
-배포 결과는 자체 포함(self-contained) 단일 `DotDeck.exe`입니다(.NET 런타임 설치 불필요).
+배포 결과는 자체 포함(self-contained) 폴더입니다. `DotDeck.exe`, `DotDeck.Core.dll` 등 DLL과 .NET 런타임이 개별 파일로 들어 있으며 .NET 런타임 설치는 필요하지 않습니다. 단일 파일 publish는 빌드에서 거부합니다.
 
 ## 설치·업데이트
-- [Releases](https://github.com/jwlee8303-sys/DotDeck/releases/latest)에서 `DotDeck-Setup.exe`를 받아 실행하고, 설치 폴더(기본 `%LocalAppData%\DotDeck`)를 고른 뒤 [설치]를 누릅니다. 관리자 권한이 필요하지 않습니다.
-- 설치한 앱은 시작할 때 새 버전을 확인하고 [지금 업데이트]/[나중에]를 묻습니다. 도움말 > 업데이트 확인으로 직접 확인할 수 있습니다. 업데이트는 원래 설치 폴더에 적용되며 설정·데이터는 유지됩니다.
-- 설치 없이 쓰려면 `DotDeck-win-Portable.zip`을 사용합니다. v1.4.1 이하의 ZIP 실행 파일은 자동 업데이트되지 않으므로 설치 파일로 한 번 설치하세요.
-- 제거: Windows 설정 > 앱에서 DotDeck을 제거합니다.
+- **설치**: [Releases](https://github.com/jwlee8303-sys/DotDeck/releases/latest)에서 `DotDeck-Setup.exe`를 받아 더블클릭합니다. 설치 폴더(기본 `C:\Program Files\DotDeck`, [찾아보기]로 변경)와 'Windows 로그인 시 자동 실행'(기본 선택, 현재 Windows 계정에만 적용)을 확인하고 [설치]를 누르면 관리자 권한 확인(UAC) 창이 열립니다. 승인하면 이 PC의 모든 사용자용으로 설치되고 바탕화면·시작 메뉴 바로가기가 생기며 DotDeck이 일반 권한으로 실행됩니다. 취소하면 아무것도 설치하지 않습니다. 설치 폴더에는 `DotDeck.exe`(런처), `Update.exe`, `current\`(앱 `DotDeck.exe`, `DotDeck.Core.dll` 등 DLL과 런타임)가 있습니다.
+- **업데이트**: 앱이 시작할 때 새 버전을 확인하고 [지금 업데이트]/[나중에]를 묻습니다(도움말 > 업데이트 확인). [지금 업데이트]를 누르면 작업 저장을 확인한 뒤 관리자 권한을 요청해 원래 설치 폴더에 적용하고 일반 권한으로 다시 시작합니다. 자동 실행 선택과 설정은 유지됩니다.
+- **제거**: Windows 설정 > 앱 > 설치된 앱에서 DotDeck을 제거합니다. 프로그램 파일·바로가기·자동 실행 등록·업데이트 캐시는 정리되고, 설정과 작업물(아래 데이터 위치)은 남습니다.
+- **1.5.x 사용자용 설치에서 전환**: 새 `DotDeck-Setup.exe`를 실행하세요. 예전 설치의 프로그램 파일·제거 항목·바로가기만 정리하고 설정·백업·세션은 그대로 둡니다. 예전 설치를 Windows 설정에서 먼저 제거하지 마세요(예전 제거기는 `%LOCALAPPDATA%\DotDeck` 전체를 지울 수 있습니다).
+- **v1.4.1 이하 ZIP에서 전환**: 설치 파일로 설치한 뒤 예전 압축 해제 폴더를 지우세요. ZIP 실행 파일은 자동 업데이트되지 않습니다.
+- 설치 없이 쓰려면 `DotDeck-win-Portable.zip`을 사용합니다.
+- 관리자 배포: `DotDeck-Setup.exe --silent [--installto <폴더>] [--autostart|--no-autostart] [--no-launch] [--log <파일>]` (종료 코드 0 성공, 1602 취소)
 
 ## 릴리스 패키징 (유지보수자)
 ```powershell
 ./build/package.ps1            # Directory.Build.props 버전으로 publish → vpk pack → DotDeck-Setup.exe
 ```
-결과는 `publish/release/<버전>/releases`, 게시 파일 목록은 `upload-assets.txt`입니다. GitHub에서는 Actions의 "Release (manual)"을 태그(예: `v1.5.0`)로 실행합니다. 태그 push만으로는 게시되지 않습니다. 업데이트 흐름 시험은 테스트 패키지 ID와 로컬 피드(`-PackId DotDeckTest`, 환경변수 `DOTDECK_UPDATE_FEED`)로 합니다.
+결과는 `publish/release/<버전>/releases`, 게시 파일 목록은 `upload-assets.txt`입니다. GitHub에서는 Actions의 "Release (manual)"을 태그(예: `v1.6.0`)로 실행합니다. 태그 push만으로는 게시되지 않습니다. 설치·업데이트·제거 검증은 Actions의 "Installer E2E"(PR 자동, 수동 실행 가능)가 일회용 Windows 러너에서 두 테스트 버전과 로컬 피드(`DOTDECK_UPDATE_FEED`)로 수행합니다. `build/test-installer.ps1`은 시스템 전체 설치·UAC 정책을 바꾸므로 사용하는 PC에서 실행하지 마세요.
 
 ## 데이터 위치
 

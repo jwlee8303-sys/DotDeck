@@ -79,10 +79,11 @@ $ArpKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\MSI:DotDeck
 $Policy = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
 
 function New-TestUser([string]$Name, [bool]$Admin) {
-    $password = 'E2e-' + [guid]::NewGuid().ToString('N').Substring(0, 16) + '!'
-    net user $Name $password /add | Out-Null
-    if ($Admin) { net localgroup Administrators $Name /add | Out-Null }
-    return New-Object Management.Automation.PSCredential("$env:COMPUTERNAME\$Name", (ConvertTo-SecureString $password -AsPlainText -Force))
+    $secure = ConvertTo-SecureString ('E2e-' + [guid]::NewGuid().ToString('N').Substring(0, 16) + '!') -AsPlainText -Force
+    New-LocalUser -Name $Name -Password $secure -PasswordNeverExpires -AccountNeverExpires | Out-Null
+    Add-LocalGroupMember -Group (Get-LocalGroup -SID 'S-1-5-32-545') -Member $Name -ErrorAction SilentlyContinue
+    if ($Admin) { Add-LocalGroupMember -Group (Get-LocalGroup -SID 'S-1-5-32-544') -Member $Name }
+    return New-Object Management.Automation.PSCredential("$env:COMPUTERNAME\$Name", $secure)
 }
 $UserCred = New-TestUser 'dotdeck' $true
 $Account = "$env:COMPUTERNAME\dotdeck"

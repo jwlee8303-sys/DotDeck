@@ -145,6 +145,8 @@
                 <MenuItem Header="레이아웃 초기화(_R)" Click="OnResetLayoutClick" />
             </MenuItem>
             <MenuItem Header="도움말(_H)">
+                <MenuItem Header="업데이트 확인(_U)" Command="{Binding CheckForUpdatesCommand}" />
+                <Separator />
                 <MenuItem Header="DotDeck 정보(_A)" Click="OnAboutClick" />
             </MenuItem>
         </Menu>

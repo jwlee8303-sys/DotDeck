@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/DotDeck.App/DotDeck.App.csproj" />
     <Project Path="src/DotDeck.Core/DotDeck.Core.csproj" />
+    <Project Path="src/DotDeck.Installer/DotDeck.Installer.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DotDeck.App.Tests/DotDeck.App.Tests.csproj" />

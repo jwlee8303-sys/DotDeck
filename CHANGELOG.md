@@ -3,6 +3,11 @@
 
 ## [Unreleased]
 
+### Added
+- 설치 파일 `DotDeck-Setup.exe`: 설치 폴더 선택(기본 `%LocalAppData%\DotDeck`, 기존 설치 경로 유지, 찾아보기), 관리자 권한·.NET 런타임 불필요. Portable ZIP 제공
+- 자동 업데이트(Velopack, GitHub Releases): 시작 시 백그라운드 확인, 현재·새 버전과 변경 요약을 보여주고 지금 업데이트/나중에 선택. 저장 확인 후 종료·적용·재시작하며 설정·데이터와 설치 경로를 유지. 도움말 > 업데이트 확인 메뉴
+- 릴리스 패키징 스크립트(`build/package.ps1`)와 수동 실행 GitHub 릴리스 workflow
+
 ## [1.4.1] - 2026-11-13
 
 ### Fixed

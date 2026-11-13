@@ -404,6 +404,12 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 | (Phase 2 예고) Tomlyn, YamlDotNet | TOML 편집과 frontmatter 파싱용. JSON은 `System.Text.Json` |
 | (Phase 3 예고) DPAPI(ProtectedData 또는 P/Invoke) | 비밀 환경변수 되돌리기용 암호화 백업 |
 
+**3절 외 승인 패키지**
+
+| 패키지 | 버전 | 프로젝트 / 이유 |
+|---|---|---|
+| Velopack (+ 도구 `vpk`) | 1.2.161 | App. 설치·자동 업데이트(2026-11-13 승인). 대안 MSIX는 서명 필수, Squirrel.Windows는 유지보수 중단 |
+
 ---
 
 ## 7. 단계별 구현 계획 (각 단계 = 1커밋, 단계마다 `/codex-review`)
@@ -692,3 +698,12 @@ dotnet add tests/DotDeck.Core.Tests reference src/DotDeck.Core
 - **명령줄 인용**: `WindowsCommandLine.Join` 결과를 실제 `CommandLineToArgvW`로 분해해 원래 인자와 같은지 검증(App.Tests `CommandLineRoundTripTests`: 공백·후행 역슬래시·따옴표·한글·탭·줄바꿈·셸 특수문자·TOML 값).
 - **permissions.deny 비밀 규칙(Codex 5a-5 반영)**: 이름 패턴은 `SecretFilePolicy`가 비밀로 보는 이름을 모두 덮는다(`.env*`, `*.pem`, `*.key`, `*.pfx`, `id_rsa*`, `id_ed25519*`, `auth.json`). 상대 규칙(`**/`)은 기본 작업 폴더 아래에만 적용되므로 범위 루트마다 절대 규칙(`//c/<경로>/**/<패턴>`, 공식 문서: Windows 경로는 POSIX 형태로 정규화)을 함께 넣는다. UNC 루트와 규칙 문법 문자(`*?[]{}()"`)가 든 루트는 절대 규칙을 만들 수 없어 가드에만 의존한다. 권한 규칙의 `!` 예외는 같은 출처의 상대 규칙에만 적용되므로 쓰지 않는다 → dotenv 템플릿(`.example` 등)도 내장 Read/Edit에서 막힌다(안전 쪽 과차단, 가드는 허용).
 - **npm shim 확인**: `.cmd`/`.bat` 옆에 패키지 스크립트가 있어도 배치 파일 본문이 `%dp0%\node_modules\<패키지 스크립트>`를 실행할 때만 `node.exe <스크립트>`로 바꾼다. 그 밖의 배치 파일은 거부한다.
+
+## 설치·업데이트 (v1.5.0, 2026-11-13)
+
+- Velopack: 패키지 ID `DotDeck`, 채널 `win`, 피드는 공개 GitHub Releases(토큰 없음). `Program.Main`은 helper 모드(guard·heartbeat·MCP 브리지) 분기 뒤에 `VelopackApp.Build().Run()`을 호출해 helper 시작 속도를 유지한다.
+- `IAppUpdater`(App/Services) ← `VelopackAppUpdater`. 개발 실행과 v1.4.1 이하 ZIP(Velopack `Update.exe` 없음)은 `IsInstalled=false`로 확인하지 않는다. Velopack Portable ZIP은 자체 업데이트된다. `DOTDECK_UPDATE_FEED`에 로컬 릴리스 폴더를 주면 그 피드를 쓴다(테스트용).
+- `AppUpdateCoordinator`: 시작 후 확인은 조용히(최신·오프라인·30초 시간 초과 무표시), 메뉴 확인은 모든 결과를 알림. 새 버전 → ChoiceDialog(현재/새 버전·변경 요약, 지금 업데이트/나중에) → 다운로드 → `ConfirmCloseAllAsync`(저장·세션 종료 질문) → `WaitExitThenApplyUpdates`(재시작 시 같은 인수) → `ExitRequested`. 취소하면 내려받은 업데이트는 다음 시작 시 적용. 중복 확인은 무시.
+- 첫 설치 파일 `DotDeck-Setup.exe`(`src/DotDeck.Installer`, .NET Framework 4.8 WinForms): 기본 `%LocalAppData%\DotDeck`(기존 설치가 있으면 그 경로), 찾아보기·설치·취소. 쓰기 확인, 드라이브 루트 거부, 비어 있지 않은 폴더는 하위 폴더 제안. 내장한 Velopack `Setup.exe`를 `--installto <경로>` 단일 인수로 실행.
+- 패키징 `build/package.ps1`(publish → `vpk pack` → 설치 파일, 이전 릴리스로 delta 생성), 게시 `.github/workflows/release.yml`(수동 실행, 주석 태그·버전 일치 검증, 기본은 초안).
+- 데이터·설정은 설치 폴더 밖(`%APPDATA%`·`%LOCALAPPDATA%\DotDeck`)이라 업데이트·재설치에도 보존된다. 기존 ZIP 사용자는 설치 파일로 한 번 설치해야 자동 업데이트를 받는다.

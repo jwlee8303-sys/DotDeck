@@ -33,6 +33,12 @@ public partial class MainWindow : Window
         DockManager.Layout = DefaultLayout.Create();
         Loaded += OnLoaded;
         _shell.RestartElevatedRequested += (_, _) => RestartElevated();
+        // The update flow already asked the exit questions; the updater waits for this process to exit.
+        _shell.ExitRequested += (_, _) =>
+        {
+            _closeConfirmed = true;
+            Close();
+        };
         _shell.SettingsChanged += (_, settings) =>
         {
             ThemeManager.ApplyEditorFontSize(settings.EditorFontSize);
@@ -86,6 +92,13 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _shell.ReportError("프로젝트를 여는 중 오류가 발생했습니다.", ex);
+        }
+
+        if (!_isClosed)
+        {
+            // The coordinator handles its own failures; this only guards against a bug escaping it.
+            try { await _shell.CheckForUpdatesOnStartupAsync(); }
+            catch (Exception ex) when (ex is not OutOfMemoryException) { _shell.ReportError("업데이트 확인 중 오류가 발생했습니다.", ex); }
         }
     }
 

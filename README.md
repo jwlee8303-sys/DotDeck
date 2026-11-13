@@ -36,6 +36,18 @@ dotnet publish src/DotDeck.App -c Release -r win-x64 -p:PublishSingleFile=true
 ```
 배포 결과는 자체 포함(self-contained) 단일 `DotDeck.exe`입니다(.NET 런타임 설치 불필요).
 
+## 설치·업데이트
+- [Releases](https://github.com/jwlee8303-sys/DotDeck/releases/latest)에서 `DotDeck-Setup.exe`를 받아 실행하고, 설치 폴더(기본 `%LocalAppData%\DotDeck`)를 고른 뒤 [설치]를 누릅니다. 관리자 권한이 필요하지 않습니다.
+- 설치한 앱은 시작할 때 새 버전을 확인하고 [지금 업데이트]/[나중에]를 묻습니다. 도움말 > 업데이트 확인으로 직접 확인할 수 있습니다. 업데이트는 원래 설치 폴더에 적용되며 설정·데이터는 유지됩니다.
+- 설치 없이 쓰려면 `DotDeck-win-Portable.zip`을 사용합니다. v1.4.1 이하의 ZIP 실행 파일은 자동 업데이트되지 않으므로 설치 파일로 한 번 설치하세요.
+- 제거: Windows 설정 > 앱에서 DotDeck을 제거합니다.
+
+## 릴리스 패키징 (유지보수자)
+```powershell
+./build/package.ps1            # Directory.Build.props 버전으로 publish → vpk pack → DotDeck-Setup.exe
+```
+결과는 `publish/release/<버전>/releases`, 게시 파일 목록은 `upload-assets.txt`입니다. GitHub에서는 Actions의 "Release (manual)"을 태그(예: `v1.5.0`)로 실행합니다. 태그 push만으로는 게시되지 않습니다. 업데이트 흐름 시험은 테스트 패키지 ID와 로컬 피드(`-PackId DotDeckTest`, 환경변수 `DOTDECK_UPDATE_FEED`)로 합니다.
+
 ## 데이터 위치
 
 설정 > **자동백업·변경검토 제외항목**에서 두 목록을 독립적으로 관리합니다. 파일·폴더 전체 경로를 입력하거나 탐색기로 선택할 수 있고, 저장 전 미리보기·AI 변경검토에서 좌측 체크박스로 해당 파일을 즉시 등록할 수도 있습니다. 폴더는 하위 항목까지 적용됩니다. 체크로 등록한 항목은 설정 화면에서 제거할 수 있습니다.

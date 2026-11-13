@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    First-install bootstrapper: asks for the install folder, then runs the embedded Velopack Setup.exe with
+    its installto option. .NET Framework 4.8 ships with Windows 10/11, so the EXE stays small and needs no runtime.
+    build/package.ps1 builds it with -p:SetupExe=<Setup.exe> -p:PackId=<id>; without SetupExe it only reports that
+    the setup is missing (development build).
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>DotDeck-Setup</AssemblyName>
+    <RootNamespace>DotDeck.Installer</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PackId Condition="'$(PackId)' == ''">DotDeck</PackId>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>PackId</_Parameter1>
+      <_Parameter2>$(PackId)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(SetupExe)' != ''">
+    <EmbeddedResource Include="$(SetupExe)" LogicalName="Setup.exe" />
+  </ItemGroup>
+
+  <Target Name="CheckSetupExe" BeforeTargets="BeforeBuild" Condition="'$(SetupExe)' != '' And !Exists('$(SetupExe)')">
+    <Error Text="SetupExe not found: $(SetupExe)" />
+  </Target>
+
+</Project>

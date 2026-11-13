@@ -29,6 +29,7 @@
     <PackageReference Include="Dirkster.AvalonDock.Serializer.Xml" />
     <PackageReference Include="AvalonEdit" />
     <PackageReference Include="Microsoft.Web.WebView2" />
+    <PackageReference Include="Velopack" />
   </ItemGroup>
 
   <ItemGroup>

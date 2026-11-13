@@ -1,0 +1,82 @@
+# Packages an existing release tag and attaches it to a GitHub Release. Manual only: pushing main or a tag
+# never publishes. The tag must already be verified (build/tests) by the release process before it is pushed.
+name: Release (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to package (for example v1.5.0)'
+        required: true
+        type: string
+      publish:
+        description: 'Publish the release (otherwise it stays a draft)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate tag name
+        shell: pwsh
+        run: |
+          if ($env:TAG -notmatch '^v\d+\.\d+\.\d+$') { throw "Not a release tag: $env:TAG" }
+
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+
+      - name: Check tag and version
+        shell: pwsh
+        run: |
+          # Fetch the tag object itself: checkout may leave a lightweight ref in its place.
+          git fetch --force origin "refs/tags/${env:TAG}:refs/tags/${env:TAG}"
+          if ((git cat-file -t "refs/tags/$env:TAG") -ne 'tag') { throw "$env:TAG is not an annotated tag" }
+          $version = ([xml](Get-Content -Raw Directory.Build.props)).Project.PropertyGroup.Version | Select-Object -First 1
+          if ("v$version" -ne $env:TAG) { throw "Directory.Build.props version $version does not match $env:TAG" }
+          $existing = gh release view $env:TAG --json isDraft -q .isDraft 2>$null
+          if ($LASTEXITCODE -eq 0 -and $existing -eq 'false') { throw "$env:TAG is already published" }
+          "VERSION=$version" >> $env:GITHUB_ENV
+          exit 0 # "release not found" above leaves a non-zero LASTEXITCODE that would fail the step
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Package
+        shell: pwsh
+        run: ./build/package.ps1 -Version $env:VERSION -OutputDir "publish/release/$env:VERSION"
+
+      - name: Upload draft release
+        shell: pwsh
+        run: |
+          $out = "publish/release/$env:VERSION"
+          $assets = Get-Content "$out/upload-assets.txt"
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG @assets --clobber
+            gh release edit $env:TAG --notes-file "$out/github-release-notes.md"
+          } else {
+            gh release create $env:TAG --verify-tag --draft --title $env:TAG --notes-file "$out/github-release-notes.md" @assets
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'release upload failed' }
+
+      - name: Publish
+        if: ${{ inputs.publish }}
+        shell: pwsh
+        run: gh release edit $env:TAG --draft=false --latest

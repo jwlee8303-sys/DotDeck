@@ -23,6 +23,7 @@ public partial class SettingsDialog : Window
         FontSizeBox.Text = current.EditorFontSize.ToString("0.##", CultureInfo.InvariantCulture);
         RetentionBox.Text = current.BackupRetention.ToString(CultureInfo.InvariantCulture);
         BackupDirBox.Text = current.BackupDirectory ?? defaultBackupDirectory;
+        CloseToTrayBox.IsChecked = current.CloseToTray;
         _extensions = new ExtensionChoicesViewModel(current.DefaultExtensions, ExtensionRules.ConfigDocsPreset, showAllFiles: false, isProject: false);
         ExtensionsView.DataContext = _extensions;
         Result = current;
@@ -98,6 +99,7 @@ public partial class SettingsDialog : Window
             Theme = (ThemeBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "Dark",
             EditorFontSize = size,
             BackupRetention = retention,
+            CloseToTray = CloseToTrayBox.IsChecked == true,
         };
         DialogResult = true;
     }

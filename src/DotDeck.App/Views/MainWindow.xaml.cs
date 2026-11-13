@@ -13,6 +13,10 @@ public partial class MainWindow : Window
 {
     private readonly ShellViewModel _shell;
     private readonly LayoutPersistence _layout;
+    private TrayIcon? _tray;
+
+    /// <summary>X hides the window to the tray instead of exiting (settings; File > 끝내기 still exits).</summary>
+    public bool CloseToTray { get; set; }
 
     public MainWindow(ShellViewModel shell, LayoutPersistence layout)
     {
@@ -41,10 +45,14 @@ public partial class MainWindow : Window
         };
         _shell.SettingsChanged += (_, settings) =>
         {
+            CloseToTray = settings.CloseToTray;
             ThemeManager.ApplyEditorFontSize(settings.EditorFontSize);
             ThemeManager.Apply(settings.Theme == "Light" ? ThemeKind.Light : ThemeKind.Dark);
         };
         ThemeManager.Changed += (_, _) => ThemeManager.ApplyDocking(DockManager);
+
+        // Windows sign-out/shutdown must really exit, not hide to the tray.
+        Application.Current.SessionEnding += (_, _) => _exitRequested = true;
 
         // Coming back to DotDeck is when external edits (another editor, git) are most likely: re-check open files.
         Activated += (_, _) => _ = _shell.CheckExternalChangesAsync();
@@ -104,6 +112,47 @@ public partial class MainWindow : Window
 
     private bool _closeConfirmed;
 
+    // Set by File > 끝내기, the tray menu and sign-out: these close for real even with CloseToTray on.
+    private bool _exitRequested;
+
+    private void HideToTray()
+    {
+        _tray ??= CreateTray();
+        _tray.Show();
+        Hide();
+        _shell.StatusMessage = "DotDeck이 트레이에서 실행 중입니다.";
+    }
+
+    private TrayIcon CreateTray()
+    {
+        var tray = new TrayIcon("DotDeck");
+        tray.OpenRequested += (_, _) => RestoreFromTray();
+        tray.ExitRequested += (_, _) =>
+        {
+            RestoreFromTray(); // unsaved-changes questions need a visible window
+            ExitApplication();
+        };
+        return tray;
+    }
+
+    private void RestoreFromTray()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Activate();
+        _tray?.Hide();
+    }
+
+    private void ExitApplication()
+    {
+        _exitRequested = true;
+        Close();
+    }
+
     // Saves tabs and layout first so the elevated instance restores them, then starts it (UAC) and closes.
     private void RestartElevated()
     {
@@ -141,9 +190,17 @@ public partial class MainWindow : Window
     protected override void OnClosing(CancelEventArgs e)
     {
         base.OnClosing(e);
+        if (!e.Cancel && CloseToTray && !_exitRequested && !_closeConfirmed)
+        {
+            e.Cancel = true;
+            HideToTray();
+            return;
+        }
+
         if (!e.Cancel && _restoring)
         {
             e.Cancel = true;
+            _exitRequested = false;
             _shell.StatusMessage = "지난 세션을 복원하는 중입니다. 완료 후 종료하세요.";
             return;
         }
@@ -159,6 +216,8 @@ public partial class MainWindow : Window
         if (!e.Cancel)
         {
             _isClosed = true;
+            _tray?.Dispose();
+            _tray = null;
             if (!_restoring)
             {
                 _layout.Save(DockManager);
@@ -176,6 +235,10 @@ public partial class MainWindow : Window
                 _closeConfirmed = true;
                 Close();
             }
+            else
+            {
+                _exitRequested = false;
+            }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -183,7 +246,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnExitClick(object sender, RoutedEventArgs e) => Close();
+    private void OnExitClick(object sender, RoutedEventArgs e) => ExitApplication();
 
     // Layout commands wait for the startup restore, which applies last.xml when it finishes.
     private bool LayoutBusy()

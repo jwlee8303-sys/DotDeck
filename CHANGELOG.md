@@ -3,6 +3,8 @@
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-14
+
 ### Added
 - 시스템 전체 설치: `DotDeck-Setup.exe`가 Velopack per-machine MSI를 내장. 기본 폴더 `C:\Program Files\DotDeck`(Program Files 알려진 폴더), [찾아보기]·한글·공백 경로 지원(Program Files 밖 폴더도 관리자만 수정 가능하도록 권한 설정). [설치]를 누르면 UAC 한 번으로 설치하고, 취소하면 아무것도 바꾸지 않고 종료. 설치 후 DotDeck은 일반 권한으로 실행
 - 바탕화면·시작 메뉴 바로가기(모든 사용자)와 'Windows 로그인 시 자동 실행'(현재 Windows 계정, 기본 선택·해제 가능, 시작프로그램 바로가기). 바로가기는 설치 폴더의 `DotDeck.exe` 런처를 가리키며 업데이트·재설치 후에도 선택을 유지

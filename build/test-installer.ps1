@@ -660,7 +660,7 @@ Invoke-Scenario 'S8' 'UAC refused' {
     $n = Start-UserJob "`$p = Start-Process -FilePath '$SetupA' -ArgumentList '--silent --no-launch --log `"$Jobs\s8-setup.log`"' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode" $std
     $code = Wait-UserJob $n 120
     # With auto-deny the elevation fails as 'blocked by policy' (1260), not as a refused prompt (1223, untestable here).
-    $log = "$(Get-Content "$Jobss8-setup.log" -ErrorAction SilentlyContinue)"
+    $log = "$(Get-Content "$Jobs\s8-setup.log" -ErrorAction SilentlyContinue)"
     Check $s 'standard user: setup ends without installing (failure code, reason logged)' ($code -in 1602, 1603 -and $log -match '관리자 권한') "$code; $log"
     Check $s 'nothing installed' (-not (Test-Path $DefaultDir) -and -not (Test-Path $ArpKey))
 }

@@ -140,7 +140,7 @@ public sealed class SessionToolsTests : IDisposable
     }
 
     [Fact]
-    public async Task Search_applies_visibility_exclusions_and_final_target_checks()
+    public async Task Search_includes_formerly_excluded_folders_and_checks_visibility_and_final_targets()
     {
         foreach (var name in new[] { "readme.md", "hidden.txt", "auth.json", "link.md", "escape.md", "hide.md" })
             File.WriteAllText(Path.Combine(_root, name), "fake file");
@@ -151,8 +151,8 @@ public sealed class SessionToolsTests : IDisposable
         _projects[0] = _projects[0] with { Visibility = _projects[0].Visibility with { Rules = new Dictionary<string, VisibilityRule> { ["hide.md"] = VisibilityRule.Exclude } } };
         var result = await Call("find_files", new() { ["project"] = "one", ["pattern"] = "*.md" });
         var paths = result!["files"]!.AsArray();
-        Assert.Single(paths);
-        Assert.Equal(Path.Combine(_root, "readme.md"), paths[0]!.GetValue<string>());
+        Assert.Equal(new[] { Path.Combine(_root, "node_modules", "excluded.md"), Path.Combine(_root, "readme.md") },
+            paths.Select(p => p!.GetValue<string>()).OrderBy(p => p, StringComparer.OrdinalIgnoreCase));
         Assert.False(result["truncated"]!.GetValue<bool>());
         await Assert.ThrowsAsync<ArgumentException>(() => Call("find_files", new() { ["project"] = "프로젝트", ["pattern"] = "*.md" }));
     }

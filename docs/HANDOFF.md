@@ -1,5 +1,41 @@
 # 인수인계 — DotDeck
 
+## 현재 상태 (2026-11-12 00:38 KST, 자동 인계 — 요청 bc7f448b)
+
+### 1. 작업 요약
+- 경로 `D:\project\DotDeck`, 버전 `1.4.0`(`Directory.Build.props`), `main@45ae55d`(chore(release): v1.4.0).
+- 이 세션에서는 새 개발 작업이 없었다(인계 요청만 수행). 진행 중 작업 없음.
+- 완료: Phase 5a·5b·5c, 통합 경로 제외 설정 → v1.4.0 릴리스.
+- 중단 지점: 릴리스 이후 사용자 수동 확인 단계. 수동 확인 실행 여부는 (확인 필요).
+- 다음 첫 행동: 사용자에게 수동 확인 결과(아래 3절 1·2) 또는 다음 작업 지시를 묻는다.
+
+### 2. 변경·검증 상태
+- 미커밋 변경: `docs/HANDOFF.md`(이 인계 절 추가분)만. untracked·스태시 없음(`git status -sb`, `git stash list`, 2026-11-12 00:38 확인). 코드 변경 없음.
+- 원격: `origin/main`과 차이 0/0 — fetch 없이 로컬 추적 정보 기준.
+- 마지막 검증(2026-11-09, v1.4.0 릴리스 전): Release 빌드 경고·오류 0, 테스트 1380개 중 통과 1378·실패 0·건너뜀 2(링크 권한). 이후 코드 변경 없음. 이번 자동 인계에서는 빌드·테스트 미실행.
+- 실제 WPF 조작·실제 모델 시나리오: 미실행.
+
+### 3. 다음 할 일
+1. 5c 수동 시나리오 4종 / `docs/PHASE5C-VALIDATION.md` / 샌드박스 `--home`에서 사용자가 4개 시나리오 확인.
+2. 제외 설정 UI 수동 확인 / `ExclusionSettingsDialog`, 저장 미리보기·AI 변경검토 체크박스 / 메뉴 "자동백업·변경검토 제외항목"과 두 체크박스 즉시 등록 동작 확인.
+3. 보류 P2: 설정 손상 시 전체 덮어쓰기 / `src/DotDeck.Core/Settings/AppSettings.cs` / 필드 단위 관대한 파싱 또는 `.bak` 보존 + 테스트, PATCH 릴리스(아래 7절).
+- 문제 발견 시 `fix/…` 브랜치에서 수정, 릴리스는 `release` 스킬로만.
+
+### 4. 결정·주의사항
+- 아래 "릴리스 1.4.0"·"통합 경로 제외 설정" 절이 그 아래 과거 인계보다 우선한다(시스템 기록 자동 분류는 폐기됨).
+- 사용자 앱을 강제 종료하지 않는다. 실제 `~/.claude`·`~/.codex` 수정 금지. 커밋·push·릴리스는 사용자 요청 후에만.
+
+### 5. 실행·참고
+- 빌드 `dotnet build DotDeck.slnx`, 테스트 `dotnet test --solution DotDeck.slnx`, 실행 `dotnet run --project src/DotDeck.App -c Release -- --home <샌드박스>` (환경변수 `DOTDECK_HOME` 대체 가능).
+- 문서: `CLAUDE.md`, `docs/SPEC.md`, `docs/DESIGN.md`, `docs/PHASE5C-VALIDATION.md`, `CHANGELOG.md`.
+
+### 6. 재개 프롬프트
+```text
+D:\project\DotDeck 의 CLAUDE.md와 docs/HANDOFF.md "현재 상태" 절을 읽어라.
+git status·브랜치·HEAD(기록: main@45ae55d, v1.4.0, 미커밋은 docs/HANDOFF.md뿐)를 다시 확인하고 다른 점을 반영하라.
+'다음 첫 행동'부터 이어가되, 기존 변경을 보존하고 승인된 범위에서만 진행하라.
+```
+
 ## 릴리스 1.4.0 (2026-11-09)
 
 - 사용자 요청에 따라 5c·Codex 연동·통합 제외 설정을 main에 통합하고 v1.4.0으로 릴리스한다. 아래의 미커밋·버전 미변경 설명은 작업 당시 기록이다.
@@ -189,7 +225,7 @@
 - 각 sub-phase 보고 형식: 구현 내용 / 변경 파일 / 테스트 결과 / Codex 검증(반영·기각·보류) / 알려진 제한 / 다음 단계 확인 질문.
 - 승인 조건(완료): 샌드박스에서만 CLAUDE_CONFIG_DIR·CODEX_HOME 전달 테스트, 훅 병합 실측, `--system-prompt-snapshot` 확인, 비밀 파일 전 모드 차단, 가드 콜드 스타트 200ms 이하, WinExe stdio 동작, xterm.js LICENSE 동봉·버전 고정.
 
-## 10. 세션 재개 프롬프트
+## 10. 세션 재개 프롬프트 (과거 — 상단 "현재 상태" 6절 사용)
 ```text
 D:\project\DotDeck 에서 작업을 이어받는다. 먼저 docs/HANDOFF.md와 CLAUDE.md, docs/SPEC.md 11절, docs/DESIGN.md "AI CLI 연동 설계"를 읽어라.
 Phase 5a·5b는 v1.2.0으로 main에 릴리스되었다. 5c는 main에서 feat/ai-cli-5c 브랜치를 만들어 진행한다. `git status --short`와 `git log --oneline -15`로 상태를 확인하고,

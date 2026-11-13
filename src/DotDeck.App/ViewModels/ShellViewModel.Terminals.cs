@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.ViewModels.Tools;
 using DotDeck.Core.AiCli.Launch;
 using DotDeck.Core.AiCli.Sessions;
+using DotDeck.Core.Explorer;
 using DotDeck.Core.Logging;
 using DotDeck.Core.Paths;
 
@@ -72,7 +73,7 @@ public sealed partial class ShellViewModel
 
         var number = ++_terminalNumber;
         var title = number == 1 ? shell.DisplayName : string.Create(CultureInfo.InvariantCulture, $"{shell.DisplayName} {number}");
-        AddTerminal(new TerminalPaneViewModel(Guid.NewGuid().ToString("N"), title, new TerminalConnection(process, TerminalSize.Default), CopyFromTerminal, _uiContext));
+        AddTerminal(new TerminalPaneViewModel(Guid.NewGuid().ToString("N"), title, new TerminalConnection(process, TerminalSize.Default, folder), CopyFromTerminal, _uiContext));
         _log.Info($"터미널 시작: {shell.Executable} ({folder})");
     }
 
@@ -87,6 +88,50 @@ public sealed partial class ShellViewModel
 
         return Directory.Exists(paths.Home) ? paths.Home : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     }
+
+    /// <summary>Recreates terminal identities before AvalonDock resolves the saved layout; AI is never resumed.</summary>
+    public async Task RestoreTerminalsAsync()
+    {
+        if (_terminalLauncher is not { } launcher || _locateShell is not { } locate || _terminalPaths is not { } paths)
+        {
+            return;
+        }
+
+        var saved = await Task.Run(_session.LoadTerminals).ConfigureAwait(true);
+        if (saved.Count == 0) return;
+        var shell = await Task.Run(locate).ConfigureAwait(true);
+        if (shell is null)
+        {
+            StatusMessage = "PowerShell을 찾을 수 없어 지난 터미널을 복원하지 못했습니다.";
+            return;
+        }
+
+        foreach (var state in saved)
+        {
+            if (Terminals.Any(t => t.ContentId == TerminalPaneViewModel.ContentIdPrefix + state.Id)) continue;
+            try
+            {
+                var fallback = TerminalFolder(paths);
+                var connection = await Task.Run(() =>
+                {
+                    var folder = Directory.Exists(state.WorkingDirectory) ? state.WorkingDirectory : fallback;
+                    return new TerminalConnection(launcher.Start(ShellTerminal.Plan(shell, folder, paths), TerminalSize.Default), TerminalSize.Default, folder);
+                }).ConfigureAwait(true);
+                AddTerminal(new TerminalPaneViewModel(state.Id, state.Title, connection, CopyFromTerminal, _uiContext));
+                _terminalNumber++;
+            }
+            catch (Exception ex) when (ex is Win32Exception or IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                _log.Warning("지난 터미널을 복원하지 못했습니다.", ex);
+                StatusMessage = "일부 터미널을 복원하지 못했습니다. 자세한 내용은 출력 패널을 확인하세요.";
+            }
+        }
+    }
+
+    private void SaveTerminals() => _session.SaveTerminals(Terminals.Select(t => new TerminalSessionState(
+        t.ContentId[TerminalPaneViewModel.ContentIdPrefix.Length..],
+        t.PersistentTitle.Length > 200 ? t.PersistentTitle[..200] : t.PersistentTitle,
+        t.Connection.WorkingDirectory ?? t.Session?.Scope.Primary.Root ?? TerminalFolder(Paths))).ToList());
 
     /// <summary>Shows the terminal tab of an interactive session, creating it when it is not open (also after the exit).</summary>
     internal void ShowAiTerminal(AiSession session)

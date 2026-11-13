@@ -77,6 +77,7 @@ public sealed partial class ShellViewModel
     /// <summary>Saves view state that is not part of the docking layout (called on close).</summary>
     public void SaveSession()
     {
+        SaveTerminals();
         Projects.SaveState();
         _session.SaveDocuments(Documents.OfType<TextDocumentViewModel>()
             .Select(d => new DocumentSessionState(

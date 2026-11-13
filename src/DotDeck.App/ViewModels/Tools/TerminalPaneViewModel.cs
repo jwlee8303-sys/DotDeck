@@ -39,8 +39,8 @@ public sealed partial class ScopeChipViewModel(TerminalPaneViewModel owner, stri
 }
 
 /// <summary>
-/// One terminal tab in the bottom area (ContentId <c>tool.terminal:&lt;id&gt;</c>, never restored from a saved
-/// layout). The view (TerminalView) connects xterm.js to <see cref="Connection"/>. Closing the tab asks the shell,
+/// One terminal tab in the bottom area (ContentId <c>tool.terminal:&lt;id&gt;</c>, restored as an idle shell).
+/// The view (TerminalView) connects xterm.js to <see cref="Connection"/>. Closing the tab asks the shell,
 /// which stops a running process tree after confirmation and removes the tab. A tab of an interactive AI session
 /// (<see cref="Session"/>) also shows the scope chips, the guard state and review / stop / restart actions.
 /// </summary>
@@ -79,6 +79,8 @@ public sealed partial class TerminalPaneViewModel : ToolPaneViewModel
     }
 
     public TerminalConnection Connection { get; }
+
+    public string PersistentTitle => _baseTitle;
 
     /// <summary>The interactive AI session shown in this tab, or null for a plain terminal.</summary>
     public AiSession? Session { get; }

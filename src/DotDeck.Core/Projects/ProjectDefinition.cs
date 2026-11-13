@@ -42,7 +42,7 @@ public sealed record ProjectDefinition
 
     public bool Hidden { get; init; }
 
-    /// <summary>Folder names excluded from the tree. Null means "use defaults".</summary>
+    /// <summary>Legacy field retained for file compatibility; project folders are no longer excluded.</summary>
     public IReadOnlyList<string>? ExcludedFolders { get; init; }
 
     /// <summary>What the explorer shows (rules, default extensions). Ignored for the System project.</summary>

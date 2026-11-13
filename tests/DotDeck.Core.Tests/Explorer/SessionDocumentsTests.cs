@@ -62,4 +62,55 @@ public sealed class SessionDocumentsTests : IDisposable
 
         Assert.Equal(SessionStateStore.MaxDocuments, store.LoadDocuments().Count);
     }
+
+    [Fact]
+    public void Terminal_identity_title_and_folder_round_trip_alongside_other_state()
+    {
+        var file = _temp.Combine("session.json");
+        var store = new SessionStateStore(PhysicalFileStore.Instance, file, new ListAppLog());
+        store.SaveDocuments([new(@"C:\project\readme.md", 1)]);
+        store.SaveTerminals([new("ai-1", "Codex · 프로젝트", @"C:\project\한글 폴더")]);
+        store.SaveExplorers(new Dictionary<string, ExplorerViewState> { ["p"] = new(false, ["src"], null) });
+
+        var reloaded = new SessionStateStore(PhysicalFileStore.Instance, file, new ListAppLog());
+        Assert.Equal(new TerminalSessionState("ai-1", "Codex · 프로젝트", @"C:\project\한글 폴더"), Assert.Single(reloaded.LoadTerminals()));
+        Assert.Single(reloaded.LoadDocuments());
+        Assert.Single(reloaded.LoadExplorers());
+
+        reloaded.SaveTerminals([]);
+        Assert.Empty(store.LoadTerminals());
+        Assert.Single(store.LoadDocuments());
+    }
+
+    [Fact]
+    public void Terminal_load_skips_invalid_entries_and_duplicate_ids()
+    {
+        var file = _temp.Combine("session.json");
+        File.WriteAllText(file, """
+            { "terminals": [ {}, 42,
+              { "id": "a", "title": "PowerShell", "workingDirectory": "relative" },
+              { "id": "a", "title": "PowerShell", "workingDirectory": "C:\\project" },
+              { "id": "a", "title": "duplicate", "workingDirectory": "C:\\other" },
+              { "id": "b", "title": "", "workingDirectory": "C:\\project" }
+            ] }
+            """, System.Text.Encoding.UTF8);
+        var store = new SessionStateStore(PhysicalFileStore.Instance, file, new ListAppLog());
+
+        Assert.Equal(new TerminalSessionState("a", "PowerShell", @"C:\project"), Assert.Single(store.LoadTerminals()));
+    }
+
+    [Fact]
+    public void Terminal_list_is_bounded_and_newer_schema_is_not_overwritten()
+    {
+        var file = _temp.Combine("session.json");
+        var store = new SessionStateStore(PhysicalFileStore.Instance, file, new ListAppLog());
+        var terminals = Enumerable.Range(0, 150).Select(i => new TerminalSessionState(i.ToString(System.Globalization.CultureInfo.InvariantCulture), "PowerShell", @"C:\project")).ToList();
+        store.SaveTerminals(terminals);
+        Assert.Equal(SessionStateStore.MaxTerminals, store.LoadTerminals().Count);
+
+        const string newer = "{\"schemaVersion\":999,\"future\":true}";
+        File.WriteAllText(file, newer, System.Text.Encoding.UTF8);
+        store.SaveTerminals([]);
+        Assert.Equal(newer, File.ReadAllText(file, System.Text.Encoding.UTF8));
+    }
 }

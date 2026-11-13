@@ -150,6 +150,35 @@ public sealed class TerminalConnectionTests : IDisposable
 
     // ---- ShellTerminal ----
 
+    [Theory]
+    [InlineData("\a")]
+    [InlineData("\u001b\\")]
+    public async Task Working_directory_tracks_split_osc7_without_changing_replay(string terminator)
+    {
+        using var process = new FakeTerminal();
+        using var connection = new TerminalConnection(process, TerminalSize.Default, _temp);
+        var folder = Path.Combine(_temp, "한글 ' # 폴더");
+        var sequence = "\u001b]7;" + new Uri(folder).AbsoluteUri + terminator;
+        var bytes = Encoding.UTF8.GetBytes(sequence);
+        foreach (var b in bytes) process.Print([b]);
+        process.EndOutput();
+        await connection.OutputEnded.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal(folder, connection.WorkingDirectory);
+        Assert.Equal(sequence, connection.Attach(_ => { }));
+    }
+
+    [Fact]
+    public async Task Malformed_osc_and_non_file_locations_keep_the_launch_directory()
+    {
+        using var process = new FakeTerminal();
+        using var connection = new TerminalConnection(process, TerminalSize.Default, _temp);
+        process.Print(Encoding.UTF8.GetBytes("\u001b]7;https://example.test/path\a\u001b]7;not a uri\a\u001b]0;window title\a"));
+        process.EndOutput();
+        await connection.OutputEnded.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.Equal(_temp, connection.WorkingDirectory);
+    }
+
     private string Exe(params string[] parts)
     {
         var path = Path.Combine([_temp, .. parts]);
@@ -196,7 +225,7 @@ public sealed class TerminalConnectionTests : IDisposable
 
         var plan = ShellTerminal.Plan(shell, @"D:\proj", sandbox);
 
-        Assert.Equal(["-NoLogo", "-NoExit", "-Command", ShellTerminal.Utf8Initialization], plan.Arguments);
+        Assert.Equal(["-NoLogo", "-NoExit", "-Command", ShellTerminal.Utf8Initialization + "; " + ShellTerminal.PromptInitialization], plan.Arguments);
         Assert.Equal(@"D:\proj", plan.WorkingDirectory);
         Assert.Null(plan.StandardInput);
         Assert.Equal(@"D:\sandbox\.claude", plan.Environment["CLAUDE_CONFIG_DIR"]);

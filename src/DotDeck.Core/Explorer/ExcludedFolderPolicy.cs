@@ -48,19 +48,18 @@ public sealed class ExcludedFolderPolicy
 
     public static ExcludedFolderPolicy None { get; } = new([]);
 
-    /// <summary>Defaults used when the project does not override them.</summary>
+    /// <summary>Projects no longer exclude folders implicitly.</summary>
     public static IReadOnlyList<string> DefaultsFor(ProjectDefinition project)
     {
         ArgumentNullException.ThrowIfNull(project);
-        return project.Builtin is { } builtin
-            ? [.. CommonDefaults, .. BuiltinProjects.DefaultExcludedFoldersOf(builtin)]
-            : CommonDefaults;
+        return [];
     }
 
     public static ExcludedFolderPolicy For(ProjectDefinition project)
     {
         ArgumentNullException.ThrowIfNull(project);
-        return new ExcludedFolderPolicy(project.ExcludedFolders ?? DefaultsFor(project));
+        // Keep the legacy persisted field readable, but never hide project content because of it.
+        return None;
     }
 
     /// <param name="relativePath">Folder path relative to the project root, e.g. "src\node_modules".</param>

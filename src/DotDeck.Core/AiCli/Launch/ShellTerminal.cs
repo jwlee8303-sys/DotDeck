@@ -20,6 +20,13 @@ public static class ShellTerminal
     public const string Utf8Initialization =
         "[Console]::InputEncoding = [Console]::OutputEncoding = $OutputEncoding = [System.Text.UTF8Encoding]::new($false)";
 
+    // Preserve profile prompts while reporting FileSystem locations through OSC 7 on every prompt.
+    public const string PromptInitialization =
+        "$global:DotDeckOriginalPrompt = $function:prompt; function global:prompt { "
+        + "if ($PWD.Provider.Name -eq 'FileSystem') { "
+        + "[Console]::Write(([string][char]27 + ']7;' + ([uri]$PWD.ProviderPath).AbsoluteUri + [char]7)) }; "
+        + "& $global:DotDeckOriginalPrompt }";
+
     public static ShellLocation? Locate(IProcessEnvironment environment, IFileStore store)
     {
         ArgumentNullException.ThrowIfNull(environment);
@@ -78,7 +85,7 @@ public static class ShellTerminal
         return new CliLaunchPlan
         {
             Executable = shell.Executable,
-            Arguments = ["-NoLogo", "-NoExit", "-Command", Utf8Initialization],
+            Arguments = ["-NoLogo", "-NoExit", "-Command", Utf8Initialization + "; " + PromptInitialization],
             WorkingDirectory = workingDirectory,
             Environment = environment,
         };

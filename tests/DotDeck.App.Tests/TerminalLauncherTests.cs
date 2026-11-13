@@ -4,6 +4,7 @@ using System.Text;
 using DotDeck.App.Infrastructure.Windows;
 using DotDeck.Core.AiCli.Launch;
 using DotDeck.Core.AiCli.Sessions;
+using DotDeck.Core.Paths;
 
 namespace DotDeck.App.Tests;
 
@@ -93,6 +94,44 @@ public sealed class TerminalLauncherTests : IDisposable
     {
         process.Input.Write(Encoding.UTF8.GetBytes(text));
         process.Input.Flush();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PowerShell_reports_the_last_folder_and_restores_an_idle_prompt(bool legacy)
+    {
+        var executable = legacy
+            ? Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe")
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
+        if (!File.Exists(executable)) Assert.Skip("This PowerShell edition is not installed.");
+        var paths = new AppPaths(_cwd, HomeSource.CommandLine, Path.Combine(_cwd, "r"), Path.Combine(_cwd, "l"));
+        var shell = new ShellLocation(executable, legacy);
+        var target = Path.Combine(_cwd, "한글 ' # 폴더");
+        Directory.CreateDirectory(target);
+        using var process = Start(ShellTerminal.Plan(shell, _cwd, paths));
+        using var connection = new TerminalConnection(process, TerminalSize.Default);
+        await WaitForFolder(connection, _cwd);
+        connection.Send("Set-Location -LiteralPath '" + target.Replace("'", "''", StringComparison.Ordinal) + "'\r");
+        await WaitForFolder(connection, target);
+        connection.Terminate();
+
+        using var restartedProcess = Start(ShellTerminal.Plan(shell, connection.WorkingDirectory!, paths));
+        using var restarted = new TerminalConnection(restartedProcess, TerminalSize.Default);
+        await WaitForFolder(restarted, target);
+        Assert.False(restarted.Exited.IsCompleted);
+        restarted.Send("exit\r");
+        Assert.Equal(0, await restarted.Exited.WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken));
+    }
+
+    private static async Task WaitForFolder(TerminalConnection connection, string folder)
+    {
+        var watch = Stopwatch.StartNew();
+        while (!string.Equals(folder, connection.WorkingDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(15), "The PowerShell prompt did not report its folder.");
+            await Task.Delay(30, TestContext.Current.CancellationToken);
+        }
     }
 
     [Fact]

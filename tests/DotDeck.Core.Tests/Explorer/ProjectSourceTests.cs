@@ -61,7 +61,7 @@ public sealed class ProjectSourceTests : IDisposable
     }
 
     [Fact]
-    public void Default_excluded_folders_are_hidden_at_any_depth()
+    public void Former_default_excluded_folders_are_listed_at_every_depth()
     {
         Touch("node_modules", "x.js");
         Touch("src", "Bin", "x.dll");
@@ -70,12 +70,12 @@ public sealed class ProjectSourceTests : IDisposable
         var source = new FolderProjectSource(Folder(_temp.Path), _temp.Path, PhysicalFileStore.Instance);
 
         var root = source.GetChildren(null);
-        Assert.Equal(["src"], root.Select(n => n.Name));
-        Assert.Equal(["keep"], source.GetChildren(root[0]).Select(n => n.Name));
+        Assert.Equal([".git", "node_modules", "src"], root.Select(n => n.Name));
+        Assert.Equal(["Bin", "keep"], source.GetChildren(root[2]).Select(n => n.Name));
     }
 
     [Fact]
-    public void Project_override_replaces_defaults_and_supports_rooted_entries()
+    public void Legacy_project_exclusions_do_not_hide_folders()
     {
         Touch("node_modules", "x.js");
         Touch("gen", "a.md");
@@ -83,21 +83,22 @@ public sealed class ProjectSourceTests : IDisposable
         var source = new FolderProjectSource(Folder(_temp.Path, excluded: ["/gen"]), _temp.Path, PhysicalFileStore.Instance);
 
         var root = source.GetChildren(null);
-        Assert.Equal(["node_modules", "src"], root.Select(n => n.Name));
-        Assert.Equal(["gen"], source.GetChildren(root[1]).Select(n => n.Name));
+        Assert.Equal(["gen", "node_modules", "src"], root.Select(n => n.Name));
+        Assert.Equal(["gen"], source.GetChildren(root[2]).Select(n => n.Name));
     }
 
     [Fact]
-    public void Builtin_rooted_defaults_only_hide_top_level_folders()
+    public void Builtin_projects_no_longer_apply_folder_exclusions()
     {
         var project = BuiltinProjects.CreateDefault(BuiltinProject.Claude, 0);
         var policy = ExcludedFolderPolicy.For(project);
 
-        Assert.True(policy.IsExcluded("projects"));
-        Assert.True(policy.IsExcluded("DEBUG"));
-        Assert.True(policy.IsExcluded(@"skills\node_modules"));
+        Assert.False(policy.IsExcluded("projects"));
+        Assert.False(policy.IsExcluded("DEBUG"));
+        Assert.False(policy.IsExcluded(@"skills\node_modules"));
         Assert.False(policy.IsExcluded(@"skills\x\debug"));
         Assert.False(policy.IsExcluded("skills"));
+        Assert.Empty(ExcludedFolderPolicy.DefaultsFor(project));
     }
 
     [Theory]

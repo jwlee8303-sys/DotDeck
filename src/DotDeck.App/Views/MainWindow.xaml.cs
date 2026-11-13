@@ -53,6 +53,7 @@ public partial class MainWindow : Window
         {
             // Tabs first, so the saved layout finds their ContentIds.
             await _shell.RestoreDocumentsAsync();
+            await _shell.RestoreTerminalsAsync();
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -127,6 +128,13 @@ public partial class MainWindow : Window
     protected override void OnClosing(CancelEventArgs e)
     {
         base.OnClosing(e);
+        if (!e.Cancel && _restoring)
+        {
+            e.Cancel = true;
+            _shell.StatusMessage = "지난 세션을 복원하는 중입니다. 완료 후 종료하세요.";
+            return;
+        }
+
         if (!e.Cancel && !_closeConfirmed && _shell.HasUnsavedDocuments)
         {
             // Saving is asynchronous: cancel this close, ask, then close again.

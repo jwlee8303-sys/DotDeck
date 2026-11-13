@@ -505,7 +505,7 @@ public sealed class AiSessionManager : IDisposable
                 .GroupBy(p => p.Root, StringComparer.OrdinalIgnoreCase)
                 .Select(g => new SnapshotRoot(g.Key, projects.FirstOrDefault(d => d.Id == g.First().ProjectId) is { } definition
                     ? ExcludedFolderPolicy.For(definition)
-                    : new ExcludedFolderPolicy(ExcludedFolderPolicy.CommonDefaults)))];
+                    : ExcludedFolderPolicy.None))];
             session.Snapshot = SessionSnapshots.Capture(
                 session.SnapshotRoots, request.OpenDocuments, _env.Store, OpenBackups(session), _env.SnapshotLimits);
         }
@@ -525,7 +525,7 @@ public sealed class AiSessionManager : IDisposable
                 session.McpHost = _env.StartMcpHost?.Invoke(session);
                 if (request.Mode == LaunchMode.Interactive)
                 {
-                    session.Terminal = new TerminalConnection(_env.TerminalLauncher!.Start(plan, TerminalSize.Default), TerminalSize.Default);
+                    session.Terminal = new TerminalConnection(_env.TerminalLauncher!.Start(plan, TerminalSize.Default), TerminalSize.Default, plan.WorkingDirectory);
                 }
                 else
                 {

@@ -44,7 +44,7 @@ public sealed class SessionTools(
                     {
                         id = p.ProjectId, name = p.Name, root = p.Root,
                         primary = p.ProjectId == current.Primary.ProjectId,
-                        excludedFolders = definition is null ? Array.Empty<string>() : definition.ExcludedFolders ?? ExcludedFolderPolicy.DefaultsFor(definition),
+                        excludedFolders = Array.Empty<string>(),
                         showAllFiles = definition?.Visibility.ShowAllFiles ?? false,
                         extensions = definition?.Visibility.EffectiveExtensions(globalExtensions),
                     };

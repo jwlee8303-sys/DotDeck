@@ -103,7 +103,9 @@ public sealed class VisibleProjectSource : IProjectSource
     {
         ArgumentNullException.ThrowIfNull(folder);
         var key = folder.RelativePath ?? string.Empty;
-        return _evaluator.RuleOf(key) == VisibilityRule.Include || HasVisibleContent(folder);
+        return _evaluator.RuleOf(key) == VisibilityRule.Include
+            || (_evaluator.Settings.ShowAllFiles && _evaluator.FolderState(key) == VisibilityRule.Include)
+            || HasVisibleContent(folder);
     }
 
     /// <summary>Something below the folder is shown. Stops at the first visible item; links count as having content.</summary>
@@ -279,12 +281,6 @@ public sealed class VisibleProjectSource : IProjectSource
                 continue;
             }
 
-            // Excluded folders win over pins, like everywhere else.
-            if (IsInExcludedFolder(key))
-            {
-                continue;
-            }
-
             var full = Path.Combine(_all.RootPath!, key);
             FileSystemEntry? entry;
             try
@@ -311,21 +307,6 @@ public sealed class VisibleProjectSource : IProjectSource
         }
 
         return nodes;
-    }
-
-    private bool IsInExcludedFolder(string key)
-    {
-        var excluded = ExcludedFolderPolicy.For(_all.Project);
-        for (var folder = key; !string.IsNullOrEmpty(folder); folder = RelativeKey.Parent(folder))
-        {
-            // The pinned item itself only counts when it is a folder (checked with its entry below).
-            if ((!RelativeKey.Comparer.Equals(folder, key) || _store.DirectoryExists(Path.Combine(_all.RootPath!, key))) && excluded.IsExcluded(folder))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private IReadOnlyList<NodeInfo> List(NodeInfo? folder)

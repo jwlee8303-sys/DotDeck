@@ -298,7 +298,8 @@ public sealed class ContextDocumentBuilderTests : IDisposable
         Assert.DoesNotContain("\n# 주입", text, StringComparison.Ordinal);
         Assert.Contains("이름이 모호하면 후보를 보여주고 물어봅니다", text, StringComparison.Ordinal);
         Assert.Contains("활성 문서가 속한 프로젝트를 우선", text, StringComparison.Ordinal);
-        Assert.Contains("제외 폴더 bin, obj", text, StringComparison.Ordinal);
+        Assert.Contains("제외 폴더 없음", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("제외 폴더 bin, obj", text, StringComparison.Ordinal);
         Assert.Contains("표시 .md, .json", text, StringComparison.Ordinal);
         Assert.Contains("범위 안에 열린 문서가 없습니다", text, StringComparison.Ordinal);
     }

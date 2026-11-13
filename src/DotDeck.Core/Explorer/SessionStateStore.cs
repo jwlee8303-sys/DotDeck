@@ -27,6 +27,9 @@ public sealed record DocumentSessionState(
     int CaretColumn = 1,
     bool? WordWrap = null);
 
+/// <summary>A terminal tab restored as an idle shell, with the same docking identity.</summary>
+public sealed record TerminalSessionState(string Id, string Title, string WorkingDirectory);
+
 /// <summary>
 /// Reads and writes session.json (explorer state and open editor tabs). Best effort: the session is a
 /// convenience, so failures are logged and never thrown. Unknown top-level sections are preserved.
@@ -41,11 +44,14 @@ public sealed class SessionStateStore
     /// <summary>Upper bound on restored tabs.</summary>
     public const int MaxDocuments = 100;
 
+    public const int MaxTerminals = 100;
+
     /// <summary>Upper bound on a restored view number (keeps later "+1" numbering far from overflow).</summary>
     public const int MaxViewNumber = 9999;
 
     private const string ExplorersKey = "explorers";
     private const string DocumentsKey = "documents";
+    private const string TerminalsKey = "terminals";
     private static readonly JsonSerializerOptions s_writeOptions = new()
     {
         WriteIndented = true,
@@ -157,6 +163,58 @@ public sealed class SessionStateStore
         }
 
         WriteSection(DocumentsKey, array);
+    }
+
+    public IReadOnlyList<TerminalSessionState> LoadTerminals()
+    {
+        var result = new List<TerminalSessionState>();
+        if (ReadRoot(out _)?[TerminalsKey] is not JsonArray terminals)
+        {
+            return result;
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in terminals)
+        {
+            if (result.Count >= MaxTerminals) break;
+            try
+            {
+                if (node is JsonObject obj
+                    && obj["id"] is JsonValue i && i.TryGetValue<string>(out var id)
+                    && !string.IsNullOrWhiteSpace(id) && id.Length <= 100
+                    && obj["title"] is JsonValue t && t.TryGetValue<string>(out var title)
+                    && !string.IsNullOrWhiteSpace(title) && title.Length <= 200
+                    && obj["workingDirectory"] is JsonValue w && w.TryGetValue<string>(out var directory)
+                    && !string.IsNullOrWhiteSpace(directory) && Path.IsPathFullyQualified(directory)
+                    && seen.Add(id))
+                {
+                    result.Add(new TerminalSessionState(id, title, directory));
+                }
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or FormatException)
+            {
+                _log.Warning("세션 상태의 터미널 항목 하나를 읽지 못해 무시합니다.", ex);
+            }
+        }
+
+        return result;
+    }
+
+    public void SaveTerminals(IReadOnlyList<TerminalSessionState> terminals)
+    {
+        ArgumentNullException.ThrowIfNull(terminals);
+        var array = new JsonArray();
+        foreach (var terminal in terminals.Take(MaxTerminals))
+        {
+            array.Add(new JsonObject
+            {
+                ["id"] = terminal.Id,
+                ["title"] = terminal.Title,
+                ["workingDirectory"] = terminal.WorkingDirectory,
+            });
+        }
+
+        WriteSection(TerminalsKey, array);
     }
 
     public void SaveExplorers(IReadOnlyDictionary<string, ExplorerViewState> states)

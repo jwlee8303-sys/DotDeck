@@ -22,18 +22,29 @@ public sealed class TerminalConnection : IDisposable
     private Action<string>[] _viewers = [];
     private TerminalSize _size;
     private int _disposed;
+    private string? _workingDirectory;
+    private readonly StringBuilder _osc = new();
+    private bool _escape;
+    private bool _inOsc;
 
-    public TerminalConnection(ITerminalProcess process, TerminalSize initialSize)
+    public TerminalConnection(ITerminalProcess process, TerminalSize initialSize, string? workingDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(process);
         _process = process;
         _size = initialSize;
+        _workingDirectory = workingDirectory;
         var reader = new Thread(ReadOutput) { IsBackground = true, Name = "DotDeck terminal output" };
         reader.Start();
         _ = WriteInputAsync();
     }
 
     public int ProcessId => _process.ProcessId;
+
+    /// <summary>Latest OSC 7 file location, falling back to the launch directory.</summary>
+    public string? WorkingDirectory
+    {
+        get { lock (_gate) return _workingDirectory; }
+    }
 
     /// <summary>Completes with the exit code when the main process ends.</summary>
     public Task<int> Exited => _process.Exited;
@@ -150,6 +161,7 @@ public sealed class TerminalConnection : IDisposable
         Action<string>[] viewers;
         lock (_gate)
         {
+            TrackWorkingDirectory(text);
             _replay.Append(text);
             if (_replay.Length > ReplayChars)
             {
@@ -174,6 +186,49 @@ public sealed class TerminalConnection : IDisposable
         foreach (var viewer in viewers)
         {
             viewer(text);
+        }
+    }
+
+    // Stateful and bounded: OSC commands may be split across arbitrary UTF-8 output reads.
+    private void TrackWorkingDirectory(string text)
+    {
+        foreach (var ch in text)
+        {
+            if (_inOsc)
+            {
+                if (ch == '\a' || (_escape && ch == '\\'))
+                {
+                    var value = _osc.ToString();
+                    if (value.StartsWith("7;", StringComparison.Ordinal)
+                        && Uri.TryCreate(value[2..], UriKind.Absolute, out var uri)
+                        && uri.IsFile && (uri.IsLoopback || uri.IsUnc)
+                        && Path.IsPathFullyQualified(uri.LocalPath)
+                        && !uri.LocalPath.Any(char.IsControl))
+                    {
+                        _workingDirectory = uri.LocalPath;
+                    }
+
+                    _osc.Clear();
+                    _inOsc = false;
+                    _escape = false;
+                    continue;
+                }
+
+                if (_escape) _osc.Append('\u001b');
+                _escape = ch == '\u001b';
+                if (!_escape) _osc.Append(ch);
+                if (_osc.Length > 32768)
+                {
+                    _osc.Clear();
+                    _inOsc = false;
+                    _escape = false;
+                }
+            }
+            else
+            {
+                _inOsc = _escape && ch == ']';
+                _escape = !_inOsc && ch == '\u001b';
+            }
         }
     }
 

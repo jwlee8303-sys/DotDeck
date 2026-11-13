@@ -309,6 +309,37 @@ public sealed class VisibleProjectSourceTests : IDisposable
         Assert.Equal(["docs", "  guide", "    a.md", "README.md"], Rows(Source(ExplorerViewMode.Tree), "docs", @"docs\guide"));
     }
 
+    [Theory]
+    [InlineData("bin")]
+    [InlineData("obj")]
+    [InlineData("node_modules")]
+    [InlineData(".git")]
+    [InlineData(".vs")]
+    [InlineData(".venv")]
+    [InlineData("dist")]
+    [InlineData("__pycache__")]
+    public void Extension_matches_inside_any_folder_are_visible(string folder)
+    {
+        Touch($"{folder}/nested/keep.md");
+        Touch($"{folder}/nested/other.dll");
+        var source = Source(ExplorerViewMode.Tree);
+        Assert.Equal([folder, "  nested", "    keep.md"], Rows(source, folder, folder + "\\nested"));
+    }
+
+    [Fact]
+    public void Show_all_includes_empty_hidden_and_system_entries()
+    {
+        Directory.CreateDirectory(_temp.Combine("bin"));
+        Touch(".hidden/state.dat");
+        var hiddenFile = _temp.Combine(".hidden", "state.dat");
+        File.SetAttributes(hiddenFile, FileAttributes.Hidden | FileAttributes.System);
+        File.SetAttributes(_temp.Combine(".hidden"), FileAttributes.Hidden);
+
+        var source = Source(ExplorerViewMode.Tree, new VisibilitySettings { ShowAllFiles = true });
+
+        Assert.Equal([".hidden", "  state.dat", "bin"], Rows(source, ".hidden"));
+    }
+
     [Fact]
     public void Excluded_folder_with_one_checked_file_shows_that_file_and_its_path()
     {
@@ -415,13 +446,13 @@ public sealed class VisibleProjectSourceTests : IDisposable
     }
 
     [Fact]
-    public void A_pinned_item_inside_an_excluded_folder_is_not_shown()
+    public void Pinned_items_inside_formerly_excluded_folders_are_shown()
     {
         Touch("bin/out.md");
         Touch("README.md");
         var source = Source(ExplorerViewMode.Tree, view: new ProjectViewSettings { Pins = [@"bin\out.md", "bin"] });
 
-        Assert.Equal(["README.md"], source.GetChildren(null).Select(n => n.Name));
+        Assert.Equal(["out.md", "bin", "README.md"], source.GetChildren(null).Select(n => n.Name));
     }
 
     [Fact]

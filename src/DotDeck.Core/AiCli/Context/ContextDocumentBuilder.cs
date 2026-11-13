@@ -117,7 +117,7 @@ public static class ContextDocumentBuilder
                 continue;
             }
 
-            var excluded = definition.ExcludedFolders ?? ExcludedFolderPolicy.DefaultsFor(definition);
+            var excluded = ExcludedFolderPolicy.DefaultsFor(definition);
             var shown = definition.Visibility.ShowAllFiles
                 ? "모든 파일"
                 : string.Join(", ", definition.Visibility.EffectiveExtensions(input.GlobalExtensions));

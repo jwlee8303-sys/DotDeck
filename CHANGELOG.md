@@ -3,6 +3,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- 릴리스 `SHA256SUMS.txt`를 LF 줄바꿈으로 생성해 `sha256sum -c`로도 검증 가능
+
 ## [1.5.0] - 2026-11-13
 
 ### Added

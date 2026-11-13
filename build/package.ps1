@@ -108,8 +108,9 @@ $assets = @(
     (Join-Path $releases "$PackId-win-Portable.zip")
 ) | Where-Object { Test-Path $_ }
 $assets | Set-Content -Encoding utf8 (Join-Path $out 'upload-assets.txt')
-Get-FileHash -Algorithm SHA256 $assets | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path -Leaf $_.Path)" } |
-    Set-Content -Encoding ascii (Join-Path $releases 'SHA256SUMS.txt')
+# LF line endings so `sha256sum -c` works on Linux/macOS as well as Get-FileHash on Windows.
+$sums = Get-FileHash -Algorithm SHA256 $assets | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path -Leaf $_.Path)`n" }
+[IO.File]::WriteAllText((Join-Path $releases 'SHA256SUMS.txt'), (-join $sums), [Text.Encoding]::ASCII)
 Add-Content -Encoding utf8 (Join-Path $out 'upload-assets.txt') (Join-Path $releases 'SHA256SUMS.txt')
 
 Write-Host "== Assets:"

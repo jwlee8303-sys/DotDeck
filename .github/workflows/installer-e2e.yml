@@ -16,6 +16,11 @@ on:
         description: 'Branch, tag or commit to test (default: the selected branch)'
         required: false
         type: string
+      scenarios:
+        description: 'Scenarios (S0 cancel, S1 1.5.0 LocalAppData, S2 default+shortcuts+update+uninstall, S6 custom path, S7 1.5.0 Program Files, S8 UAC refused)'
+        required: false
+        default: 'S0,S1,S2,S6,S7,S8'
+        type: string
 
 permissions:
   contents: read
@@ -27,7 +32,7 @@ concurrency:
 jobs:
   e2e:
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 75
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION_A: '1.5.901'
@@ -43,6 +48,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Package test versions A and B
+        timeout-minutes: 20
         shell: pwsh
         run: |
           ./build/package.ps1 -Version $env:VERSION_A -PreviousFeed none -OutputDir publish/e2e/a
@@ -55,6 +61,7 @@ jobs:
           Get-ChildItem publish/e2e/a/app -Filter 'DotDeck*.dll' | Select-Object Name, Length | Format-Table | Out-String | Write-Host
 
       - name: Get the 1.5.0 per-user setup (existing users)
+        timeout-minutes: 5
         shell: pwsh
         run: |
           gh release download v1.5.0 --repo $env:GITHUB_REPOSITORY --pattern DotDeck-Setup.exe --dir "$env:WORK\legacy"
@@ -63,9 +70,13 @@ jobs:
           if (-not (Test-Path "$env:WORK\legacy\Setup.exe")) { throw 'Setup.exe not extracted' }
 
       - name: Install / update / uninstall
+        # Every wait inside has its own limit (60-300 s) and names the step on timeout; this is the backstop.
+        timeout-minutes: 45
         shell: pwsh
+        env:
+          SCENARIOS: ${{ inputs.scenarios || 'S0,S1,S2,S6,S7,S8' }}
         run: |
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File build/test-installer.ps1 -Work $env:WORK -VersionA $env:VERSION_A -VersionB $env:VERSION_B
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File build/test-installer.ps1 -Work $env:WORK -VersionA $env:VERSION_A -VersionB $env:VERSION_B -Scenarios $env:SCENARIOS
           if ($LASTEXITCODE -ne 0) { throw "installer checks failed ($LASTEXITCODE)" }
 
       - name: Summary
@@ -73,6 +84,7 @@ jobs:
         shell: pwsh
         run: |
           if (Test-Path "$env:WORK\e2e-results.md") { Get-Content -Raw "$env:WORK\e2e-results.md" >> $env:GITHUB_STEP_SUMMARY }
+          elseif (Test-Path "$env:WORK\e2e-progress.txt") { "Run stopped early; progress so far:`n``````" >> $env:GITHUB_STEP_SUMMARY; Get-Content -Raw "$env:WORK\e2e-progress.txt" >> $env:GITHUB_STEP_SUMMARY; '```' >> $env:GITHUB_STEP_SUMMARY }
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -84,4 +96,5 @@ jobs:
             C:\dotdeck-e2e\*.log
             C:\dotdeck-e2e\*.txt
             C:\dotdeck-e2e\jobs\*.log
+            C:\dotdeck-e2e\logs\*
           if-no-files-found: warn

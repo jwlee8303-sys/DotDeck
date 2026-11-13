@@ -34,7 +34,23 @@ internal static class Program
 
         var engine = new SetupEngine(Metadata("PackId") ?? "DotDeck", Metadata("AppVersion") ?? "0.0.0");
         if (options.Log is not null) engine.LogPath = Path.GetFullPath(options.Log);
-        return options.Silent ? RunSilent(engine, options) : RunWindow(engine);
+        if (options.Silent)
+        {
+            // No window to show an unexpected error: log it and end with a failure code instead of crashing.
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => engine.Log("예기치 않은 오류: " + e.ExceptionObject);
+            return RunSilent(engine, options);
+        }
+
+        // An unexpected error ends setup with a message instead of WinForms' "unhandled exception" dialog.
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, e) =>
+        {
+            engine.Log("예기치 않은 오류: " + e.Exception);
+            MessageBox.Show("설치 중 예기치 않은 오류가 발생했습니다.\n\n" + e.Exception.Message + "\n\n로그: " + engine.LogPath,
+                "DotDeck 설치", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Environment.Exit(ExitCodes.Failed);
+        };
+        return RunWindow(engine);
     }
 
     private static int RunWindow(SetupEngine engine)

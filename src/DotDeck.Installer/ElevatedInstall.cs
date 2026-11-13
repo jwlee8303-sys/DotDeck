@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 
 namespace DotDeck.Installer;
@@ -57,6 +59,7 @@ internal static class ElevatedInstall
             var code = process.ExitCode;
             if (code is ExitCodes.Success or ExitCodes.RebootRequired)
             {
+                ProtectFolder(dir);
                 if (backup is not null) TryDeleteDirectory(backup);
                 backup = null;
                 return code;
@@ -72,6 +75,41 @@ internal static class ElevatedInstall
         {
             if (backup is not null && legacyRoot is not null) RestoreLegacyProgram(backup, legacyRoot);
             if (tempDirectory is not null) TryDeleteDirectory(tempDirectory);
+        }
+    }
+
+    /// <summary>
+    /// A folder outside Program Files (e.g. C:\Apps\DotDeck) inherits "Authenticated Users: Modify" from the drive,
+    /// so any user could replace the program and updates would skip the UAC step. Give it Program Files' rights:
+    /// administrators and SYSTEM change it, users only read and run.
+    /// </summary>
+    private static void ProtectFolder(string dir)
+    {
+        var programFiles = new[] { Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86 }
+            .Select(f => Environment.GetFolderPath(f)).Where(p => p.Length > 0);
+        if (programFiles.Any(p => Paths.IsInside(dir, p)) || !Directory.Exists(dir)) return;
+
+        try
+        {
+            const InheritanceFlags inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+            var security = new DirectorySecurity();
+            security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            foreach (var (sid, rights) in new[]
+            {
+                (new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), FileSystemRights.FullControl),
+                (new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null), FileSystemRights.FullControl),
+                (new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null), FileSystemRights.ReadAndExecute),
+                (new SecurityIdentifier("S-1-15-2-1"), FileSystemRights.ReadAndExecute), // ALL APPLICATION PACKAGES
+            })
+            {
+                security.AddAccessRule(new FileSystemAccessRule(sid, rights, inherit, PropagationFlags.None, AccessControlType.Allow));
+            }
+
+            Directory.SetAccessControl(dir, security); // children inherit the new rules
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or PrivilegeNotHeldException)
+        {
+            Debug.WriteLine("권한 설정 실패: " + ex.Message); // installed and usable; only the stricter rights are missing
         }
     }
 

@@ -245,9 +245,11 @@ internal sealed class SetupEngine(string packId, string version)
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException
                                        or System.Runtime.InteropServices.COMException or System.Reflection.TargetInvocationException
-                                       or System.ComponentModel.Win32Exception)
+                                       or System.ComponentModel.Win32Exception or ArgumentException or NotSupportedException
+                                       or InvalidOperationException or InvalidCastException)
         {
-            Log(step + " 실패: " + ex.Message);
+            // The machine-wide install already succeeded: report the step instead of failing (or crashing) setup.
+            Log(step + " 실패: " + ex);
             warnings.Add(step + ": " + ex.Message);
         }
     }

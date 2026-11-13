@@ -18,19 +18,29 @@
 
 .PARAMETER Work
   Folder holding A\DotDeck-Setup.exe, B\DotDeck-Setup.exe, feedA\, feedB\ and legacy\Setup.exe (1.5.0).
+
+.PARAMETER Scenarios
+  Scenarios to run: S0 (cancel), S1 (1.5.0 in LocalAppData), S2 (default install, then S3 shortcuts, S4 update,
+  S5 uninstall), S6 (custom path), S7 (1.5.0 in Program Files), S8 (UAC refused). Default: all.
+
+  Every wait has a time limit. A timeout fails the scenario with the step it was in and the windows that were open
+  (e.g. a message box waiting for a click), stops leftover setup/app processes and goes on with the next scenario.
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string]$Work,
     [Parameter(Mandatory)] [string]$VersionA,
-    [Parameter(Mandatory)] [string]$VersionB
+    [Parameter(Mandatory)] [string]$VersionB,
+    [string[]]$Scenarios = @('S0', 'S1', 'S2', 'S6', 'S7', 'S8')
 )
+$Scenarios = @($Scenarios | ForEach-Object { $_ -split '[,\s]+' } | Where-Object { $_ } | ForEach-Object { $_.ToUpperInvariant() })
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 public static class E2ENative {
     [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
     [DllImport("advapi32.dll", SetLastError = true)] static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
@@ -54,6 +64,39 @@ public static class E2ENative {
         SetCursorPos(x, y);
         mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
         mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
+    }
+    // Window text and check state through window messages: the setup runs as another user, so its MSAA/UIA
+    // patterns (ValuePattern, TogglePattern) are not available to this process, but messages are.
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessageTimeout(IntPtr hwnd, uint msg, IntPtr w, StringBuilder l, uint flags, uint timeout, out IntPtr result);
+    [DllImport("user32.dll")] static extern IntPtr SendMessageTimeout(IntPtr hwnd, uint msg, IntPtr w, IntPtr l, uint flags, uint timeout, out IntPtr result);
+    public static string GetText(IntPtr hwnd) {
+        IntPtr length;
+        if (SendMessageTimeout(hwnd, 0x000E, IntPtr.Zero, IntPtr.Zero, 2, 3000, out length) == IntPtr.Zero) return null;
+        var buffer = new StringBuilder(length.ToInt32() + 1);
+        IntPtr copied;
+        if (SendMessageTimeout(hwnd, 0x000D, new IntPtr(buffer.Capacity), buffer, 2, 3000, out copied) == IntPtr.Zero) return null;
+        return buffer.ToString();
+    }
+    // BM_GETCHECK: 1 checked, 0 unchecked, -1 no answer.
+    public static int GetCheck(IntPtr hwnd) {
+        IntPtr result;
+        if (SendMessageTimeout(hwnd, 0x00F0, IntPtr.Zero, IntPtr.Zero, 2, 3000, out result) == IntPtr.Zero) return -1;
+        return result.ToInt32();
+    }
+    [ComImport, Guid("00021401-0000-0000-C000-000000000046")] class ShellLink { }
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("000214F9-0000-0000-C000-000000000046")]
+    interface IShellLinkW { void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder file, int max, IntPtr data, uint flags); }
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("0000010b-0000-0000-C000-000000000046")]
+    interface IPersistFile { void GetClassID(out Guid id); [PreserveSig] int IsDirty(); void Load([MarshalAs(UnmanagedType.LPWStr)] string file, uint mode); }
+    // Unicode target of a .lnk (WScript.Shell turns Korean characters into '?').
+    public static string LinkTarget(string link) {
+        object o = new ShellLink();
+        try {
+            ((IPersistFile)o).Load(link, 0);
+            var buffer = new StringBuilder(1024);
+            ((IShellLinkW)o).GetPath(buffer, buffer.Capacity, IntPtr.Zero, 4);
+            return buffer.ToString();
+        } finally { Marshal.FinalReleaseComObject(o); }
     }
 }
 '@
@@ -90,10 +133,28 @@ $Account = "$env:COMPUTERNAME\dotdeck"
 
 $results = [System.Collections.Generic.List[object]]::new()
 $failures = 0
+$Progress = Join-Path $Work 'e2e-progress.txt'
+Set-Content -Path $Progress -Value "start $(Get-Date -Format o) scenarios $($Scenarios -join ',')" -Encoding utf8
 function Check([string]$Scenario, [string]$Name, [bool]$Ok, [string]$Detail = '') {
-    $results.Add([pscustomobject]@{ Scenario = $Scenario; Check = $Name; Result = $(if ($Ok) { 'PASS' } else { 'FAIL' }); Detail = $Detail })
+    $result = $(if ($Ok) { 'PASS' } else { 'FAIL' })
+    $results.Add([pscustomobject]@{ Scenario = $Scenario; Check = $Name; Result = $result; Detail = $Detail })
     if (-not $Ok) { $script:failures++ }
-    Write-Host ("[{0}] {1} / {2} {3}" -f $(if ($Ok) { 'PASS' } else { 'FAIL' }), $Scenario, $Name, $Detail)
+    $line = "{0} [{1}] {2} / {3} {4}" -f (Get-Date -Format 'HH:mm:ss'), $result, $Scenario, $Name, $Detail
+    Write-Host $line
+    Add-Content -Path $Progress -Value $line -Encoding utf8 # survives a cancelled run
+}
+
+# The step being run: named in the failure when a wait times out.
+$script:Step = ''
+function Step([string]$Name) {
+    $script:Step = $Name
+    $line = "{0} -- {1}: {2}" -f (Get-Date -Format 'HH:mm:ss'), $s, $Name
+    Write-Host $line
+    Add-Content -Path $Progress -Value $line -Encoding utf8
+}
+
+function Stop-Step([int]$TimeoutSec, [string]$What) {
+    throw "TIMEOUT after ${TimeoutSec}s in step '$($script:Step)'$What. Open windows: $(Get-OpenWindows)"
 }
 
 # ---------- user jobs (Secondary Logon: the user's filtered token on the console desktop) ----------
@@ -119,15 +180,39 @@ Set-Content -Path '__EXIT__' -Value $code
     return $n
 }
 
-function Wait-UserJob([int]$n, [int]$TimeoutSec = 900) {
+function Wait-UserJob([int]$n, [int]$TimeoutSec) {
     $exit = Join-Path $Jobs "job$n.exit"
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
     while (-not (Test-Path $exit)) {
-        if ((Get-Date) -gt $deadline) { Write-Host "job $n timed out"; return -1 }
+        if ((Get-Date) -gt $deadline) { Stop-Step $TimeoutSec " (job $n)" }
         Start-Sleep -Milliseconds 500
     }
     Start-Sleep -Milliseconds 300
     return [int](Get-Content $exit | Select-Object -First 1)
+}
+
+# Top-level windows of setup/app/installer processes with their texts: shows a message box waiting for a click.
+function Get-OpenWindows {
+    $names = 'DotDeck-Setup', 'DotDeck', 'msiexec', 'Update', 'Setup', 'WerFault'
+    $ids = @{}
+    Get-Process -ErrorAction SilentlyContinue | Where-Object { $names -contains $_.ProcessName } | ForEach-Object { $ids[$_.Id] = $_.ProcessName }
+    $out = foreach ($top in $UIA::RootElement.FindAll([Windows.Automation.TreeScope]::Children, [Windows.Automation.Condition]::TrueCondition)) {
+        $owner = $top.Current.ProcessId
+        if (-not $ids.ContainsKey($owner)) { continue }
+        $texts = @($top.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) |
+            ForEach-Object { $_.Current.Name } | Where-Object { $_ } | Select-Object -First 12)
+        "[$($ids[$owner]) $owner '$($top.Current.Name)' ($($top.Current.ClassName)): $($texts -join ' | ')]"
+    }
+    $procs = ($ids.GetEnumerator() | ForEach-Object { "$($_.Value)#$($_.Key)" }) -join ', '
+    return "$($out -join ' ') processes: $procs"
+}
+
+function Stop-Leftovers {
+    foreach ($name in 'DotDeck-Setup', 'Setup', 'WerFault') { Get-Process -Name $name -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    Stop-DotDeck
+    # A running Windows Installer client would block the next scenario.
+    $deadline = (Get-Date).AddSeconds(60)
+    while ((Get-Process msiexec -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -ne 0 }) -and (Get-Date) -lt $deadline) { Start-Sleep 2 }
 }
 
 function Get-JobIntegrity([int]$n) {
@@ -135,7 +220,7 @@ function Get-JobIntegrity([int]$n) {
     if ($line -match 'Mandatory Label\\(\w+) Mandatory Level') { return $Matches[1] } else { return "?($line)" }
 }
 
-function Invoke-UserJob([string]$Body, [int]$TimeoutSec = 900) {
+function Invoke-UserJob([string]$Body, [int]$TimeoutSec) {
     $n = Start-UserJob $Body
     $code = Wait-UserJob $n $TimeoutSec
     return [pscustomobject]@{ Job = $n; ExitCode = $code; Integrity = (Get-JobIntegrity $n) }
@@ -148,13 +233,16 @@ function Get-UserState {
 $pref = (Get-ItemProperty 'HKCU:\Software\DotDeck\Setup' -ErrorAction SilentlyContinue).AutoStart
 [pscustomobject]@{
     Desktop = [Environment]::GetFolderPath('DesktopDirectory'); Programs = [Environment]::GetFolderPath('Programs')
-    Startup = [Environment]::GetFolderPath('Startup'); AppData = $env:APPDATA; LocalAppData = $env:LOCALAPPDATA
+    Startup = [Environment]::GetFolderPath('Startup', 'Create'); AppData = $env:APPDATA; LocalAppData = $env:LOCALAPPDATA
+    Temp = $env:TEMP
     LegacyEntry = (Test-Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\DotDeck')
     AutoStartPref = $pref
 } | ConvertTo-Json | Set-Content -Encoding utf8 '__OUT__'
 '@
     [void](Invoke-UserJob $body.Replace('__OUT__', $out) 120)
-    return Get-Content -Raw $out | ConvertFrom-Json
+    $state = Get-Content -Raw $out | ConvertFrom-Json
+    if (-not $state.Startup -or -not $state.Desktop) { throw "user folders not resolved: $($state | ConvertTo-Json -Compress)" }
+    return $state
 }
 
 # ---------- UI Automation ----------
@@ -206,15 +294,14 @@ function Invoke-Button($Window, [string]$Name) {
 }
 
 function Get-Toggle($Element) {
-    $pattern = $null
-    if ($Element -and $Element.TryGetCurrentPattern([Windows.Automation.TogglePattern]::Pattern, [ref]$pattern)) { return "$($pattern.Current.ToggleState)" }
-    return '?'
+    if (-not $Element) { return 'not found' }
+    switch ([E2ENative]::GetCheck([IntPtr]$Element.Current.NativeWindowHandle)) { 1 { 'On' } 0 { 'Off' } default { "?($_)" } }
 }
 
+# Text of a control's window (TextBox value, label text even when an accessible name replaces it).
 function Get-Value($Element) {
-    $pattern = $null
-    if ($Element -and $Element.TryGetCurrentPattern([Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) { return $pattern.Current.Value }
-    return $null
+    if (-not $Element) { return $null }
+    return [E2ENative]::GetText([IntPtr]$Element.Current.NativeWindowHandle)
 }
 
 # ---------- helpers ----------
@@ -239,9 +326,8 @@ function Stop-DotDeck {
 }
 
 function Get-LinkTarget([string]$Link) {
-    if (-not (Test-Path -LiteralPath $Link)) { return $null }
-    $shell = New-Object -ComObject WScript.Shell
-    try { return $shell.CreateShortcut($Link).TargetPath } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) }
+    if (-not $Link -or -not (Test-Path -LiteralPath $Link)) { return $null }
+    return [E2ENative]::LinkTarget($Link)
 }
 
 function Get-AppVersion([string]$Root) {
@@ -258,7 +344,9 @@ function Get-DataSnapshot {
         if (Test-Path $root) {
             Get-ChildItem $root -Recurse -File -Force | Where-Object {
                 $rel = $_.FullName.Substring($root.Length + 1)
-                -not ($rel -like 'packages\*' -or $rel -eq 'Update.exe' -or $rel -like 'WebView2\*' -or $rel -like 'logs\*' -or $rel -like 'current\*')
+                # Program files of a 1.5 per-user install and Velopack's cache/logs are not user data.
+                -not ($rel -like 'packages\*' -or $rel -like 'WebView2\*' -or $rel -like 'logs\*' -or $rel -like 'current\*' -or $rel -like '*.log' -or
+                      @('Update.exe', 'DotDeck.exe', 'sq.version', '.velopack_lock', '.betaId') -contains $rel)
             } | ForEach-Object { "{0}|{1}|{2}" -f $_.FullName, $_.Length, (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
         }
     }
@@ -300,6 +388,7 @@ function Test-Installed([string]$Scenario, [string]$Root, [string]$Version, [boo
 }
 
 function Test-AppRunsAsUser([string]$Scenario, [string]$Root, [string]$What) {
+    Step "wait for DotDeck ($What)"
     $p = Wait-DotDeck $Root 120
     Check $Scenario "$What starts DotDeck" ($null -ne $p) "$($p.ExecutablePath)"
     if ($p) {
@@ -316,7 +405,8 @@ function Invoke-Uninstall([string]$Scenario) {
     if (-not $arp) { Check $Scenario 'uninstall entry present' $false; return }
     $log = Join-Path $Work ("uninstall-" + ($Scenario -replace '\W', '') + ".log")
     $arguments = ($arp.UninstallString -replace '^(?i)"?msiexec(\.exe)?"?\s*', '') + " /passive /norestart /l*v `"$log`""
-    $r = Invoke-UserJob "`$p = Start-Process -FilePath msiexec.exe -ArgumentList '$arguments' -PassThru -Wait; `$code = `$p.ExitCode"
+    Step 'uninstall (msiexec /x as the user)'
+    $r = Invoke-UserJob "`$p = Start-Process -FilePath msiexec.exe -ArgumentList '$arguments' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode" 300
     Check $Scenario 'uninstall started with normal rights' ($r.Integrity -eq 'Medium') $r.Integrity
     Check $Scenario 'uninstall exit code 0' ($r.ExitCode -eq 0) "$($r.ExitCode)"
 }
@@ -335,15 +425,18 @@ function Test-Removed([string]$Scenario, [string]$Root, $Before) {
 
 function Invoke-AppUpdate([string]$Scenario, [string]$Root, [string]$Feed, [string]$Expected, [string]$Launch) {
     # The app reads DOTDECK_UPDATE_FEED (a local test feed); Update.exe and the restarted app inherit it.
+    Step "start the app ($Launch)"
     $n = Start-UserJob "`$env:DOTDECK_UPDATE_FEED = '$Feed'; Start-Process -FilePath '$Launch'"
     [void](Wait-UserJob $n 120)
     Check $Scenario 'app started by the user (normal rights)' ((Get-JobIntegrity $n) -eq 'Medium') (Get-JobIntegrity $n)
     $before = Wait-DotDeck $Root 120
     if ($before) { Check $Scenario 'app before update runs with normal rights' ([E2ENative]::Elevation([int]$before.ProcessId) -eq 0) }
+    Step 'wait for the update offer'
     $dialog = Find-Window 'DotDeck 업데이트' 180
     Check $Scenario 'update offer shown' ($null -ne $dialog)
     if (-not $dialog) { Stop-DotDeck; return }
     Check $Scenario '[지금 업데이트] clicked' (Invoke-Button $dialog '지금 업데이트')
+    Step 'wait for the update to apply and the app to restart'
     $deadline = (Get-Date).AddSeconds(300)
     $after = $null
     while ((Get-Date) -lt $deadline) {
@@ -352,18 +445,21 @@ function Invoke-AppUpdate([string]$Scenario, [string]$Root, [string]$Feed, [stri
         Start-Sleep 2
     }
     Check $Scenario "update applied in place ($Expected)" ((Get-AppVersion $Root) -eq $Expected) "$(Get-AppVersion $Root) in $Root"
-    Check $Scenario 'app restarted after update' ($null -ne $after) "$($after.ExecutablePath)"
-    if ($after) {
-        $elevation = [E2ENative]::Elevation([int]$after.ProcessId)
-        Check $Scenario 'restarted app runs with normal rights' ($elevation -eq 0) "TokenElevation=$elevation"
-    }
+    if (-not $after) { Stop-Step 300 ": version $(Get-AppVersion $Root), app not restarted" }
+    Check $Scenario 'app restarted after update' $true "$($after.ExecutablePath)"
+    # Velopack's elevated helper also runs the new DotDeck.exe briefly for its update hook: judge the app that stays.
+    Start-Sleep 8
+    $running = @(Get-DotDeckProcesses | Where-Object { $_.ExecutablePath -like "$Root\current\DotDeck.exe" })
+    $levels = @($running | ForEach-Object { "$($_.ProcessId):$([E2ENative]::Elevation([int]$_.ProcessId))" })
+    Check $Scenario 'restarted app runs with normal rights' ($running.Count -ge 1 -and @($levels | Where-Object { $_ -notlike '*:0' }).Count -eq 0) "pid:TokenElevation $($levels -join ', ')"
     Stop-DotDeck
 }
 
 function Install-Legacy([string]$Scenario, [string]$Root, [bool]$Elevated) {
     # DotDeck 1.5.0's per-user Velopack setup (extracted from its DotDeck-Setup.exe), as the user ran it.
     $verb = if ($Elevated) { '-Verb RunAs' } else { '' }
-    $r = Invoke-UserJob "`$p = Start-Process -FilePath '$LegacySetup' -ArgumentList '--silent --installto `"$Root`"' $verb -PassThru -Wait; `$code = `$p.ExitCode"
+    Step "1.5.0 per-user setup into $Root"
+    $r = Invoke-UserJob "`$p = Start-Process -FilePath '$LegacySetup' -ArgumentList '--silent --installto `"$Root`"' $verb -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode" 300
     Start-Sleep 5
     Stop-DotDeck
     $state = Get-UserState
@@ -371,141 +467,198 @@ function Install-Legacy([string]$Scenario, [string]$Root, [bool]$Elevated) {
 }
 
 # =====================================================================================================
+# A scenario runs as one block: a failed wait or unexpected error ends that scenario (with the step it was in),
+# leftovers are stopped and removed, and the next scenario starts from a clean machine.
+function Invoke-Scenario([string]$Id, [string]$Name, [scriptblock]$Body) {
+    if ($Scenarios -notcontains $Id) { return }
+    $script:s = "$Id $Name"
+    $started = Get-Date
+    Step 'start'
+    try {
+        & $Body
+    } catch {
+        Check $script:s "stopped in step '$($script:Step)'" $false ("$_ @ " + $_.InvocationInfo.PositionMessage -replace '\r?\n', ' ')
+        Stop-Leftovers
+        Reset-Machine
+    }
+    Write-Host ("== {0}: {1:n0}s" -f $script:s, ((Get-Date) - $started).TotalSeconds)
+}
+
+# Removes what a failed scenario left behind (as the runner admin, quietly), so the next one starts clean.
+function Reset-Machine {
+    $arp = Get-ItemProperty $ArpKey -ErrorAction SilentlyContinue
+    if ($arp -and $arp.UninstallString -match '\{[0-9A-Fa-f-]+\}') {
+        $p = Start-Process msiexec.exe -ArgumentList "/x $($Matches[0]) /qn /norestart" -PassThru
+        if (-not $p.WaitForExit(180000)) { Write-Host 'reset: msiexec /x did not finish in 180s' }
+    }
+    foreach ($dir in $DefaultDir, $CustomDir) { if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue } }
+}
+
+function Save-Logs {
+    $logs = New-Item -ItemType Directory -Force (Join-Path $Work 'logs')
+    $sources = @("$($U.Temp)\DotDeck-Setup-*", "$Local\*.log", "$DefaultDir\*.log", "$CustomDir\*.log")
+    foreach ($pattern in $sources) {
+        Get-ChildItem -Path $pattern -File -ErrorAction SilentlyContinue | Copy-Item -Destination $logs -Force -ErrorAction SilentlyContinue
+    }
+}
+
 try {
 Get-ItemProperty $Policy | Select-Object EnableLUA, ConsentPromptBehaviorAdmin, ConsentPromptBehaviorUser | Format-List | Out-String | Write-Host
+$s = 'setup'
+Step 'read the test user folders'
 $U = Get-UserState
 $Roaming = Join-Path $U.AppData 'DotDeck'
 $Local = Join-Path $U.LocalAppData 'DotDeck'
-Write-Host "== user $Account, profile $($U.LocalAppData); A=$VersionA B=$VersionB"
-Check 'S0 setup cancel' 'test user runs with normal rights (Medium)' ((Get-JobIntegrity 1) -eq 'Medium') (Get-JobIntegrity 1)
+Write-Host "== user $Account, profile $($U.LocalAppData), startup $($U.Startup); A=$VersionA B=$VersionB; scenarios $($Scenarios -join ',')"
+Check 'setup' 'test user runs with normal rights (Medium)' ((Get-JobIntegrity 1) -eq 'Medium') (Get-JobIntegrity 1)
 
-# --- S0: the setup window, [취소] ---
-$s = 'S0 setup cancel'
-$n = Start-UserJob "`$p = Start-Process -FilePath '$SetupA' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode"
-$window = Find-Window "DotDeck $VersionA 설치" 60
-Check $s 'setup window opens' ($null -ne $window)
-if ($window) { Check $s '[취소] clicked' (Invoke-Button $window '취소') }
-$code = Wait-UserJob $n 120
-Check $s 'double-click runs with normal rights' ((Get-JobIntegrity $n) -eq 'Medium') (Get-JobIntegrity $n)
-Check $s 'cancel exits 1602' ($code -eq 1602) "$code"
-Check $s 'nothing installed' (-not (Test-Path $DefaultDir) -and -not (Test-Path $ArpKey))
+Invoke-Scenario 'S0' 'setup cancel' {
+    Step 'double-click the setup'
+    $n = Start-UserJob "`$p = Start-Process -FilePath '$SetupA' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode"
+    $window = Find-Window "DotDeck $VersionA 설치" 60
+    Check $s 'setup window opens' ($null -ne $window)
+    if ($window) { Check $s '[취소] clicked' (Invoke-Button $window '취소') }
+    Step 'wait for the setup to exit after [취소]'
+    $code = Wait-UserJob $n 60
+    Check $s 'double-click runs with normal rights' ((Get-JobIntegrity $n) -eq 'Medium') (Get-JobIntegrity $n)
+    Check $s 'cancel exits 1602' ($code -eq 1602) "$code"
+    Check $s 'nothing installed' (-not (Test-Path $DefaultDir) -and -not (Test-Path $ArpKey))
+}
 
-# --- S1: 1.5.0 per-user in %LOCALAPPDATA%\DotDeck → in-app update → migration ---
-$s = 'S1 legacy LocalAppData'
-Install-Legacy $s $Local $false
-Add-Sentinels 's1'
-Invoke-AppUpdate $s $Local $FeedA $VersionA "$Local\current\DotDeck.exe"
-Check $s 'per-user install updated: DotDeck.Core.dll is a separate file' (Test-Path "$Local\current\DotDeck.Core.dll")
-Check $s 'legacy user shortcut exists before migration' (Test-Path "$($U.Desktop)\DotDeck.lnk")
-$before = Get-DataSnapshot
-$r = Invoke-UserJob "`$p = Start-Process -FilePath '$SetupA' -ArgumentList '--silent --no-launch --log `"$Work\s1-setup.log`"' -PassThru -Wait; `$code = `$p.ExitCode"
-Check $s 'setup (normal rights) exit 0' ($r.ExitCode -eq 0 -and $r.Integrity -eq 'Medium') "$($r.ExitCode) $($r.Integrity)"
-Test-Installed $s $DefaultDir $VersionA $true
-Check $s 'old per-user program removed' (-not (Test-Path "$Local\current") -and -not (Test-Path "$Local\Update.exe"))
-Check $s 'old per-user uninstall entry removed' (-not (Get-UserState).LegacyEntry)
-$after = Get-DataSnapshot
-Check $s 'settings and user data kept by migration' (@($before | Where-Object { $after -notcontains $_ }).Count -eq 0 -and $before.Count -gt 0) "$($before.Count) files"
-Invoke-Uninstall $s
-Test-Removed $s $DefaultDir $before
+Invoke-Scenario 'S1' 'legacy LocalAppData' {
+    Install-Legacy $s $Local $false
+    Add-Sentinels 's1'
+    Invoke-AppUpdate $s $Local $FeedA $VersionA "$Local\current\DotDeck.exe"
+    Check $s 'per-user install updated: DotDeck.Core.dll is a separate file' (Test-Path "$Local\current\DotDeck.Core.dll")
+    Check $s 'legacy user shortcut exists before migration' (Test-Path "$($U.Desktop)\DotDeck.lnk")
+    $before = Get-DataSnapshot
+    Step 'new setup --silent (migration)'
+    $r = Invoke-UserJob "`$p = Start-Process -FilePath '$SetupA' -ArgumentList '--silent --no-launch --log `"$Work\s1-setup.log`"' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode" 300
+    Check $s 'setup (normal rights) exit 0' ($r.ExitCode -eq 0 -and $r.Integrity -eq 'Medium') "$($r.ExitCode) $($r.Integrity); $(Get-Content "$Work\s1-setup.log" -ErrorAction SilentlyContinue)"
+    Test-Installed $s $DefaultDir $VersionA $true
+    Check $s 'old per-user program removed' (-not (Test-Path "$Local\current") -and -not (Test-Path "$Local\Update.exe"))
+    Check $s 'old per-user uninstall entry removed' (-not (Get-UserState).LegacyEntry)
+    $after = Get-DataSnapshot
+    $lost = @($before | Where-Object { $after -notcontains $_ })
+    Check $s "settings and user data kept by migration ($($before.Count) files)" ($lost.Count -eq 0 -and $before.Count -gt 0) ($lost -join '; ')
+    Invoke-Uninstall $s
+    Test-Removed $s $DefaultDir $before
+}
 
-# --- S2: default install through the window (double-click as the user) ---
-$s = 'S2 default install'
-Add-Sentinels 's2'
-$n = Start-UserJob "`$p = Start-Process -FilePath '$SetupA' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode"
-$window = Find-Window "DotDeck $VersionA 설치" 60
-Check $s 'setup window opens' ($null -ne $window)
-if ($window) {
-    $value = Get-Value (Find-Control $window '설치 폴더')
+Invoke-Scenario 'S2' 'default install' {
+    Add-Sentinels 's2'
+    Step 'double-click the setup'
+    $n = Start-UserJob "`$p = Start-Process -FilePath '$SetupA' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode"
+    $window = Find-Window "DotDeck $VersionA 설치" 60
+    Check $s 'setup window opens' ($null -ne $window)
+    if (-not $window) { Stop-Step 60 ': no setup window' }
+    $value = Get-Value (Find-Control $window '설치 폴더' ([Windows.Automation.ControlType]::Edit))
     Check $s 'default folder is C:\Program Files\DotDeck' ($value -eq 'C:\Program Files\DotDeck' -and $value -eq $DefaultDir) "$value"
-    $state = Get-Toggle (Find-Control $window 'Windows 로그인 시 자동 실행')
+    $state = Get-Toggle (Find-Control $window 'Windows 로그인 시 자동 실행' ([Windows.Automation.ControlType]::CheckBox))
     Check $s 'autostart checked by default' ($state -eq 'On') "$state"
-    $scope = Find-Control $window '자동 실행 적용 범위'
-    Check $s 'autostart scope shows the account' ($null -ne $scope -and $scope.Current.Name -like '*dotdeck*') "$($scope.Current.Name)"
-    $scopeText = $window.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) |
-        ForEach-Object { $_.Current.Name } | Where-Object { $_ -like '적용 범위*' } | Select-Object -First 1
-    if ($scopeText) { Check $s 'autostart scope text' ($scopeText -like "*$Account*") $scopeText }
+    $scope = Get-Value (Find-Control $window '자동 실행 적용 범위')
+    Check $s 'autostart scope names the current account' ($scope -like "*$Account*") "$scope"
     Check $s '[설치] clicked' (Invoke-Button $window '설치')
+    Step 'wait for the setup to finish after [설치] (UAC auto-approved, MSI, start DotDeck)'
+    $code = Wait-UserJob $n 300
+    Check $s 'double-click runs with normal rights' ((Get-JobIntegrity $n) -eq 'Medium') (Get-JobIntegrity $n)
+    Check $s 'setup exit 0' ($code -eq 0) "$code"
+    Test-Installed $s $DefaultDir $VersionA $true
+    Test-AppRunsAsUser $s $DefaultDir 'setup'
+    Get-ChildItem $DefaultDir -Recurse -File | Select-Object -ExpandProperty FullName | Set-Content (Join-Path $Work 'installed-files.txt')
+
+    $script:s = 'S3 shortcuts'
+    foreach ($link in "$PublicDesktop\DotDeck.lnk", "$CommonPrograms\DotDeck.lnk", "$($U.Startup)\DotDeck.lnk") {
+        Step "open $link"
+        [void](Invoke-UserJob "Start-Process -FilePath '$link'" 60)
+        Test-AppRunsAsUser $s $DefaultDir (Split-Path -Leaf (Split-Path -Parent $link))
+    }
+
+    $script:s = 'S4 update A->B'
+    Invoke-AppUpdate $s $DefaultDir $FeedB $VersionB "$PublicDesktop\DotDeck.lnk"
+    Test-Installed $s $DefaultDir $VersionB $true
+    Check $s 'autostart choice kept after update' ((Get-UserState).AutoStartPref -eq 1 -and (Test-Path "$($U.Startup)\DotDeck.lnk"))
+
+    $script:s = 'S5 uninstall'
+    Stop-DotDeck
+    $before = Get-DataSnapshot
+    Invoke-Uninstall $s
+    Test-Removed $s $DefaultDir $before
 }
-$code = Wait-UserJob $n 900
-Check $s 'double-click runs with normal rights' ((Get-JobIntegrity $n) -eq 'Medium') (Get-JobIntegrity $n)
-Check $s 'setup exit 0' ($code -eq 0) "$code"
-Test-Installed $s $DefaultDir $VersionA $true
-Test-AppRunsAsUser $s $DefaultDir 'setup'
-Get-ChildItem $DefaultDir -Recurse -File | Select-Object -ExpandProperty FullName | Set-Content (Join-Path $Work 'installed-files.txt')
 
-$s = 'S3 shortcuts'
-foreach ($link in "$PublicDesktop\DotDeck.lnk", "$CommonPrograms\DotDeck.lnk", "$($U.Startup)\DotDeck.lnk") {
-    $r = Invoke-UserJob "Start-Process -FilePath '$link'"
-    Test-AppRunsAsUser $s $DefaultDir (Split-Path -Leaf (Split-Path -Parent $link))
-}
-
-$s = 'S4 update A->B'
-Invoke-AppUpdate $s $DefaultDir $FeedB $VersionB "$PublicDesktop\DotDeck.lnk"
-Test-Installed $s $DefaultDir $VersionB $true
-
-$s = 'S5 uninstall'
-Stop-DotDeck
-$before = Get-DataSnapshot
-Invoke-Uninstall $s
-Test-Removed $s $DefaultDir $before
-
-# --- S6: custom Korean/space folder, autostart off, update, reinstall ---
-$s = 'S6 custom path'
-$r = Invoke-UserJob "`$p = Start-Process -FilePath '$SetupA' -ArgumentList '--silent --installto `"$CustomDir`" --no-autostart --no-launch --log `"$Work\s6-setup.log`"' -PassThru -Wait; `$code = `$p.ExitCode"
-Check $s 'setup (normal rights) exit 0' ($r.ExitCode -eq 0 -and $r.Integrity -eq 'Medium') "$($r.ExitCode) $($r.Integrity)"
-Test-Installed $s $CustomDir $VersionA $false
-Check $s 'nothing in Program Files\DotDeck' (-not (Test-Path $DefaultDir))
-Check $s 'autostart choice remembered (off)' ((Get-UserState).AutoStartPref -eq 0)
-Invoke-AppUpdate $s $CustomDir $FeedB $VersionB "$CommonPrograms\DotDeck.lnk"
-Test-Installed $s $CustomDir $VersionB $false
-$n = Start-UserJob "`$p = Start-Process -FilePath '$SetupB' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode"
-$window = Find-Window "DotDeck $VersionB 설치" 60
-Check $s 'reinstall window opens' ($null -ne $window)
-if ($window) {
-    $value = Get-Value (Find-Control $window '설치 폴더')
+Invoke-Scenario 'S6' 'custom path' {
+    Step 'setup --silent --installto (Korean/space path, autostart off)'
+    $r = Invoke-UserJob "`$p = Start-Process -FilePath '$SetupA' -ArgumentList '--silent --installto `"$CustomDir`" --no-autostart --no-launch --log `"$Work\s6-setup.log`"' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode" 300
+    Check $s 'setup (normal rights) exit 0' ($r.ExitCode -eq 0 -and $r.Integrity -eq 'Medium') "$($r.ExitCode) $($r.Integrity)"
+    Test-Installed $s $CustomDir $VersionA $false
+    Check $s 'nothing in Program Files\DotDeck' (-not (Test-Path $DefaultDir))
+    Check $s 'autostart choice remembered (off)' ((Get-UserState).AutoStartPref -eq 0)
+    Step 'normal user tries to write into the install folder'
+    $probe = Join-Path $CustomDir 'e2e-user-write.txt'
+    [void](Invoke-UserJob "Set-Content -LiteralPath '$probe' -Value x -ErrorAction Stop" 60)
+    Check $s 'install folder is read-only for normal users' (-not (Test-Path -LiteralPath $probe))
+    Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
+    Invoke-AppUpdate $s $CustomDir $FeedB $VersionB "$CommonPrograms\DotDeck.lnk"
+    Test-Installed $s $CustomDir $VersionB $false
+    Step 'double-click setup B (reinstall)'
+    $n = Start-UserJob "`$p = Start-Process -FilePath '$SetupB' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode"
+    $window = Find-Window "DotDeck $VersionB 설치" 60
+    Check $s 'reinstall window opens' ($null -ne $window)
+    if (-not $window) { Stop-Step 60 ': no setup window' }
+    $value = Get-Value (Find-Control $window '설치 폴더' ([Windows.Automation.ControlType]::Edit))
     Check $s 'reinstall offers the existing folder' ($value -eq $CustomDir) "$value"
-    $state = Get-Toggle (Find-Control $window 'Windows 로그인 시 자동 실행')
+    $state = Get-Toggle (Find-Control $window 'Windows 로그인 시 자동 실행' ([Windows.Automation.ControlType]::CheckBox))
     Check $s 'reinstall keeps autostart off' ($state -eq 'Off') "$state"
     Check $s '[설치] clicked' (Invoke-Button $window '설치')
+    Step 'wait for the reinstall to finish after [설치]'
+    $code = Wait-UserJob $n 300
+    Check $s 'reinstall exit 0' ($code -eq 0) "$code"
+    Test-Installed $s $CustomDir $VersionB $false
+    Test-AppRunsAsUser $s $CustomDir 'reinstall'
+    $before = Get-DataSnapshot
+    Invoke-Uninstall $s
+    Test-Removed $s $CustomDir $before
 }
-$code = Wait-UserJob $n 900
-Check $s 'reinstall exit 0' ($code -eq 0) "$code"
-Test-Installed $s $CustomDir $VersionB $false
-Test-AppRunsAsUser $s $CustomDir 'reinstall'
-$before = Get-DataSnapshot
-Invoke-Uninstall $s
-Test-Removed $s $CustomDir $before
 
-# --- S7: 1.5.0 per-user install inside Program Files → migration ---
-$s = 'S7 legacy Program Files'
-Install-Legacy $s $DefaultDir $true
-$before = Get-DataSnapshot
-$r = Invoke-UserJob "`$p = Start-Process -FilePath '$SetupB' -ArgumentList '--silent --no-launch --log `"$Work\s7-setup.log`"' -PassThru -Wait; `$code = `$p.ExitCode"
-Check $s 'setup (normal rights) exit 0' ($r.ExitCode -eq 0 -and $r.Integrity -eq 'Medium') "$($r.ExitCode) $($r.Integrity)"
-Test-Installed $s $DefaultDir $VersionB $false
-Check $s 'old per-user uninstall entry removed' (-not (Get-UserState).LegacyEntry)
-Check $s 'no leftover migration backup' (@(Get-ChildItem $ProgramFiles -Directory -Force -Filter '.DotDeck-setup-*').Count -eq 0)
-Invoke-Uninstall $s
-Test-Removed $s $DefaultDir $before
+Invoke-Scenario 'S7' 'legacy Program Files' {
+    Install-Legacy $s $DefaultDir $true
+    Add-Sentinels 's7'
+    $before = Get-DataSnapshot
+    $pref = (Get-UserState).AutoStartPref
+    $expectAutoStart = ($null -eq $pref -or $pref -ne 0) # silent setup: the remembered choice, else on
+    Step 'new setup --silent (migration)'
+    $r = Invoke-UserJob "`$p = Start-Process -FilePath '$SetupB' -ArgumentList '--silent --no-launch --log `"$Work\s7-setup.log`"' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode" 300
+    Check $s 'setup (normal rights) exit 0' ($r.ExitCode -eq 0 -and $r.Integrity -eq 'Medium') "$($r.ExitCode) $($r.Integrity); $(Get-Content "$Work\s7-setup.log" -ErrorAction SilentlyContinue)"
+    Test-Installed $s $DefaultDir $VersionB $expectAutoStart
+    Check $s 'old per-user uninstall entry removed' (-not (Get-UserState).LegacyEntry)
+    Check $s 'no leftover migration backup' (@(Get-ChildItem $ProgramFiles -Directory -Force -Filter '.DotDeck-setup-*').Count -eq 0)
+    $after = Get-DataSnapshot
+    $lost = @($before | Where-Object { $after -notcontains $_ })
+    Check $s "settings and user data kept by migration ($($before.Count) files)" ($lost.Count -eq 0 -and $before.Count -gt 0) ($lost -join '; ')
+    Invoke-Uninstall $s
+    Test-Removed $s $DefaultDir $before
+}
 
-# --- S8: a standard user refuses UAC (auto-deny policy) ---
-$s = 'S8 UAC refused'
-$std = New-TestUser 'dotdeckstd' $false
-Set-ItemProperty $Policy ConsentPromptBehaviorUser 0
-$n = Start-UserJob "`$p = Start-Process -FilePath '$SetupA' -ArgumentList '--silent --no-launch --log `"$Jobs\s8-setup.log`"' -PassThru -Wait; `$code = `$p.ExitCode" $std
-$code = Wait-UserJob $n 300
-Check $s 'standard user: setup exits 1602 (cancelled)' ($code -eq 1602) "$code; $(Get-Content "$Jobs\s8-setup.log" -ErrorAction SilentlyContinue)"
-Check $s 'nothing installed' (-not (Test-Path $DefaultDir) -and -not (Test-Path $ArpKey))
+Invoke-Scenario 'S8' 'UAC refused' {
+    $std = New-TestUser 'dotdeckstd' $false
+    Set-ItemProperty $Policy ConsentPromptBehaviorUser 0
+    Step 'standard user runs the setup (UAC auto-deny)'
+    $n = Start-UserJob "`$p = Start-Process -FilePath '$SetupA' -ArgumentList '--silent --no-launch --log `"$Jobs\s8-setup.log`"' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode" $std
+    $code = Wait-UserJob $n 120
+    Check $s 'standard user: setup exits 1602 (cancelled)' ($code -eq 1602) "$code; $(Get-Content "$Jobs\s8-setup.log" -ErrorAction SilentlyContinue)"
+    Check $s 'nothing installed' (-not (Test-Path $DefaultDir) -and -not (Test-Path $ArpKey))
+}
 
 } catch {
-    Check 'script' 'unexpected error' $false ("$_ @ " + $_.InvocationInfo.PositionMessage)
+    Check $s "stopped in step '$($script:Step)'" $false ("$_ @ " + $_.InvocationInfo.PositionMessage -replace '\r?\n', ' ')
 } finally {
-    Stop-DotDeck
+    Stop-Leftovers
+    if ($U) { Save-Logs }
 }
 
 # =====================================================================================================
 $summary = Join-Path $Work 'e2e-results.md'
-$lines = @("| Scenario | Check | Result | Detail |", "|---|---|---|---|")
+$lines = @("Scenarios: $($Scenarios -join ', ')", '', "| Scenario | Check | Result | Detail |", "|---|---|---|---|")
 $lines += $results | ForEach-Object { "| $($_.Scenario) | $($_.Check) | $($_.Result) | $(($_.Detail -replace '\|', '/') -replace '\r?\n', ' ') |" }
 [IO.File]::WriteAllLines($summary, $lines, [Text.UTF8Encoding]::new($false))
 $results | ConvertTo-Json -Depth 3 | Set-Content -Encoding utf8 (Join-Path $Work 'e2e-results.json')

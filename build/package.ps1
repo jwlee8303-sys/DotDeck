@@ -104,8 +104,55 @@ Invoke-Checked dotnet @('vpk', 'pack', '--packId', $PackId, '--packVersion', $Ve
     '--channel', 'win', '--shortcuts', 'Desktop,StartMenuRoot', '--msi', '--instLocation', 'PerMachine',
     '--releaseNotes', $notes, '--outputDir', $releases)
 
-# 5. DotDeck-Setup.exe: folder/autostart choice that embeds the MSI.
+# 4b. Keep user data on uninstall. Velopack's MSI cleanup action (RustCleanup) deletes %LOCALAPPDATA%\<RustAppId>
+#     on uninstall and on every MSI upgrade; RustAppId is the pack title "DotDeck", i.e. DotDeck's own settings,
+#     backups and sessions. Point it at a folder nothing uses (it is read only by that action). The app's uninstall
+#     hook (UninstallCleanup) removes the update cache that Velopack keeps there instead.
 $msi = Join-Path $releases "$PackId-win.msi"
+$cleanupId = "$PackId.msi-cleanup-unused"
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class MsiSql {
+    [DllImport("msi.dll", CharSet = CharSet.Unicode)] static extern uint MsiOpenDatabaseW(string path, IntPtr persist, out IntPtr db);
+    [DllImport("msi.dll", CharSet = CharSet.Unicode)] static extern uint MsiDatabaseOpenViewW(IntPtr db, string query, out IntPtr view);
+    [DllImport("msi.dll")] static extern uint MsiViewExecute(IntPtr view, IntPtr record);
+    [DllImport("msi.dll")] static extern uint MsiViewFetch(IntPtr view, out IntPtr record);
+    [DllImport("msi.dll", CharSet = CharSet.Unicode)] static extern uint MsiRecordGetStringW(IntPtr record, uint field, StringBuilder value, ref uint length);
+    [DllImport("msi.dll")] static extern uint MsiDatabaseCommit(IntPtr db);
+    [DllImport("msi.dll")] static extern uint MsiCloseHandle(IntPtr handle);
+    static void Check(uint code, string what) { if (code != 0) throw new InvalidOperationException(what + " failed: " + code); }
+    // Runs one query; returns the first column of the first row (null for none), committing when writable.
+    public static string Run(string path, string query, bool write) {
+        IntPtr db, view, record;
+        Check(MsiOpenDatabaseW(path, new IntPtr(write ? 1 : 0), out db), "MsiOpenDatabase");
+        try {
+            Check(MsiDatabaseOpenViewW(db, query, out view), "MsiDatabaseOpenView");
+            try {
+                Check(MsiViewExecute(view, IntPtr.Zero), "MsiViewExecute");
+                string value = null;
+                if (!write && MsiViewFetch(view, out record) == 0) {
+                    var buffer = new StringBuilder(4096); uint length = 4096;
+                    Check(MsiRecordGetStringW(record, 1, buffer, ref length), "MsiRecordGetString");
+                    value = buffer.ToString();
+                    MsiCloseHandle(record);
+                }
+                if (write) Check(MsiDatabaseCommit(db), "MsiDatabaseCommit");
+                return value;
+            } finally { MsiCloseHandle(view); }
+        } finally { MsiCloseHandle(db); }
+    }
+}
+'@
+$cleanupData = [MsiSql]::Run($msi, "SELECT ``Target`` FROM ``CustomAction`` WHERE ``Action``='SetRustCleanupData'", $false)
+if ($cleanupData -ne '[INSTALLFOLDER]"[RustAppId]"[TempFolder]') { throw "Unexpected Velopack MSI cleanup data '$cleanupData': check RustAppId handling before releasing." }
+[void][MsiSql]::Run($msi, "UPDATE ``Property`` SET ``Value``='$cleanupId' WHERE ``Property``='RustAppId'", $true)
+$appId = [MsiSql]::Run($msi, "SELECT ``Value`` FROM ``Property`` WHERE ``Property``='RustAppId'", $false)
+if ($appId -ne $cleanupId) { throw "MSI RustAppId is '$appId', expected '$cleanupId'" }
+Write-Host "MSI cleanup no longer targets %LOCALAPPDATA%\$PackId (RustAppId=$appId)"
+
+# 5. DotDeck-Setup.exe: folder/autostart choice that embeds the MSI.
 $installerOut = Join-Path $out 'installer'
 Invoke-Checked dotnet @('build', 'src/DotDeck.Installer', '-c', 'Release', '--no-incremental', "-p:SetupMsi=$msi", "-p:PackId=$PackId",
     "-p:Version=$Version", '-o', $installerOut)

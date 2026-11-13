@@ -21,7 +21,7 @@
 
 .PARAMETER Scenarios
   Scenarios to run: S0 (cancel), S1 (1.5.0 in LocalAppData), S2 (default install, then S3 shortcuts, S4 update,
-  S5 uninstall), S6 (custom path), S7 (1.5.0 in Program Files), S8 (UAC refused). Default: all.
+  S5 uninstall), S6 (custom path), S7 (1.5.0 in Program Files), S8 (standard user, elevation denied by policy). Default: all.
 
   Every wait has a time limit. A timeout fails the scenario with the step it was in and the windows that were open
   (e.g. a message box waiting for a click), stops leftover setup/app processes and goes on with the next scenario.
@@ -76,6 +76,20 @@ public static class E2ENative {
         IntPtr copied;
         if (SendMessageTimeout(hwnd, 0x000D, new IntPtr(buffer.Capacity), buffer, 2, 3000, out copied) == IntPtr.Zero) return null;
         return buffer.ToString();
+    }
+    delegate bool EnumProc(IntPtr hwnd, IntPtr data);
+    [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent, EnumProc proc, IntPtr data);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd, StringBuilder name, int max);
+    // Text of the first child window whose class contains the given name (WinForms: "WindowsForms10.EDIT...").
+    public static string ChildText(IntPtr parent, string classPart) {
+        string found = null;
+        EnumChildWindows(parent, (h, d) => {
+            var name = new StringBuilder(256);
+            GetClassName(h, name, name.Capacity);
+            if (name.ToString().IndexOf(classPart, StringComparison.OrdinalIgnoreCase) >= 0) { found = GetText(h); return false; }
+            return true;
+        }, IntPtr.Zero);
+        return found;
     }
     // BM_GETCHECK: 1 checked, 0 unchecked, -1 no answer.
     public static int GetCheck(IntPtr hwnd) {
@@ -552,7 +566,7 @@ Invoke-Scenario 'S2' 'default install' {
     $window = Find-Window "DotDeck $VersionA 설치" 60
     Check $s 'setup window opens' ($null -ne $window)
     if (-not $window) { Stop-Step 60 ': no setup window' }
-    $value = Get-Value (Find-Control $window '설치 폴더' ([Windows.Automation.ControlType]::Edit))
+    $value = [E2ENative]::ChildText([IntPtr]$window.Current.NativeWindowHandle, 'EDIT') # the form's only text box
     Check $s 'default folder is C:\Program Files\DotDeck' ($value -eq 'C:\Program Files\DotDeck' -and $value -eq $DefaultDir) "$value"
     $state = Get-Toggle (Find-Control $window 'Windows 로그인 시 자동 실행' ([Windows.Automation.ControlType]::CheckBox))
     Check $s 'autostart checked by default' ($state -eq 'On') "$state"
@@ -605,7 +619,7 @@ Invoke-Scenario 'S6' 'custom path' {
     $window = Find-Window "DotDeck $VersionB 설치" 60
     Check $s 'reinstall window opens' ($null -ne $window)
     if (-not $window) { Stop-Step 60 ': no setup window' }
-    $value = Get-Value (Find-Control $window '설치 폴더' ([Windows.Automation.ControlType]::Edit))
+    $value = [E2ENative]::ChildText([IntPtr]$window.Current.NativeWindowHandle, 'EDIT') # the form's only text box
     Check $s 'reinstall offers the existing folder' ($value -eq $CustomDir) "$value"
     $state = Get-Toggle (Find-Control $window 'Windows 로그인 시 자동 실행' ([Windows.Automation.ControlType]::CheckBox))
     Check $s 'reinstall keeps autostart off' ($state -eq 'Off') "$state"
@@ -645,7 +659,9 @@ Invoke-Scenario 'S8' 'UAC refused' {
     Step 'standard user runs the setup (UAC auto-deny)'
     $n = Start-UserJob "`$p = Start-Process -FilePath '$SetupA' -ArgumentList '--silent --no-launch --log `"$Jobs\s8-setup.log`"' -PassThru; `$p.WaitForExit(); `$code = `$p.ExitCode" $std
     $code = Wait-UserJob $n 120
-    Check $s 'standard user: setup exits 1602 (cancelled)' ($code -eq 1602) "$code; $(Get-Content "$Jobs\s8-setup.log" -ErrorAction SilentlyContinue)"
+    # With auto-deny the elevation fails as 'blocked by policy' (1260), not as a refused prompt (1223, untestable here).
+    $log = "$(Get-Content "$Jobss8-setup.log" -ErrorAction SilentlyContinue)"
+    Check $s 'standard user: setup ends without installing (failure code, reason logged)' ($code -in 1602, 1603 -and $log -match '관리자 권한') "$code; $log"
     Check $s 'nothing installed' (-not (Test-Path $DefaultDir) -and -not (Test-Path $ArpKey))
 }
 

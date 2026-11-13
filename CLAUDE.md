@@ -7,13 +7,13 @@
 - 패턴: MVVM (CommunityToolkit.Mvvm)
 - 도킹 Dirkster.AvalonDock, 에디터 AvalonEdit, Markdown Markdig, Diff DiffPlex (확정은 Phase 0 설계 승인 후)
 - 테스트: xUnit
-- 배포: 단일 파일 publish
+- 배포: self-contained 폴더 publish(단일 파일 금지) → Velopack per-machine MSI를 내장한 `DotDeck-Setup.exe`
 
 ## 명령어
 - 빌드: `dotnet build DotDeck.slnx`
 - 테스트: `dotnet test --solution DotDeck.slnx` (xunit.v3 + Microsoft.Testing.Platform, `global.json`에서 지정)
 - 실행: `dotnet run --project src/DotDeck.App -- --home <테스트용 홈 폴더>`
-- 배포: `dotnet publish src/DotDeck.App -c Release -r win-x64 -p:PublishSingleFile=true`
+- 배포: `./build/package.ps1` (publish `-r win-x64 --self-contained true -p:PublishSingleFile=false` → `vpk pack --msi`). 설치 검증은 Actions "Installer E2E"(실제 PC에서 `build/test-installer.ps1` 실행 금지)
 
 ## 구조
 - `src/DotDeck.App`: WPF 앱 (`net10.0-windows`) — Shell(도킹), 탐색기, 에디터, 테마, ViewModel

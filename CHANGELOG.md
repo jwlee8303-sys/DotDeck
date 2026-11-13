@@ -3,6 +3,19 @@
 
 ## [Unreleased]
 
+### Added
+- 시스템 전체 설치: `DotDeck-Setup.exe`가 Velopack per-machine MSI를 내장. 기본 폴더 `C:\Program Files\DotDeck`(Program Files 알려진 폴더), [찾아보기]·한글·공백 경로 지원(Program Files 밖 폴더도 관리자만 수정 가능하도록 권한 설정). [설치]를 누르면 UAC 한 번으로 설치하고, 취소하면 아무것도 바꾸지 않고 종료. 설치 후 DotDeck은 일반 권한으로 실행
+- 바탕화면·시작 메뉴 바로가기(모든 사용자)와 'Windows 로그인 시 자동 실행'(현재 Windows 계정, 기본 선택·해제 가능, 시작프로그램 바로가기). 바로가기는 설치 폴더의 `DotDeck.exe` 런처를 가리키며 업데이트·재설치 후에도 선택을 유지
+- Windows 설정 > 앱 > 설치된 앱에서 제거: 프로그램 파일·바로가기·자동 실행·업데이트 캐시·제거 항목을 정리하고 설정·작업물(`%APPDATA%\DotDeck`, `%LOCALAPPDATA%\DotDeck`)은 보존
+- MSI 제거·업그레이드 정리 작업이 `%LOCALAPPDATA%\DotDeck`(설정 백업·세션·레이아웃)을 지우지 않도록 패키징 단계에서 대상 변경(`build/package.ps1`)
+- 설치 파일 명령줄 `--silent [--installto <폴더>] [--autostart|--no-autostart] [--no-launch] [--log <파일>]`
+- 격리 Windows 러너에서 설치·업데이트·제거를 검증하는 `Installer E2E` workflow(`build/test-installer.ps1`)
+
+### Changed
+- 배포 형식을 단일 EXE에서 폴더(`current\DotDeck.exe`와 `DotDeck.Core.dll` 등 DLL·런타임 개별 파일)로 변경. 단일 파일 publish는 빌드에서 거부
+- 앱 업데이트는 일반 권한으로 확인·다운로드하고, 동의하면 필요한 관리자 권한을 요청해 원래 설치 폴더에 적용한 뒤 일반 권한으로 다시 시작
+- 1.5.x 사용자용 설치에서 전환: 새 설치 파일이 예전 설치(`%LocalAppData%` 또는 `Program Files`)의 프로그램 파일·제거 항목·바로가기만 정리하고 데이터는 보존. 예전 제거기는 데이터 폴더까지 지울 수 있어 사용하지 않음
+
 ### Fixed
 - 릴리스 `SHA256SUMS.txt`를 LF 줄바꿈으로 생성해 `sha256sum -c`로도 검증 가능
 

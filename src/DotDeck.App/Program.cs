@@ -28,7 +28,10 @@ public static class Program
 
         // After the helper modes (they start often and must stay fast); Velopack's own hook arguments
         // (--veloapp-*) never collide with them. Handles install/update hooks and applies a downloaded update.
-        Velopack.VelopackApp.Build().Run();
+        // Settings and data in %APPDATA%/%LOCALAPPDATA%\DotDeck survive an uninstall; only setup leftovers go.
+        Velopack.VelopackApp.Build()
+            .OnBeforeUninstallFastCallback(_ => UninstallCleanup.Run())
+            .Run();
 
         var app = new App();
         app.InitializeComponent();

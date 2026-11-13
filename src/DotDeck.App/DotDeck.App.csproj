@@ -13,14 +13,16 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
-  <!-- Single-file publish: bundle native WPF/WebView2 libraries and drop reference docs so only DotDeck.exe ships. -->
-  <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
-    <SelfContained>true</SelfContained>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  <!-- Release publish is a folder (DotDeck.exe next to its DLLs and the runtime), never a single file: build/package.ps1
+       publishes self-contained with PublishSingleFile=false and Velopack installs that folder as current\. -->
+  <PropertyGroup>
+    <PublishSingleFile>false</PublishSingleFile>
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
-    <DebugType>embedded</DebugType>
-    <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
   </PropertyGroup>
+
+  <Target Name="RejectSingleFilePublish" BeforeTargets="PrepareForPublish" Condition="'$(PublishSingleFile)' == 'true'">
+    <Error Text="DotDeck is published as a folder (current\DotDeck.exe + DLLs + runtime). Use build/package.ps1 or -p:PublishSingleFile=false." />
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />

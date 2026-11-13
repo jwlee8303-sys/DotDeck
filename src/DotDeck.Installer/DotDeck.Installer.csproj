@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    First-install bootstrapper: asks for the install folder, then runs the embedded Velopack Setup.exe with
-    its installto option. .NET Framework 4.8 ships with Windows 10/11, so the EXE stays small and needs no runtime.
-    build/package.ps1 builds it with -p:SetupExe=<Setup.exe> -p:PackId=<id>; without SetupExe it only reports that
-    the setup is missing (development build).
+    First-install bootstrapper (DotDeck-Setup.exe): asks for the install folder (default Program Files\DotDeck) and the
+    autostart choice, then restarts itself elevated (one UAC prompt) to run the embedded machine-wide Velopack MSI.
+    .NET Framework 4.8 ships with Windows 10/11, so the EXE needs no runtime. build/package.ps1 builds it with
+    -p:SetupMsi=<msi> -p:PackId=<id> -p:Version=<v>; without SetupMsi it only reports that the package is missing.
   -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -13,6 +13,9 @@
     <AssemblyName>DotDeck-Setup</AssemblyName>
     <RootNamespace>DotDeck.Installer</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- 64-bit process on x64 Windows: Program Files and the HKLM uninstall view are the 64-bit ones. -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
     <PackId Condition="'$(PackId)' == ''">DotDeck</PackId>
     <DebugType>embedded</DebugType>
   </PropertyGroup>
@@ -22,14 +25,18 @@
       <_Parameter1>PackId</_Parameter1>
       <_Parameter2>$(PackId)</_Parameter2>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>AppVersion</_Parameter1>
+      <_Parameter2>$(Version)</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(SetupExe)' != ''">
-    <EmbeddedResource Include="$(SetupExe)" LogicalName="Setup.exe" />
+  <ItemGroup Condition="'$(SetupMsi)' != ''">
+    <EmbeddedResource Include="$(SetupMsi)" LogicalName="DotDeck.msi" />
   </ItemGroup>
 
-  <Target Name="CheckSetupExe" BeforeTargets="BeforeBuild" Condition="'$(SetupExe)' != '' And !Exists('$(SetupExe)')">
-    <Error Text="SetupExe not found: $(SetupExe)" />
+  <Target Name="CheckSetupMsi" BeforeTargets="BeforeBuild" Condition="'$(SetupMsi)' != '' And !Exists('$(SetupMsi)')">
+    <Error Text="SetupMsi not found: $(SetupMsi)" />
   </Target>
 
 </Project>

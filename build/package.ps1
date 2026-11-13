@@ -1,15 +1,18 @@
-<#
+﻿<#
 .SYNOPSIS
-  Builds the Windows release: self-contained publish -> Velopack package -> folder-choice setup EXE.
+  Builds the Windows release: self-contained folder publish -> Velopack package + machine-wide MSI -> setup EXE.
 
 .DESCRIPTION
   Output (<OutputDir>\releases):
-    DotDeck-Setup.exe             first install (folder choice, then the embedded Velopack setup)
+    DotDeck-Setup.exe             first install: folder (default Program Files\DotDeck), autostart choice, one UAC
+                                  prompt, then the embedded per-machine MSI
     DotDeck-<v>-full.nupkg        update package (+ -delta.nupkg when a previous release was found)
     releases.win.json, assets.win.json, RELEASES   update feed index
     DotDeck-win-Portable.zip      portable build
-  upload-assets.txt lists the files to attach to the GitHub Release (Velopack's bare Setup.exe is left out:
-  the first-install link is DotDeck-Setup.exe).
+  upload-assets.txt lists the files to attach to the GitHub Release. Velopack's own per-user Setup.exe and the bare
+  MSI are left out: the first-install link is DotDeck-Setup.exe.
+  The app is published as a folder (DotDeck.exe + DLLs + runtime, never single-file) into an empty app\ folder that
+  is created fresh for every run; only that folder is packaged.
 
 .EXAMPLE
   ./build/package.ps1                                  # version from Directory.Build.props, delta from GitHub
@@ -52,9 +55,14 @@ New-Item -ItemType Directory -Force -Path $releases | Out-Null
 Write-Host "== DotDeck $Version ($PackId) -> $out"
 Invoke-Checked dotnet @('tool', 'restore')
 
-# 1. App: the same single-file, self-contained build as before.
-Invoke-Checked dotnet @('publish', 'src/DotDeck.App', '-c', 'Release', '-r', 'win-x64', '-p:PublishSingleFile=true',
-    "-p:Version=$Version", '-o', $appDir)
+# 1. App: self-contained folder publish (separate DLLs and runtime) into the empty app\ folder created above.
+Invoke-Checked dotnet @('publish', 'src/DotDeck.App', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true',
+    '-p:PublishSingleFile=false', "-p:Version=$Version", '-o', $appDir)
+foreach ($required in 'DotDeck.exe', 'DotDeck.dll', 'DotDeck.Core.dll', 'Velopack.dll', 'coreclr.dll', 'PresentationFramework.dll') {
+    if (-not (Test-Path (Join-Path $appDir $required))) { throw "Publish output is missing $required (single-file or framework-dependent build?)" }
+}
+$published = (Get-Item (Join-Path $appDir 'DotDeck.Core.dll')).VersionInfo.ProductVersion
+if (-not $published.StartsWith($Version)) { throw "DotDeck.Core.dll version $published does not match $Version" }
 
 # 2. Release notes: the CHANGELOG section of this version (stable versions only; test builds get a short line).
 $notes = Join-Path $out 'release-notes.md'
@@ -64,7 +72,12 @@ $text = if ($section.Success -and $Version -eq $base) { $section.Groups[1].Value
 [IO.File]::WriteAllText($notes, $text + "`n", [Text.UTF8Encoding]::new($false))
 $install = @"
 ## 설치
-**$PackId-Setup.exe**를 내려받아 실행하고 설치 폴더(기본 ``%LocalAppData%\$PackId``)를 고른 뒤 [설치]를 누르세요. 관리자 권한과 .NET 런타임 설치는 필요하지 않습니다. 설치한 앱은 시작할 때 새 버전을 확인하며, 도움말 > 업데이트 확인으로 직접 확인할 수도 있습니다.
+**[$PackId-Setup.exe]($RepoUrl/releases/download/v$Version/$PackId-Setup.exe)**를 내려받아 더블클릭하세요. 설치 폴더(기본 ``C:\Program Files\$PackId``)와 'Windows 로그인 시 자동 실행'(기본 선택, 현재 Windows 계정에만 적용)을 확인하고 [설치]를 누르면 Windows 관리자 권한 확인(UAC) 창이 열립니다. 승인하면 이 PC의 모든 사용자용으로 설치되고 바탕화면·시작 메뉴 바로가기가 만들어지며, DotDeck은 일반 권한으로 실행됩니다. 취소하면 아무것도 설치하지 않고 끝납니다. .NET 런타임 설치는 필요하지 않습니다.
+
+- **업데이트**: 앱이 시작할 때 새 버전을 확인합니다(도움말 > 업데이트 확인). [지금 업데이트]를 누르면 관리자 권한 확인 후 원래 설치 폴더에 적용하고 일반 권한으로 다시 시작합니다. 자동 실행 선택은 유지됩니다.
+- **제거**: Windows 설정 > 앱 > 설치된 앱에서 DotDeck을 제거합니다. 프로그램 파일·바로가기·자동 실행 등록은 정리되고, 설정과 작업물(``%APPDATA%\$PackId``, ``%LOCALAPPDATA%\$PackId``)은 남습니다.
+- **기존 설치 사용자(1.5.x, 사용자용 설치)**: 새 $PackId-Setup.exe를 실행하세요. 예전 설치의 프로그램 파일·제거 항목·바로가기만 정리하고 설정·백업·세션은 그대로 둡니다. 예전 설치를 Windows 설정에서 먼저 제거하지 마세요(예전 제거기는 ``%LOCALAPPDATA%\$PackId`` 폴더 전체를 지울 수 있습니다). 앱 안의 자동 업데이트를 받아도 동작하지만, 그 경우 사용자용 설치로 남습니다.
+- **기존 ZIP 사용자(1.4.1 이하 단일 EXE)**: $PackId-Setup.exe로 설치한 뒤 예전 압축 해제 폴더를 지우세요. 설정은 같은 위치에 있어 그대로 이어집니다.
 
 설치 없이 쓰려면 **$PackId-win-Portable.zip**을 압축 해제해 실행하세요. 파일 검증값은 ``SHA256SUMS.txt``에 있습니다.
 
@@ -84,15 +97,17 @@ switch ($PreviousFeed) {
     }
 }
 
-# 4. Velopack package, feed index, Setup.exe and portable ZIP.
+# 4. Velopack package, feed index, per-machine MSI (Program Files, HKLM uninstall entry, desktop + Start menu
+#    shortcuts to the root DotDeck.exe launcher) and portable ZIP.
 Invoke-Checked dotnet @('vpk', 'pack', '--packId', $PackId, '--packVersion', $Version, '--packDir', $appDir,
     '--mainExe', 'DotDeck.exe', '--packTitle', 'DotDeck', '--packAuthors', 'DotDeck', '--runtime', 'win-x64',
-    '--channel', 'win', '--releaseNotes', $notes, '--outputDir', $releases)
+    '--channel', 'win', '--shortcuts', 'Desktop,StartMenuRoot', '--msi', '--instLocation', 'PerMachine',
+    '--releaseNotes', $notes, '--outputDir', $releases)
 
-# 5. Folder-choice setup that embeds Velopack's Setup.exe.
-$setup = Join-Path $releases "$PackId-win-Setup.exe"
+# 5. DotDeck-Setup.exe: folder/autostart choice that embeds the MSI.
+$msi = Join-Path $releases "$PackId-win.msi"
 $installerOut = Join-Path $out 'installer'
-Invoke-Checked dotnet @('build', 'src/DotDeck.Installer', '-c', 'Release', '--no-incremental', "-p:SetupExe=$setup", "-p:PackId=$PackId",
+Invoke-Checked dotnet @('build', 'src/DotDeck.Installer', '-c', 'Release', '--no-incremental', "-p:SetupMsi=$msi", "-p:PackId=$PackId",
     "-p:Version=$Version", '-o', $installerOut)
 $firstInstall = Join-Path $releases "$PackId-Setup.exe"
 Copy-Item (Join-Path $installerOut 'DotDeck-Setup.exe') $firstInstall -Force

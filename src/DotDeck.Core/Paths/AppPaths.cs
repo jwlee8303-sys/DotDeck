@@ -22,6 +22,8 @@ public sealed record AppPaths(string Home, HomeSource HomeSource, string Roaming
 
     public string CodexHome => Path.Combine(Home, ".codex");
 
+    public string GeminiHome => Path.Combine(Home, ".gemini");
+
     public string ProjectsFile => Path.Combine(RoamingDataDir, "projects.json");
 
     public string SettingsFile => Path.Combine(RoamingDataDir, "settings.json");

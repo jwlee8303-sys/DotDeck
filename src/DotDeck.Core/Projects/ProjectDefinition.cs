@@ -14,6 +14,7 @@ public enum BuiltinProject
     Claude,
     Codex,
     System,
+    Gemini,
 }
 
 /// <summary>

@@ -20,6 +20,7 @@ namespace DotDeck.App;
 /// <summary>Composition root: resolves paths, creates services and the shell, wires global error handling.</summary>
 public partial class App : Application
 {
+    internal string[]? LaunchArguments { get; init; }
     private FileAppLog? _log;
     private DotDeck.Core.AiCli.Sessions.AiSessionManager? _aiSessions;
     private ShellViewModel? _shell;
@@ -31,7 +32,7 @@ public partial class App : Application
         AppPaths paths;
         try
         {
-            paths = AppPathsResolver.Resolve(e.Args, SystemProcessEnvironment.Instance);
+            paths = AppPathsResolver.Resolve(LaunchArguments ?? e.Args, SystemProcessEnvironment.Instance);
         }
         catch (AppPathsException ex)
         {

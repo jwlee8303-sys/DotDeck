@@ -33,9 +33,30 @@ public static class Program
             .OnBeforeUninstallFastCallback(_ => UninstallCleanup.Run())
             .Run();
 
-        var app = new App();
-        app.InitializeComponent();
-        return app.Run();
+        try
+        {
+            args = SingleInstance.WaitForRestartParent(args);
+            using var instance = new SingleInstance();
+            if (!instance.TryAcquire())
+            {
+                instance.ActivateExistingAsync().GetAwaiter().GetResult();
+                return 0;
+            }
+
+            var app = new App { LaunchArguments = args };
+            instance.Listen(() => app.Dispatcher.BeginInvoke(() =>
+            {
+                if (app.MainWindow is Views.MainWindow window) window.RestoreFromTray();
+            }));
+            app.InitializeComponent();
+            return app.Run();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException or InvalidOperationException)
+        {
+            System.Windows.MessageBox.Show($"DotDeck을 시작하거나 기존 창을 활성화하지 못했습니다.\n\n{ex.Message}",
+                "DotDeck", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            return 1;
+        }
     }
 
     /// <summary>Keeps the original of a file Claude is about to write, in the session's own encrypted backups.</summary>

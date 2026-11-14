@@ -162,7 +162,7 @@ public partial class MainWindow : Window
         return tray;
     }
 
-    private void RestoreFromTray()
+    internal void RestoreFromTray()
     {
         Show();
         if (WindowState == WindowState.Minimized)
@@ -171,6 +171,7 @@ public partial class MainWindow : Window
         }
 
         Activate();
+        _ = Focus();
     }
 
     private void ExitApplication()
@@ -191,7 +192,9 @@ public partial class MainWindow : Window
 
         _layout.Save(DockManager);
         _shell.SaveSession();
-        var args = string.Join(' ', Environment.GetCommandLineArgs().Skip(1).Select(a => $"\"{a.TrimEnd('\\')}\""));
+        var launchArguments = ((App)Application.Current).LaunchArguments ?? Environment.GetCommandLineArgs().Skip(1).ToArray();
+        var args = string.Join(' ', launchArguments.Select(a => $"\"{a.TrimEnd('\\')}\""));
+        args = $"{SingleInstance.RestartSwitch} {Environment.ProcessId} {args}";
         try
         {
             using var _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, args)

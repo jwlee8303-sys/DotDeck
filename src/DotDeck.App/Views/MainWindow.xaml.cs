@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using DotDeck.App.Docking;
 using DotDeck.App.Infrastructure.Windows;
@@ -8,6 +9,7 @@ using DotDeck.Core.Layout;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AvalonDock.Controls;
@@ -142,10 +144,22 @@ public partial class MainWindow : Window
     // Set by File > 끝내기, the tray menu and sign-out: these close for real even with CloseToTray on.
     private bool _exitRequested;
 
+    // Extension windows and floating tool windows hidden along with the main window, shown again on restore.
+    private readonly List<Window> _hiddenFloatingWindows = [];
+
     private void HideToTray()
     {
         _tray ??= CreateTray();
         _tray.Show();
+
+        // Floating windows are separate windows: hiding the main window leaves them on screen. SetCurrentValue keeps
+        // AvalonDock's own visibility binding of floating tool windows.
+        foreach (var window in DockManager.FloatingWindows.Where(w => w.IsVisible))
+        {
+            _hiddenFloatingWindows.Add(window);
+            window.SetCurrentValue(VisibilityProperty, Visibility.Hidden);
+        }
+
         Hide();
         _shell.StatusMessage = "DotDeck이 트레이에서 실행 중입니다.";
     }
@@ -169,6 +183,14 @@ public partial class MainWindow : Window
         {
             WindowState = WindowState.Normal;
         }
+
+        // After the main window: they are owned by it and come back above it. Closed meanwhile (exit, docking) → skipped.
+        foreach (var window in _hiddenFloatingWindows.Where(w => DockManager.FloatingWindows.Contains(w)))
+        {
+            window.SetCurrentValue(VisibilityProperty, Visibility.Visible);
+        }
+
+        _hiddenFloatingWindows.Clear();
 
         Activate();
         _ = Focus();
@@ -663,17 +685,58 @@ public partial class MainWindow : Window
                 return;
             }
 
-            Keyboard.Focus(box);
-            box.SelectAll();
+            // An extension window (floating window) is activated only now; focusing first would lose the box to the
+            // terminal view when the activation settles, which ends the edit at once.
+            if (HostWindowOf(box) is { IsActive: false } window)
+            {
+                window.Activate();
+                Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => FocusRenameBox(terminal, box));
+                return;
+            }
+
+            FocusRenameBox(terminal, box);
         });
     }
 
-    // The visible title edit box of a tab, in the main window or a floating window.
+    private static void FocusRenameBox(TerminalPaneViewModel terminal, TextBox box)
+    {
+        if (!terminal.IsRenaming || !box.IsVisible)
+        {
+            return;
+        }
+
+        Keyboard.Focus(box);
+        box.SelectAll();
+    }
+
+    // The visible title edit box of a tab, in the main window or an extension window. Every presentation source is
+    // searched: an extension window shows its panes in a hosted child source the window's own visual tree stops at.
     private static TextBox? FindRenameBox(LayoutContent content) =>
-        Application.Current.Windows.OfType<Window>()
-            .SelectMany(w => Descendants(w))
+        PresentationSource.CurrentSources.OfType<PresentationSource>()
+            .Select(s => s.RootVisual)
+            .OfType<DependencyObject>()
+            .SelectMany(Descendants)
             .OfType<TextBox>()
             .FirstOrDefault(b => b.Name == "RenameBox" && b.IsVisible && b.DataContext == content);
+
+    // The window showing an element: its top-level native window. Window.GetWindow names the main window for an
+    // extension window's panes (they are hosted in a child source owned by the docking manager).
+    private static Window? HostWindowOf(Visual element)
+    {
+        if (PresentationSource.FromVisual(element) is not HwndSource source)
+        {
+            return Window.GetWindow(element);
+        }
+
+        var root = GetAncestor(source.Handle, GaRoot);
+        return Application.Current.Windows.OfType<Window>().FirstOrDefault(w => new WindowInteropHelper(w).Handle == root)
+            ?? Window.GetWindow(element);
+    }
+
+    private const uint GaRoot = 2;
+
+    [LibraryImport("user32.dll")]
+    private static partial nint GetAncestor(nint hwnd, uint flags);
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
@@ -710,10 +773,21 @@ public partial class MainWindow : Window
 
     private void OnRenameLostFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        if (TerminalOf(sender) is { IsRenaming: true } terminal)
+        if (TerminalOf(sender) is not { IsRenaming: true } terminal || sender is not TextBox box)
         {
-            terminal.CommitRename();
+            return;
         }
+
+        // Decided once the focus change settled: focus moved elsewhere in the active window (another control, or the
+        // terminal view, whose WebView2 leaves WPF focus empty) applies the name. The window losing activation keeps
+        // the edit; WPF gives the box its focus back when the window is active again.
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            if (terminal.IsRenaming && !box.IsKeyboardFocusWithin && HostWindowOf(box) is { IsActive: true })
+            {
+                terminal.CommitRename();
+            }
+        });
     }
 
     private void OnAboutClick(object sender, RoutedEventArgs e) =>

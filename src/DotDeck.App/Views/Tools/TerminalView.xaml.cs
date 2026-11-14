@@ -286,7 +286,8 @@ public partial class TerminalView : UserControl
 
     private void OnPanePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(TerminalPaneViewModel.IsActive) && _pane?.IsActive == true && _web is { } web)
+        // Not while the tab title is being edited: the edit box keeps the focus (an extension window activates late).
+        if (e.PropertyName == nameof(TerminalPaneViewModel.IsActive) && _pane is { IsActive: true, IsRenaming: false } && _web is { } web)
         {
             web.Focus();
             Post(new { t = "focus" });

@@ -656,6 +656,34 @@
         </Setter>
     </Style>
 
+    <!-- Buttons on the extension window header (status bar color): the glyph takes the header's text color. -->
+    <Style x:Key="DD.CaptionButton" TargetType="Button">
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource DD.Brush.Text.OnAccent}" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DD.Brush.Hover}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DD.Brush.Pressed}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Toolbar-style toggles (e.g. the text/form switch of the editor view bar). -->
     <Style x:Key="{x:Static ToolBar.ToggleButtonStyleKey}" TargetType="ToggleButton">
         <Setter Property="Foreground" Value="{DynamicResource DD.Brush.Text}" />

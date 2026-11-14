@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using DotDeck.App.Docking;
@@ -7,7 +8,9 @@ using DotDeck.App.Themes;
 using DotDeck.App.ViewModels;
 using DotDeck.Core.Layout;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -29,6 +32,104 @@ public partial class MainWindow : Window
     /// <summary>X hides the window to the tray instead of exiting (settings; File > 끝내기 still exits).</summary>
     public bool CloseToTray { get; set; }
 
+    static MainWindow()
+    {
+        // Every floating window, however it was made (drag, Float(), restored layout — only drags raise
+        // LayoutFloatingWindowControlCreated). Class handlers run before AvalonDock's own Loaded handler.
+        EventManager.RegisterClassHandler(typeof(LayoutFloatingWindowControl), LoadedEvent,
+            new RoutedEventHandler((sender, _) =>
+            {
+                var window = (LayoutFloatingWindowControl)sender;
+                DetachFromMainWindow(window);
+                if (window is LayoutDocumentFloatingWindowControl extension)
+                {
+                    MarkCaption(extension);
+                    (Application.Current?.MainWindow as MainWindow)?.ScheduleExtensionIndicator();
+                }
+            }));
+    }
+
+    // Height of the theme's header row (VS2022 theme: header MinHeight 32) and the resize strip kept above it.
+    private const double ExtensionHeaderHeight = 32;
+    private const double ExtensionResizeBorder = 6;
+
+    // The VS2022 theme gives the window a 20px resize border and puts the 32px drag area below it, so the drag area
+    // ran 20px past the header into the tabs. Shrink the border so the drag area is the header, and paint the header
+    // in the status bar color so the part that moves the window is visible.
+    private static void MarkCaption(LayoutDocumentFloatingWindowControl window)
+    {
+        if (Microsoft.Windows.Shell.WindowChrome.GetWindowChrome(window) is { } chrome)
+        {
+            var fitted = (Microsoft.Windows.Shell.WindowChrome)chrome.Clone();
+            fitted.ResizeBorderThickness = new Thickness(ExtensionResizeBorder);
+            fitted.CaptionHeight = ExtensionHeaderHeight - ExtensionResizeBorder;
+            Microsoft.Windows.Shell.WindowChrome.SetWindowChrome(window, fitted);
+        }
+
+        if (window.Template?.FindName("Header", window) is Border header)
+        {
+            header.SetResourceReference(Border.BackgroundProperty, "DD.Brush.StatusBar.Background");
+            header.SetResourceReference(TextElement.ForegroundProperty, "DD.Brush.Text.OnAccent");
+            if (header.Child is Grid buttons)
+            {
+                AddHideButton(window, buttons);
+            }
+        }
+    }
+
+    private const string HideButtonTag = "DotDeck.HideExtensionWindow";
+
+    // "숨기기" left of the theme's maximize/close buttons: a new column 1 shifts them right.
+    private static void AddHideButton(LayoutDocumentFloatingWindowControl window, Grid header)
+    {
+        if (header.Children.OfType<Button>().Any(b => Equals(b.Tag, HideButtonTag)))
+        {
+            return;
+        }
+
+        foreach (UIElement child in header.Children)
+        {
+            if (Grid.GetColumn(child) >= 1)
+            {
+                Grid.SetColumn(child, Grid.GetColumn(child) + 1);
+            }
+        }
+
+        header.ColumnDefinitions.Insert(1, new ColumnDefinition { Width = GridLength.Auto });
+        var glyph = new System.Windows.Shapes.Rectangle { Width = 10, Height = 1, SnapsToDevicePixels = true };
+        glyph.SetBinding(System.Windows.Shapes.Shape.FillProperty,
+            new Binding(nameof(Button.Foreground)) { RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(Button), 1) });
+        var hide = new Button
+        {
+            Tag = HideButtonTag,
+            Content = glyph,
+            ToolTip = "확장 창 숨기기 (창 → 확장 창 숨기기/표시에서 다시 표시, 실행 중인 터미널·CLI는 계속 동작)",
+        };
+        hide.SetResourceReference(StyleProperty, "DD.CaptionButton");
+        Microsoft.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(hide, true);
+        Grid.SetColumn(hide, 1);
+        hide.Click += (_, _) =>
+        {
+            if (window.Model is LayoutDocumentFloatingWindow model && Application.Current?.MainWindow is MainWindow main)
+            {
+                main.HideExtension(model);
+            }
+        };
+        header.Children.Add(hide);
+    }
+
+    // Not owned by the main window: an owned window always stays above its owner, so clicking the main window
+    // could never bring it in front of an overlapping extension window. Whichever window is clicked comes to the front.
+    private static void DetachFromMainWindow(LayoutFloatingWindowControl window)
+    {
+        window.OwnedByDockingManagerWindow = false;
+        if (window is LayoutDocumentFloatingWindowControl)
+        {
+            // An extension window can now end up behind the main window; the taskbar keeps it reachable.
+            window.ShowInTaskbar = true;
+        }
+    }
+
     public MainWindow(ShellViewModel shell, LayoutPersistence layout)
     {
         _shell = shell;
@@ -49,6 +150,11 @@ public partial class MainWindow : Window
         _placement = (LayoutInitializer)DockManager.LayoutUpdateStrategy;
         _placement.ExplicitAnchor = () => _shell.PlacementAnchor;
         _extensions = new ExtensionWindows(DockManager, _shell);
+        DockManager.LayoutChanged += (_, _) =>
+        {
+            DockManager.Layout.Updated += (_, _) => ScheduleExtensionIndicator();
+            ScheduleExtensionIndicator();
+        };
         DockManager.Layout = DefaultLayout.Create();
         DockManager.ActiveContentChanged += OnDockActiveContentChanged;
         Loaded += OnLoaded;
@@ -69,6 +175,15 @@ public partial class MainWindow : Window
         {
             ThemeManager.ApplyDocking(DockManager);
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, EnsureTabMenus);
+
+            // A new theme can re-apply the floating window template: header color and hide button again.
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            {
+                foreach (var extension in DockManager.FloatingWindows.OfType<LayoutDocumentFloatingWindowControl>())
+                {
+                    MarkCaption(extension);
+                }
+            });
         };
 
         // Windows sign-out/shutdown must really exit, not hide to the tray.
@@ -184,7 +299,7 @@ public partial class MainWindow : Window
             WindowState = WindowState.Normal;
         }
 
-        // After the main window: they are owned by it and come back above it. Closed meanwhile (exit, docking) → skipped.
+        // After the main window, so they come back above it. Closed meanwhile (exit, docking) → skipped.
         foreach (var window in _hiddenFloatingWindows.Where(w => DockManager.FloatingWindows.Contains(w)))
         {
             window.SetCurrentValue(VisibilityProperty, Visibility.Visible);
@@ -459,10 +574,167 @@ public partial class MainWindow : Window
     {
         if (DockManager.ActiveContent is { } active)
         {
-            _placement.NoteActive(_extensions.Find(active));
+            var content = _extensions.Find(active);
+            _placement.NoteActive(content);
+
+            // A tab of a hidden extension window was activated (AI monitor, "확장 창으로 이동", open file…): show it.
+            if (IsVisible && content?.FindParent<LayoutDocumentFloatingWindow>() is { } window && _extensions.IsHidden(window))
+            {
+                _extensions.Show(window);
+            }
         }
 
         EnsureTabMenus();
+    }
+
+    // ===== Extension window indicator (right end of the menu bar) =====
+
+    private bool _indicatorScheduled;
+
+    // Extension window controls whose show/hide already refreshes the indicator.
+    private readonly HashSet<Window> _indicatorWatched = [];
+
+    // Layout updates come in bursts: rebuild once after they settle.
+    internal void ScheduleExtensionIndicator()
+    {
+        if (_indicatorScheduled)
+        {
+            return;
+        }
+
+        _indicatorScheduled = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            _indicatorScheduled = false;
+            RefreshExtensionIndicator();
+        });
+    }
+
+    /// <summary>One toggle per extension window: highlighted while hidden, dimmed while shown; a click switches.</summary>
+    private void RefreshExtensionIndicator()
+    {
+        ExtensionIndicator.Children.Clear();
+        _indicatorWatched.RemoveWhere(w => !DockManager.FloatingWindows.Contains(w));
+
+        var windows = _extensions.List();
+        ExtensionIndicator.Visibility = windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        for (var i = 0; i < windows.Count; i++)
+        {
+            var window = windows[i];
+            var index = i;
+            if (_extensions.ControlOf(window) is { } control && _indicatorWatched.Add(control))
+            {
+                control.IsVisibleChanged += (_, _) => ScheduleExtensionIndicator();
+            }
+
+            var hidden = _extensions.IsHidden(window);
+            var label = new StackPanel { Orientation = Orientation.Horizontal };
+            label.Children.Add(new TextBlock { Text = "", Margin = new Thickness(0, 0, 4, 0), Style = (Style)FindResource("DD.Glyph") });
+            label.Children.Add(new TextBlock { Text = string.Create(CultureInfo.InvariantCulture, $"확장 {i + 1}"), VerticalAlignment = VerticalAlignment.Center });
+
+            // Computed when shown: the window's title follows its selected tab.
+            string Tip() =>
+                $"{ExtensionWindows.NameOf(window, index)}\n{(_extensions.IsHidden(window) ? "숨겨져 있음 — 클릭하면 표시" : "표시 중 — 클릭하면 숨기기")} (터미널·CLI는 계속 실행)";
+            // Hidden windows stand out (they are out of sight); shown ones are dimmed.
+            var toggle = new ToggleButton { Content = label, IsChecked = hidden, Padding = new Thickness(4, 1, 4, 1), ToolTip = Tip() };
+            toggle.SetResourceReference(StyleProperty, ToolBar.ToggleButtonStyleKey);
+            toggle.SetResourceReference(ForegroundProperty, hidden ? "DD.Brush.Text" : "DD.Brush.Text.Secondary");
+            toggle.ToolTipOpening += (_, _) => toggle.ToolTip = Tip();
+            toggle.Click += (_, _) =>
+            {
+                if (_extensions.IsHidden(window))
+                {
+                    _extensions.Show(window);
+                }
+                else
+                {
+                    HideExtension(window);
+                }
+
+                ScheduleExtensionIndicator();
+            };
+            ExtensionIndicator.Children.Add(toggle);
+        }
+    }
+
+    /// <summary>Hides an extension window; its terminals and CLIs keep running.</summary>
+    internal void HideExtension(LayoutDocumentFloatingWindow window)
+    {
+        var holdsActive = DockManager.ActiveContent is { } active
+            && _extensions.Find(active)?.FindParent<LayoutDocumentFloatingWindow>() is { } owner
+            && ReferenceEquals(owner, window);
+
+        _extensions.Hide(window);
+        if (holdsActive)
+        {
+            // The active tab went out of sight: continue in the main window's selected tab.
+            var next = DockManager.Layout.Descendents().OfType<LayoutContent>()
+                .FirstOrDefault(c => c.IsSelected && c.FindParent<LayoutFloatingWindow>() is null);
+            DockManager.ActiveContent = next?.Content;
+            Activate();
+        }
+
+        var index = _extensions.List().ToList().IndexOf(window);
+        _shell.StatusMessage = $"{ExtensionWindows.NameOf(window, index)}을(를) 숨겼습니다. 창 → 확장 창 숨기기/표시에서 다시 표시합니다.";
+    }
+
+    private void OnExtensionVisibilitySubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (!ReferenceEquals(e.OriginalSource, ExtensionVisibilityMenu))
+        {
+            return;
+        }
+
+        var menu = ExtensionVisibilityMenu;
+        menu.Items.Clear();
+        var windows = _extensions.List();
+        if (windows.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "(확장 창 없음)", IsEnabled = false });
+            return;
+        }
+
+        for (var i = 0; i < windows.Count; i++)
+        {
+            var window = windows[i];
+
+            // Checked = shown. Header as plain text: an underscore in a title must not become an access key.
+            var item = new MenuItem { Header = new TextBlock { Text = ExtensionWindows.NameOf(window, i) }, IsChecked = !_extensions.IsHidden(window) };
+            item.Click += (_, _) =>
+            {
+                if (_extensions.IsHidden(window))
+                {
+                    _extensions.Show(window);
+                }
+                else
+                {
+                    HideExtension(window);
+                }
+            };
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new Separator());
+        var hideAll = new MenuItem { Header = "모두 숨기기(_H)", IsEnabled = windows.Any(w => !_extensions.IsHidden(w)) };
+        hideAll.Click += (_, _) =>
+        {
+            foreach (var window in windows.Where(w => !_extensions.IsHidden(w)))
+            {
+                HideExtension(window);
+            }
+
+            _shell.StatusMessage = "확장 창을 모두 숨겼습니다. 창 → 확장 창 숨기기/표시에서 다시 표시합니다.";
+        };
+        var showAll = new MenuItem { Header = "모두 표시(_S)", IsEnabled = windows.Any(_extensions.IsHidden) };
+        showAll.Click += (_, _) =>
+        {
+            foreach (var window in windows.Where(_extensions.IsHidden))
+            {
+                _extensions.Show(window);
+            }
+        };
+        menu.Items.Add(hideAll);
+        menu.Items.Add(showAll);
     }
 
     private void OnNewExtensionWindowClick(object sender, RoutedEventArgs e)

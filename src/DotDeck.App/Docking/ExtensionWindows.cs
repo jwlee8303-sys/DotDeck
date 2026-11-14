@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using AvalonDock;
+using AvalonDock.Controls;
 using AvalonDock.Layout;
 using DotDeck.App.ViewModels;
 
@@ -100,6 +101,43 @@ public sealed class ExtensionWindows
         content.IsSelected = true;
         content.IsActive = true;
         return true;
+    }
+
+    /// <summary>The on-screen window of an extension window, or null when it has none (yet).</summary>
+    public LayoutFloatingWindowControl? ControlOf(LayoutDocumentFloatingWindow window) =>
+        _manager.FloatingWindows.FirstOrDefault(c => ReferenceEquals(c.Model, window));
+
+    /// <summary>Hidden with <see cref="Hide"/> (not by hiding the main window to the tray).</summary>
+    public bool IsHidden(LayoutDocumentFloatingWindow window) => ControlOf(window) is { Visibility: not Visibility.Visible };
+
+    /// <summary>
+    /// Hides the window. Its tabs stay open: terminals and CLIs keep running and their output keeps arriving
+    /// (the views stay loaded), so it is all there when the window is shown again.
+    /// </summary>
+    public void Hide(LayoutDocumentFloatingWindow window)
+    {
+        if (ControlOf(window) is { IsVisible: true } control)
+        {
+            // SetCurrentValue, as hiding to the tray does: keeps AvalonDock's own bindings.
+            control.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Hidden);
+        }
+    }
+
+    /// <summary>Shows a hidden window again and brings it to the front.</summary>
+    public void Show(LayoutDocumentFloatingWindow window)
+    {
+        if (ControlOf(window) is not { } control)
+        {
+            return;
+        }
+
+        control.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Visible);
+        if (control.WindowState == WindowState.Minimized)
+        {
+            control.WindowState = WindowState.Normal;
+        }
+
+        control.Activate();
     }
 
     /// <summary>The layout item of a view model, or null when it is not in the layout.</summary>

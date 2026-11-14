@@ -71,121 +71,129 @@
     </Window.InputBindings>
 
     <DockPanel>
-        <!-- Menu bar -->
-        <Menu DockPanel.Dock="Top">
-            <MenuItem Header="파일(_F)">
-                <MenuItem Header="새 파일(_N)" InputGestureText="Ctrl+N" Command="{Binding NewScratchDocumentCommand}" />
-                <MenuItem x:Name="TemplateMenu" Header="템플릿에서 새 파일(_T)" SubmenuOpened="OnTemplateSubmenuOpened">
-                    <MenuItem Header="(없음)" IsEnabled="False" />
+        <!-- Menu bar; right end: one toggle per extension window (shown ⇄ hidden), only while there are any -->
+        <DockPanel DockPanel.Dock="Top" Background="{DynamicResource DD.Brush.Chrome.Background}">
+            <StackPanel x:Name="ExtensionIndicator" DockPanel.Dock="Right" Orientation="Horizontal" Margin="0,0,4,0"
+                        VerticalAlignment="Center" Visibility="Collapsed" />
+            <Menu>
+                <MenuItem Header="파일(_F)">
+                    <MenuItem Header="새 파일(_N)" InputGestureText="Ctrl+N" Command="{Binding NewScratchDocumentCommand}" />
+                    <MenuItem x:Name="TemplateMenu" Header="템플릿에서 새 파일(_T)" SubmenuOpened="OnTemplateSubmenuOpened">
+                        <MenuItem Header="(없음)" IsEnabled="False" />
+                    </MenuItem>
+                    <MenuItem Header="열기(_O)..." InputGestureText="Ctrl+O" Command="{Binding OpenFilesCommand}" />
+                    <Separator />
+                    <MenuItem Header="저장(_S)" InputGestureText="Ctrl+S" Command="{Binding SaveActiveCommand}" />
+                    <MenuItem Header="다른 이름으로 저장(_A)..." InputGestureText="Ctrl+Alt+S" Command="{Binding SaveActiveAsCommand}" />
+                    <MenuItem Header="모두 저장(_L)" InputGestureText="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
+                    <MenuItem Header="백업에서 복원(_B)..." Command="{Binding RestoreBackupCommand}" />
+                    <Separator />
+                    <MenuItem Header="끝내기(_X)" Click="OnExitClick" />
                 </MenuItem>
-                <MenuItem Header="열기(_O)..." InputGestureText="Ctrl+O" Command="{Binding OpenFilesCommand}" />
-                <Separator />
-                <MenuItem Header="저장(_S)" InputGestureText="Ctrl+S" Command="{Binding SaveActiveCommand}" />
-                <MenuItem Header="다른 이름으로 저장(_A)..." InputGestureText="Ctrl+Alt+S" Command="{Binding SaveActiveAsCommand}" />
-                <MenuItem Header="모두 저장(_L)" InputGestureText="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
-                <MenuItem Header="백업에서 복원(_B)..." Command="{Binding RestoreBackupCommand}" />
-                <Separator />
-                <MenuItem Header="끝내기(_X)" Click="OnExitClick" />
-            </MenuItem>
-            <MenuItem Header="편집(_E)">
-                <MenuItem Header="전체 검색(_G)..." InputGestureText="Ctrl+Shift+F" Command="{Binding ShowGlobalSearchCommand}" />
-                <Separator />
-                <MenuItem Header="실행 취소(_U)" InputGestureText="Ctrl+Z" Command="Undo" />
-                <MenuItem Header="다시 실행(_R)" InputGestureText="Ctrl+Y" Command="Redo" />
-                <Separator />
-                <MenuItem Header="잘라내기(_T)" InputGestureText="Ctrl+X" Command="Cut" />
-                <MenuItem Header="복사(_C)" InputGestureText="Ctrl+C" Command="Copy" />
-                <MenuItem Header="붙여넣기(_P)" InputGestureText="Ctrl+V" Command="Paste" />
-                <Separator />
-                <MenuItem Header="찾기(_F)" InputGestureText="Ctrl+F" Command="{Binding FindCommand}" />
-                <MenuItem Header="바꾸기(_H)" InputGestureText="Ctrl+H" Command="{Binding ReplaceCommand}" />
-            </MenuItem>
-            <MenuItem Header="보기(_V)">
-                <MenuItem Header="시작 페이지" Command="{Binding ShowWelcomeCommand}" />
-                <MenuItem Header="Markdown 미리보기(_M)" InputGestureText="Ctrl+Shift+V" IsCheckable="True"
-                          IsChecked="{Binding ActiveTextDocument.IsMarkdownPreviewOpen, Mode=OneWay}"
-                          Command="{Binding ActiveTextDocument.ToggleMarkdownPreviewCommand}"
-                          IsEnabled="{Binding ActiveTextDocument.IsMarkdown, FallbackValue=False}" />
-                <MenuItem Header="자동 줄 바꿈(_W)" InputGestureText="Alt+Z" IsCheckable="True"
-                          IsChecked="{Binding ActiveDocument.IsWordWrapEnabled, Mode=OneWay, FallbackValue=False}"
-                          Command="{Binding ActiveDocument.ToggleWordWrapCommand}"
-                          IsEnabled="{Binding ActiveDocument.SupportsWordWrap, FallbackValue=False}"
-                          ToolTip="긴 줄을 창 폭에 맞춰 접어 보여 줍니다. 파일 내용은 바뀌지 않습니다." />
-                <Separator />
-                <MenuItem Header="프로젝트" IsCheckable="True" IsChecked="{Binding Projects.IsVisible, Mode=OneWay}"
-                          Command="{Binding ToggleToolCommand}" CommandParameter="{Binding Projects}" />
-                <MenuItem Header="속성" IsCheckable="True" IsChecked="{Binding Properties.IsVisible, Mode=OneWay}"
-                          Command="{Binding ToggleToolCommand}" CommandParameter="{Binding Properties}" />
-                <MenuItem Header="출력" IsCheckable="True" IsChecked="{Binding Output.IsVisible, Mode=OneWay}"
-                          Command="{Binding ToggleToolCommand}" CommandParameter="{Binding Output}" />
-                <MenuItem Header="검증 결과" IsCheckable="True" IsChecked="{Binding Validation.IsVisible, Mode=OneWay}"
-                          Command="{Binding ToggleToolCommand}" CommandParameter="{Binding Validation}" />
-                <MenuItem Header="검색 결과" IsCheckable="True" IsChecked="{Binding SearchResults.IsVisible, Mode=OneWay}"
-                          Command="{Binding ToggleToolCommand}" CommandParameter="{Binding SearchResults}" />
-                <MenuItem Header="훅 테스트" IsCheckable="True" IsChecked="{Binding HookTest.IsVisible, Mode=OneWay}"
-                          Command="{Binding ToggleToolCommand}" CommandParameter="{Binding HookTest}" />
-                <MenuItem Header="AI 모니터" IsCheckable="True" IsChecked="{Binding AiMonitor.IsVisible, Mode=OneWay}"
-                          Command="{Binding ToggleToolCommand}" CommandParameter="{Binding AiMonitor}" />
-                <Separator />
-                <MenuItem Header="화면 공유 모드(_S)" IsCheckable="True" IsChecked="{Binding IsScreenShareMode, Mode=OneWay}"
-                          Command="{Binding ToggleScreenShareModeCommand}" ToolTip="켜면 비밀값을 화면에서 가립니다" />
-            </MenuItem>
-            <MenuItem Header="프로젝트(_P)">
-                <MenuItem Header="프로젝트 추가(_A)..." Command="{Binding Projects.AddProjectCommand}" />
-                <MenuItem Header="숨긴 프로젝트 표시(_H)" ItemsSource="{Binding Projects.HiddenProjects}">
-                    <MenuItem.ItemContainerStyle>
-                        <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
-                            <Setter Property="Header" Value="{Binding Name}" />
-                            <Setter Property="Command" Value="{Binding DataContext.Projects.ShowProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                            <Setter Property="CommandParameter" Value="{Binding Id}" />
-                        </Style>
-                    </MenuItem.ItemContainerStyle>
+                <MenuItem Header="편집(_E)">
+                    <MenuItem Header="전체 검색(_G)..." InputGestureText="Ctrl+Shift+F" Command="{Binding ShowGlobalSearchCommand}" />
+                    <Separator />
+                    <MenuItem Header="실행 취소(_U)" InputGestureText="Ctrl+Z" Command="Undo" />
+                    <MenuItem Header="다시 실행(_R)" InputGestureText="Ctrl+Y" Command="Redo" />
+                    <Separator />
+                    <MenuItem Header="잘라내기(_T)" InputGestureText="Ctrl+X" Command="Cut" />
+                    <MenuItem Header="복사(_C)" InputGestureText="Ctrl+C" Command="Copy" />
+                    <MenuItem Header="붙여넣기(_P)" InputGestureText="Ctrl+V" Command="Paste" />
+                    <Separator />
+                    <MenuItem Header="찾기(_F)" InputGestureText="Ctrl+F" Command="{Binding FindCommand}" />
+                    <MenuItem Header="바꾸기(_H)" InputGestureText="Ctrl+H" Command="{Binding ReplaceCommand}" />
                 </MenuItem>
-            </MenuItem>
-            <MenuItem Header="도구(_T)">
-                <MenuItem Header="사용자 지정 파일 등록(경로 입력)(_G)..." Command="{Binding RegisterOtherFileCommand}" />
-                <MenuItem Header="사용자 지정 파일 추가(찾아보기)(_I)..." Command="{Binding AddImportantFileCommand}" />
-                <MenuItem Header="현재 파일을 사용자 지정 파일에서 빼기(_R)" Command="{Binding RemoveImportantFileCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
-                <Separator />
-                <MenuItem Header="AI 세션 시작(_C)..." Command="{Binding StartAiSessionCommand}" InputGestureText="Ctrl+Alt+C" />
-                <MenuItem Header="새 PowerShell 터미널(_P)" Command="{Binding OpenTerminalCommand}" InputGestureText="Ctrl+Alt+T" />
-                <MenuItem Header="관리자 권한 PowerShell 터미널(_W)" Command="{Binding OpenAdministratorTerminalCommand}"
-                          ToolTip="DotDeck이 관리자 권한이면 탭으로, 아니면 UAC 확인 후 별도 PowerShell 창으로 엽니다" />
-                <Separator />
-                <MenuItem Header="관리자 권한으로 다시 시작(_A)" Command="{Binding RestartAsAdministratorCommand}" />
-            </MenuItem>
-            <MenuItem Header="설정(_S)">
-                <MenuItem Header="환경 설정(_O)..." Command="{Binding OpenSettingsCommand}" />
-                <MenuItem Header="자동백업·변경검토 제외항목(_E)..." Command="{Binding OpenExclusionsCommand}" />
-                <MenuItem Header="프로젝트 백업(_B)..." Command="{Binding BackupProjectsCommand}" />
-            </MenuItem>
-            <MenuItem Header="창(_W)">
-                <MenuItem Header="새 창(_N)" Command="{Binding ActiveTextDocument.NewViewCommand}"
-                          IsEnabled="{Binding HasActiveTextDocument}" ToolTip="같은 파일을 다른 탭에서 함께 편집합니다" />
-                <MenuItem Header="탭 고정(_P)" IsCheckable="True" IsChecked="{Binding ActiveTextDocument.IsPinned, Mode=OneWay}"
-                          Command="{Binding ActiveTextDocument.TogglePinCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
-                <Separator />
-                <MenuItem Header="새 확장 창(_E)" Click="OnNewExtensionWindowClick"
-                          ToolTip="파일·터미널 등을 놓을 수 있는 별도 창을 엽니다. 탭을 끌어 놓거나 '확장 창으로 이동'으로 옮깁니다" />
-                <MenuItem x:Name="MoveToExtensionMenu" Header="현재 탭을 확장 창으로 이동(_M)" SubmenuOpened="OnMoveToExtensionSubmenuOpened">
-                    <MenuItem Header="(없음)" IsEnabled="False" />
+                <MenuItem Header="보기(_V)">
+                    <MenuItem Header="시작 페이지" Command="{Binding ShowWelcomeCommand}" />
+                    <MenuItem Header="Markdown 미리보기(_M)" InputGestureText="Ctrl+Shift+V" IsCheckable="True"
+                              IsChecked="{Binding ActiveTextDocument.IsMarkdownPreviewOpen, Mode=OneWay}"
+                              Command="{Binding ActiveTextDocument.ToggleMarkdownPreviewCommand}"
+                              IsEnabled="{Binding ActiveTextDocument.IsMarkdown, FallbackValue=False}" />
+                    <MenuItem Header="자동 줄 바꿈(_W)" InputGestureText="Alt+Z" IsCheckable="True"
+                              IsChecked="{Binding ActiveDocument.IsWordWrapEnabled, Mode=OneWay, FallbackValue=False}"
+                              Command="{Binding ActiveDocument.ToggleWordWrapCommand}"
+                              IsEnabled="{Binding ActiveDocument.SupportsWordWrap, FallbackValue=False}"
+                              ToolTip="긴 줄을 창 폭에 맞춰 접어 보여 줍니다. 파일 내용은 바뀌지 않습니다." />
+                    <Separator />
+                    <MenuItem Header="프로젝트" IsCheckable="True" IsChecked="{Binding Projects.IsVisible, Mode=OneWay}"
+                              Command="{Binding ToggleToolCommand}" CommandParameter="{Binding Projects}" />
+                    <MenuItem Header="속성" IsCheckable="True" IsChecked="{Binding Properties.IsVisible, Mode=OneWay}"
+                              Command="{Binding ToggleToolCommand}" CommandParameter="{Binding Properties}" />
+                    <MenuItem Header="출력" IsCheckable="True" IsChecked="{Binding Output.IsVisible, Mode=OneWay}"
+                              Command="{Binding ToggleToolCommand}" CommandParameter="{Binding Output}" />
+                    <MenuItem Header="검증 결과" IsCheckable="True" IsChecked="{Binding Validation.IsVisible, Mode=OneWay}"
+                              Command="{Binding ToggleToolCommand}" CommandParameter="{Binding Validation}" />
+                    <MenuItem Header="검색 결과" IsCheckable="True" IsChecked="{Binding SearchResults.IsVisible, Mode=OneWay}"
+                              Command="{Binding ToggleToolCommand}" CommandParameter="{Binding SearchResults}" />
+                    <MenuItem Header="훅 테스트" IsCheckable="True" IsChecked="{Binding HookTest.IsVisible, Mode=OneWay}"
+                              Command="{Binding ToggleToolCommand}" CommandParameter="{Binding HookTest}" />
+                    <MenuItem Header="AI 모니터" IsCheckable="True" IsChecked="{Binding AiMonitor.IsVisible, Mode=OneWay}"
+                              Command="{Binding ToggleToolCommand}" CommandParameter="{Binding AiMonitor}" />
+                    <Separator />
+                    <MenuItem Header="화면 공유 모드(_S)" IsCheckable="True" IsChecked="{Binding IsScreenShareMode, Mode=OneWay}"
+                              Command="{Binding ToggleScreenShareModeCommand}" ToolTip="켜면 비밀값을 화면에서 가립니다" />
                 </MenuItem>
-                <Separator />
-                <MenuItem Header="레이아웃 저장(_S)..." Click="OnSaveNamedLayoutClick" />
-                <MenuItem x:Name="LoadLayoutMenu" Header="레이아웃 불러오기(_L)" SubmenuOpened="OnLayoutSubmenuOpened">
-                    <MenuItem Header="(없음)" IsEnabled="False" />
+                <MenuItem Header="프로젝트(_P)">
+                    <MenuItem Header="프로젝트 추가(_A)..." Command="{Binding Projects.AddProjectCommand}" />
+                    <MenuItem Header="숨긴 프로젝트 표시(_H)" ItemsSource="{Binding Projects.HiddenProjects}">
+                        <MenuItem.ItemContainerStyle>
+                            <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                <Setter Property="Header" Value="{Binding Name}" />
+                                <Setter Property="Command" Value="{Binding DataContext.Projects.ShowProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                <Setter Property="CommandParameter" Value="{Binding Id}" />
+                            </Style>
+                        </MenuItem.ItemContainerStyle>
+                    </MenuItem>
                 </MenuItem>
-                <MenuItem x:Name="DeleteLayoutMenu" Header="레이아웃 삭제(_D)" SubmenuOpened="OnLayoutSubmenuOpened">
-                    <MenuItem Header="(없음)" IsEnabled="False" />
+                <MenuItem Header="도구(_T)">
+                    <MenuItem Header="사용자 지정 파일 등록(경로 입력)(_G)..." Command="{Binding RegisterOtherFileCommand}" />
+                    <MenuItem Header="사용자 지정 파일 추가(찾아보기)(_I)..." Command="{Binding AddImportantFileCommand}" />
+                    <MenuItem Header="현재 파일을 사용자 지정 파일에서 빼기(_R)" Command="{Binding RemoveImportantFileCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
+                    <Separator />
+                    <MenuItem Header="AI 세션 시작(_C)..." Command="{Binding StartAiSessionCommand}" InputGestureText="Ctrl+Alt+C" />
+                    <MenuItem Header="새 PowerShell 터미널(_P)" Command="{Binding OpenTerminalCommand}" InputGestureText="Ctrl+Alt+T" />
+                    <MenuItem Header="관리자 권한 PowerShell 터미널(_W)" Command="{Binding OpenAdministratorTerminalCommand}"
+                              ToolTip="DotDeck이 관리자 권한이면 탭으로, 아니면 UAC 확인 후 별도 PowerShell 창으로 엽니다" />
+                    <Separator />
+                    <MenuItem Header="관리자 권한으로 다시 시작(_A)" Command="{Binding RestartAsAdministratorCommand}" />
                 </MenuItem>
-                <MenuItem Header="레이아웃 초기화(_R)" Click="OnResetLayoutClick" />
-            </MenuItem>
-            <MenuItem Header="도움말(_H)">
-                <MenuItem Header="업데이트 확인(_U)" Command="{Binding CheckForUpdatesCommand}" />
-                <Separator />
-                <MenuItem Header="DotDeck 정보(_A)" Click="OnAboutClick" />
-            </MenuItem>
-        </Menu>
+                <MenuItem Header="설정(_S)">
+                    <MenuItem Header="환경 설정(_O)..." Command="{Binding OpenSettingsCommand}" />
+                    <MenuItem Header="자동백업·변경검토 제외항목(_E)..." Command="{Binding OpenExclusionsCommand}" />
+                    <MenuItem Header="프로젝트 백업(_B)..." Command="{Binding BackupProjectsCommand}" />
+                </MenuItem>
+                <MenuItem Header="창(_W)">
+                    <MenuItem Header="새 창(_N)" Command="{Binding ActiveTextDocument.NewViewCommand}"
+                              IsEnabled="{Binding HasActiveTextDocument}" ToolTip="같은 파일을 다른 탭에서 함께 편집합니다" />
+                    <MenuItem Header="탭 고정(_P)" IsCheckable="True" IsChecked="{Binding ActiveTextDocument.IsPinned, Mode=OneWay}"
+                              Command="{Binding ActiveTextDocument.TogglePinCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
+                    <Separator />
+                    <MenuItem Header="새 확장 창(_E)" Click="OnNewExtensionWindowClick"
+                              ToolTip="파일·터미널 등을 놓을 수 있는 별도 창을 엽니다. 탭을 끌어 놓거나 '확장 창으로 이동'으로 옮깁니다" />
+                    <MenuItem x:Name="MoveToExtensionMenu" Header="현재 탭을 확장 창으로 이동(_M)" SubmenuOpened="OnMoveToExtensionSubmenuOpened">
+                        <MenuItem Header="(없음)" IsEnabled="False" />
+                    </MenuItem>
+                    <MenuItem x:Name="ExtensionVisibilityMenu" Header="확장 창 숨기기/표시(_H)" SubmenuOpened="OnExtensionVisibilitySubmenuOpened"
+                              ToolTip="확장 창을 숨겨도 그 안의 터미널·CLI는 계속 실행됩니다. 체크 = 표시 중">
+                        <MenuItem Header="(없음)" IsEnabled="False" />
+                    </MenuItem>
+                    <Separator />
+                    <MenuItem Header="레이아웃 저장(_S)..." Click="OnSaveNamedLayoutClick" />
+                    <MenuItem x:Name="LoadLayoutMenu" Header="레이아웃 불러오기(_L)" SubmenuOpened="OnLayoutSubmenuOpened">
+                        <MenuItem Header="(없음)" IsEnabled="False" />
+                    </MenuItem>
+                    <MenuItem x:Name="DeleteLayoutMenu" Header="레이아웃 삭제(_D)" SubmenuOpened="OnLayoutSubmenuOpened">
+                        <MenuItem Header="(없음)" IsEnabled="False" />
+                    </MenuItem>
+                    <MenuItem Header="레이아웃 초기화(_R)" Click="OnResetLayoutClick" />
+                </MenuItem>
+                <MenuItem Header="도움말(_H)">
+                    <MenuItem Header="업데이트 확인(_U)" Command="{Binding CheckForUpdatesCommand}" />
+                    <Separator />
+                    <MenuItem Header="DotDeck 정보(_A)" Click="OnAboutClick" />
+                </MenuItem>
+            </Menu>
+        </DockPanel>
 
         <!-- Toolbar -->
         <ToolBarTray DockPanel.Dock="Top" IsLocked="True">

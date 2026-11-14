@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- DotDeck app icon "Deck Stack" — master, used for 40-256 px. Edit here, then run build/icons/generate-icons.ps1. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="front" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9D50FF"/>
+      <stop offset="1" stop-color="#7A2DE4"/>
+    </linearGradient>
+    <linearGradient id="back" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#CDA2FF"/>
+      <stop offset="1" stop-color="#B27BF7"/>
+    </linearGradient>
+  </defs>
+  <path id="tile" fill="#1F0A3C" d="M56 0 H200 A56 56 0 0 1 256 56 V200 A56 56 0 0 1 200 256 H56 A56 56 0 0 1 0 200 V56 A56 56 0 0 1 56 0 Z"/>
+  <path id="back-card" fill="url(#back)" d="M87 37 H165 A56 56 0 0 1 221 93 V123 A56 56 0 0 1 165 179 H87 A16 16 0 0 1 71 163 V53 A16 16 0 0 1 87 37 Z"/>
+  <path id="front-card" fill="url(#front)" d="M51 77 H139 A56 56 0 0 1 195 133 V163 A56 56 0 0 1 139 219 H51 A16 16 0 0 1 35 203 V93 A16 16 0 0 1 51 77 Z"/>
+  <path id="cutout" fill="#1F0A3C" d="M85 107 H161 A8 8 0 0 1 169 115 V155 A30 30 0 0 1 139 185 H85 V107 Z"/>
+  <path id="dot" fill="#F2ECFB" d="M135 147 H149 A4 4 0 0 1 153 151 V165 A4 4 0 0 1 149 169 H135 A4 4 0 0 1 131 165 V151 A4 4 0 0 1 135 147 Z"/>
+</svg>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- DotDeck tray symbol — 16 px, drawn for a LIGHT taskbar (dark symbol). generate-icons.ps1 also renders it
+     in white for a DARK taskbar. Edit here, then run build/icons/generate-icons.ps1. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <defs>
+    <clipPath id="gap">
+      <path clip-rule="evenodd" d="M-8 -8 H24 V24 H-8 Z M1 4 H7 A5 5 0 0 1 12 9 V12 A5 5 0 0 1 7 17 H1 A2 2 0 0 1 -1 15 V6 A2 2 0 0 1 1 4 Z"/>
+    </clipPath>
+  </defs>
+  <path id="back-card" fill="#1C1528" fill-opacity="0.78" clip-path="url(#gap)" d="M6 0 H12 A4 4 0 0 1 16 4 V7 A4 4 0 0 1 12 11 H6 A1 1 0 0 1 5 10 V1 A1 1 0 0 1 6 0 Z"/>
+  <path id="front-card" fill="#1C1528" fill-rule="evenodd" d="M1 5 H7 A4 4 0 0 1 11 9 V12 A4 4 0 0 1 7 16 H1 A1 1 0 0 1 0 15 V6 A1 1 0 0 1 1 5 Z M3 8 H8 V11 A2 2 0 0 1 6 13 H3 V8 Z"/>
+  <path id="dot" fill="#1C1528" d="M5 10 H7 V12 H5 V10 Z"/>
+</svg>

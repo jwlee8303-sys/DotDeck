@@ -102,6 +102,7 @@ switch ($PreviousFeed) {
 Invoke-Checked dotnet @('vpk', 'pack', '--packId', $PackId, '--packVersion', $Version, '--packDir', $appDir,
     '--mainExe', 'DotDeck.exe', '--packTitle', 'DotDeck', '--packAuthors', 'DotDeck', '--runtime', 'win-x64',
     '--channel', 'win', '--shortcuts', 'Desktop,StartMenuRoot', '--msi', '--instLocation', 'PerMachine',
+    '--icon', 'src/DotDeck.App/Assets/Icons/DotDeck.ico',
     '--releaseNotes', $notes, '--outputDir', $releases)
 
 # 4b. Keep user data on uninstall. Velopack's MSI cleanup action (RustCleanup) deletes %LOCALAPPDATA%\<RustAppId>

@@ -9,6 +9,8 @@
     <!-- Program.Main dispatches AI CLI helper modes (scope guard, heartbeat) before starting WPF. -->
     <StartupObject>DotDeck.App.Program</StartupObject>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Generated from Assets\Icons\Source\*.svg by build/icons/generate-icons.ps1. Velopack copies it to the root launcher. -->
+    <ApplicationIcon>Assets\Icons\DotDeck.ico</ApplicationIcon>
     <!-- Required by LibraryImport source-generated P/Invoke marshalling. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
@@ -38,6 +40,9 @@
     <EmbeddedResource Include="Editor\Highlighting\*.xshd" />
     <!-- Terminal page (xterm.js + DotDeck page), served from memory on a virtual host; see TerminalAssets. -->
     <EmbeddedResource Include="Assets\Terminal\**\*" LogicalName="Terminal/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Window.Icon (pack URI) and the tray symbols for a light / dark taskbar (TrayIcon). -->
+    <Resource Include="Assets\Icons\DotDeck.ico" />
+    <EmbeddedResource Include="Assets\Icons\tray-on-*.ico" LogicalName="Tray/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

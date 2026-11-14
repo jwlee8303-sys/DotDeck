@@ -25,6 +25,10 @@ internal sealed class InstallForm : Form
     {
         _engine = engine;
         Text = engine.PackId + " " + engine.Version + " 설치";
+        using (var icon = typeof(InstallForm).Assembly.GetManifestResourceStream("DotDeck.ico"))
+        {
+            if (icon is not null) Icon = new Icon(icon);
+        }
         Font = new Font("Segoe UI", 9.75f);
         AutoScaleMode = AutoScaleMode.Dpi;
         FormBorderStyle = FormBorderStyle.FixedDialog;

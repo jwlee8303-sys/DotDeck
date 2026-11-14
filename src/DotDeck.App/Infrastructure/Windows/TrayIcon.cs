@@ -1,11 +1,17 @@
+using System.Buffers.Binary;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Windows.Interop;
+using Microsoft.Win32;
 
 namespace DotDeck.App.Infrastructure.Windows;
 
 /// <summary>
 /// Notification-area (tray) icon over <c>Shell_NotifyIcon</c>, so WPF needs no WinForms reference.
 /// Left click raises <see cref="OpenRequested"/>; right click shows a native "열기 / 끝내기" menu.
+/// The icon is the DotDeck symbol for the taskbar's light or dark theme at the small-icon size of the current DPI,
+/// and is swapped when the theme, DPI or display changes.
 /// </summary>
 public sealed partial class TrayIcon : IDisposable
 {
@@ -18,12 +24,17 @@ public sealed partial class TrayIcon : IDisposable
     private const uint TpmRightButton = 0x2, TpmReturnCmd = 0x100;
     private const int CmdOpen = 1, CmdExit = 2;
     private const int IdiApplication = 32512;
+    private const int WmSettingChange = 0x001A, WmDisplayChange = 0x007E, WmDpiChanged = 0x02E0;
+    private const int SmCxSmIcon = 49;
+    private const uint IconResourceVersion = 0x00030000;
+    private const string PersonalizeKey = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
 
     private static readonly int s_taskbarCreated = (int)RegisterWindowMessageW("TaskbarCreated");
 
     private readonly HwndSource _window;
-    private readonly IntPtr _icon;
-    private readonly bool _ownsIcon;
+    private IntPtr _icon;
+    private bool _ownsIcon;
+    private (bool LightTaskbar, int Size) _iconKey;
     private readonly string _tooltip;
     private bool _visible;
     private bool _disposed;
@@ -34,7 +45,7 @@ public sealed partial class TrayIcon : IDisposable
         // An invisible top-level window (not message-only) can become foreground, which the popup menu needs to close properly.
         _window = new HwndSource(new HwndSourceParameters("DotDeckTray") { Width = 0, Height = 0, WindowStyle = unchecked((int)0x80000000) });
         _window.AddHook(WndProc);
-        (_icon, _ownsIcon) = LoadAppIcon();
+        UpdateIcon();
     }
 
     public event EventHandler? OpenRequested;
@@ -100,9 +111,15 @@ public sealed partial class TrayIcon : IDisposable
         }
         else if (msg == s_taskbarCreated && _visible)
         {
-            // Explorer restarted: the old icon is gone, add it again.
+            // Explorer restarted: the old icon is gone, add it again (the DPI may have changed with it).
             _visible = false;
+            UpdateIcon();
             Show();
+        }
+        else if (msg is WmSettingChange or WmDisplayChange or WmDpiChanged)
+        {
+            // Light/dark taskbar ("ImmersiveColorSet") or scale change: pick the matching symbol and size.
+            UpdateIcon();
         }
 
         return IntPtr.Zero;
@@ -140,8 +157,73 @@ public sealed partial class TrayIcon : IDisposable
         }
     }
 
-    private static (IntPtr Icon, bool Owned) LoadAppIcon()
+    /// <summary>Loads the icon for the current taskbar theme and DPI; replaces the shown one and frees the old handle.</summary>
+    private void UpdateIcon()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        var key = (LightTaskbar: TaskbarUsesLightTheme(), Size: SmallIconSize());
+        if (_icon != IntPtr.Zero && key == _iconKey)
+        {
+            return;
+        }
+
+        var (oldIcon, oldOwned) = (_icon, _ownsIcon);
+        (_icon, _ownsIcon) = LoadTrayIcon(key.LightTaskbar, key.Size);
+        _iconKey = key;
+        if (_visible)
+        {
+            var data = CreateData(NifIcon);
+            _ = ShellNotifyIconW(NimModify, ref data);
+        }
+
+        if (oldOwned && oldIcon != IntPtr.Zero && oldIcon != _icon)
+        {
+            _ = DestroyIcon(oldIcon);
+        }
+    }
+
+    private int SmallIconSize()
+    {
+        var dpi = GetDpiForWindow(_window.Handle);
+        var size = GetSystemMetricsForDpi(SmCxSmIcon, dpi == 0 ? 96 : dpi);
+        return size > 0 ? size : 16;
+    }
+
+    /// <summary>Windows "default app mode" for the taskbar and tray: SystemUsesLightTheme=1 is a light taskbar.</summary>
+    private static bool TaskbarUsesLightTheme()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(PersonalizeKey);
+            return key?.GetValue("SystemUsesLightTheme") is int value && value != 0;
+        }
+        catch (Exception ex) when (ex is SecurityException or UnauthorizedAccessException or IOException)
+        {
+            return false;
+        }
+    }
+
+    private static (IntPtr Icon, bool Owned) LoadTrayIcon(bool lightTaskbar, int size)
+    {
+        var name = lightTaskbar ? "Tray/tray-on-light.ico" : "Tray/tray-on-dark.ico";
+        using (var stream = typeof(TrayIcon).Assembly.GetManifestResourceStream(name))
+        {
+            if (stream is not null)
+            {
+                var ico = new byte[stream.Length];
+                stream.ReadExactly(ico);
+                var icon = CreateIconFromIco(ico, size);
+                if (icon != IntPtr.Zero)
+                {
+                    return (icon, true);
+                }
+            }
+        }
+
         // The exe's own icon when it has one; otherwise the system's generic application icon (shared, not destroyed).
         if (Environment.ProcessPath is { } exe && ExtractIconExW(exe, 0, IntPtr.Zero, out var small, 1) > 0 && small != IntPtr.Zero)
         {
@@ -149,6 +231,61 @@ public sealed partial class TrayIcon : IDisposable
         }
 
         return (LoadIconW(IntPtr.Zero, IdiApplication), false);
+    }
+
+    private static unsafe IntPtr CreateIconFromIco(byte[] ico, int size)
+    {
+        if (!TrySelectIcoFrame(ico, size, out var offset, out var length))
+        {
+            return IntPtr.Zero;
+        }
+
+        fixed (byte* frame = &ico[offset])
+        {
+            return CreateIconFromResourceEx(frame, (uint)length, 1, IconResourceVersion, size, size, 0);
+        }
+    }
+
+    /// <summary>
+    /// Picks the ICO frame for <paramref name="size"/>: the smallest frame at least that large, else the largest.
+    /// Returns false for data that is not a well-formed ICO.
+    /// </summary>
+    internal static bool TrySelectIcoFrame(ReadOnlySpan<byte> ico, int size, out int offset, out int length)
+    {
+        offset = length = 0;
+        if (ico.Length < 6 || BinaryPrimitives.ReadUInt16LittleEndian(ico) != 0 || BinaryPrimitives.ReadUInt16LittleEndian(ico[2..]) != 1)
+        {
+            return false;
+        }
+
+        int count = BinaryPrimitives.ReadUInt16LittleEndian(ico[4..]);
+        int best = -1, bestSize = 0;
+        for (var i = 0; i < count; i++)
+        {
+            var entry = 6 + (16 * i);
+            if (entry + 16 > ico.Length)
+            {
+                return false;
+            }
+
+            var frameSize = ico[entry] == 0 ? 256 : ico[entry];
+            var frameLength = BinaryPrimitives.ReadUInt32LittleEndian(ico[(entry + 8)..]);
+            var frameOffset = BinaryPrimitives.ReadUInt32LittleEndian(ico[(entry + 12)..]);
+            if (frameLength == 0 || frameOffset > (uint)ico.Length || frameLength > (uint)ico.Length - frameOffset)
+            {
+                continue;
+            }
+
+            var better = best < 0
+                || (frameSize >= size && (bestSize < size || frameSize < bestSize))
+                || (frameSize < size && bestSize < size && frameSize > bestSize);
+            if (better)
+            {
+                (best, bestSize, offset, length) = (i, frameSize, (int)frameOffset, (int)frameLength);
+            }
+        }
+
+        return best >= 0;
     }
 
     public void Dispose()
@@ -207,6 +344,15 @@ public sealed partial class TrayIcon : IDisposable
 
     [LibraryImport("user32.dll")]
     private static partial IntPtr LoadIconW(IntPtr instance, IntPtr name);
+
+    [LibraryImport("user32.dll")]
+    private static unsafe partial IntPtr CreateIconFromResourceEx(byte* bits, uint size, int isIcon, uint version, int width, int height, uint flags);
+
+    [LibraryImport("user32.dll")]
+    private static partial uint GetDpiForWindow(IntPtr hwnd);
+
+    [LibraryImport("user32.dll")]
+    private static partial int GetSystemMetricsForDpi(int index, uint dpi);
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

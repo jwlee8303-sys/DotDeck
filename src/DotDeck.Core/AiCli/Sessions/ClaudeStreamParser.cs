@@ -27,7 +27,7 @@ public enum AiOutputKind
     Raw,
 }
 
-/// <summary>One line of the "AI 작업" panel. <see cref="Text"/> is already masked.</summary>
+/// <summary>One line of an AI session output window. <see cref="Text"/> is already masked.</summary>
 public sealed record AiOutputEvent(AiOutputKind Kind, string Text, bool IsError = false);
 
 /// <summary>

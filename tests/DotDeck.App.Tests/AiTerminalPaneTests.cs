@@ -175,6 +175,8 @@ public sealed class AiTerminalPaneTests : IDisposable
 
     internal TerminalPaneViewModel CreatePaneForView() => Start().Pane;
 
+    internal AiSessionManager Manager => _manager;
+
     private static bool SpinUntil(Func<bool> condition) => SpinWait.SpinUntil(condition, TimeSpan.FromSeconds(10));
 
     private sealed class NoPipeLauncher : ICliProcessLauncher

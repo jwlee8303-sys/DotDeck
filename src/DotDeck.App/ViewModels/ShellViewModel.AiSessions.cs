@@ -42,7 +42,6 @@ public sealed partial class ShellViewModel
             RefreshAiTerminals();
             OfferReviewForFinishedSessions();
         });
-        AiWork.Attach(manager);
         AiMonitor.Attach(manager);
 
         // Scope narrowing must not wait for anything: the guard reads scope.json on the next tool call.
@@ -203,6 +202,13 @@ public sealed partial class ShellViewModel
         if (session.Terminal is not null)
         {
             ShowAiTerminal(session);
+        }
+        else
+        {
+            // A non-interactive session has no tab: its row in the monitor and its output show the progress.
+            // Posted: the monitor adds the row on the manager's (posted) change notification.
+            Post(() => ShowAiMonitor(session));
+            ShowAiOutput(session);
         }
 
         StatusMessage = $"Claude 세션을 시작했습니다: {session.Title}";

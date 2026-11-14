@@ -13,7 +13,7 @@ public enum LaunchMode
     /// <summary>Interactive TUI in a ConPTY terminal tab (SPEC 11.5 A).</summary>
     Interactive,
 
-    /// <summary>One prompt, streamed output in the AI 작업 panel (SPEC 11.5 B).</summary>
+    /// <summary>One prompt, streamed output in the AI 모니터 output window (SPEC 11.5 B).</summary>
     NonInteractive,
 }
 

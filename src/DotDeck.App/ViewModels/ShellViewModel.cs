@@ -124,9 +124,10 @@ public sealed partial class ShellViewModel : ObservableObject
         Validation = new ValidationPaneViewModel();
         SearchResults = new SearchResultsPaneViewModel(services.Store, SearchRoots, OpenSearchHitAsync);
         HookTest = new HookTestPaneViewModel { Dialogs = services.Dialogs, WorkingDirectory = services.Paths.Home };
-        AiWork = new AiSessionsPaneViewModel(ReviewAiChangesAsync, ConfirmStopAiSession, ShowAiTerminal) { IsVisible = false };
-        AiMonitor = new AiMonitorPaneViewModel(OpenMonitoredAiSession) { IsVisible = false };
-        Tools = [Properties, Output, Validation, SearchResults, HookTest, AiWork, AiMonitor];
+        AiMonitor = new AiMonitorPaneViewModel(
+            OpenMonitoredAiSession,
+            actions: new AiMonitorActions(ShowAiTerminal, ShowAiOutput, ReviewAiChangesAsync, ConfirmStopAiSession)) { IsVisible = false };
+        Tools = [Properties, Output, Validation, SearchResults, HookTest, AiMonitor];
         Projects = new ProjectsPaneViewModel(explorerContext, services.Session, Tools.Add, tool => Tools.Remove(tool));
         Tools.Insert(0, Projects);
         Projects.List.PropertyChanged += (_, e) =>
@@ -186,10 +187,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public HookTestPaneViewModel HookTest { get; }
 
-    /// <summary>"AI 작업" panel: sessions, their output and the change review (SPEC 11.3-4).</summary>
-    public AiSessionsPaneViewModel AiWork { get; }
-
-    /// <summary>"AI 모니터": compact state of the AI sessions of this run.</summary>
+    /// <summary>"AI 모니터": the AI sessions of this run with their terminal, output, change review and stop.</summary>
     public AiMonitorPaneViewModel AiMonitor { get; }
 
     [ObservableProperty]

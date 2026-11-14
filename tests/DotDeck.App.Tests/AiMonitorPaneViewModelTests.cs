@@ -158,6 +158,101 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
         Assert.Equal([first, second], _opened);
     }
 
+    [Fact]
+    public async Task Toolbar_actions_follow_the_selected_session_and_clear_removes_finished_rows()
+    {
+        var outputs = new List<AiSession>();
+        var reviewed = new List<AiSession>();
+        var confirmStop = false;
+        var pane = new AiMonitorPaneViewModel(_opened.Add, _time, new AiMonitorActions(
+            _ => throw new InvalidOperationException("no terminal"),
+            outputs.Add,
+            s =>
+            {
+                reviewed.Add(s);
+                return Task.CompletedTask;
+            },
+            _ => confirmStop)) { IsVisible = false };
+        pane.Attach(_manager);
+        Assert.False(pane.StopCommand.CanExecute(null)); // nothing selected
+
+        var session = Start();
+        pane.SelectedSession = Assert.Single(pane.Sessions);
+        Assert.False(pane.OpenTerminalCommand.CanExecute(null)); // non-interactive: no terminal tab
+
+        pane.ShowOutputCommand.Execute(null);
+        Assert.Equal([session], outputs);
+        await pane.ReviewChangesCommand.ExecuteAsync(null);
+        Assert.Equal([session], reviewed);
+
+        pane.StopCommand.Execute(null);
+        Assert.Equal(AiSessionState.Running, session.State); // declined
+
+        confirmStop = true;
+        pane.StopCommand.Execute(null);
+        await Eventually(() => session.State != AiSessionState.Running);
+        pane.Refresh();
+        Assert.False(pane.StopCommand.CanExecute(null));
+
+        var running = Start();
+        pane.ClearFinishedCommand.Execute(null);
+        Assert.Same(running, Assert.Single(pane.Sessions).Session);
+        Assert.Null(pane.SelectedSession);
+
+        // Later manager changes must not bring a cleared session back.
+        var third = Start();
+        Assert.Equal([third, running], pane.Sessions.Select(s => s.Session));
+    }
+
+    [Fact]
+    public void A_renamed_session_terminal_renames_its_row()
+    {
+        using var fixture = new AiTerminalPaneTests();
+        var terminal = fixture.CreatePaneForView();
+        var opened = new List<AiSession>();
+        var pane = new AiMonitorPaneViewModel(_ => { }, _time, new AiMonitorActions(opened.Add, _ => { }, _ => Task.CompletedTask, _ => false))
+        {
+            IsVisible = false,
+        };
+        pane.Attach(fixture.Manager);
+        pane.AttachTerminals(() => [terminal], _ => null, _ => { });
+        var item = Assert.Single(pane.Sessions);
+        Assert.Equal(terminal.Session!.Title, item.Title);
+
+        terminal.BeginRename();
+        terminal.RenameText = "리뷰 작업";
+        terminal.CommitRename();
+        pane.Refresh();
+
+        Assert.Equal("리뷰 작업", item.Title);
+        pane.SelectedSession = item;
+        Assert.False(pane.ShowOutputCommand.CanExecute(null)); // interactive: the output is in the terminal
+        pane.OpenTerminalCommand.Execute(null);
+        Assert.Equal([terminal.Session], opened);
+    }
+
+    [Fact]
+    public async Task Output_window_parses_buffered_and_live_output_and_masks_the_prompt()
+    {
+        var session = _manager.Start(new AiSessionStartRequest { PrimaryProjectId = "a", Prompt = "이 값으로 바꿔줘 API_KEY=fake-prompt-secret-1234" });
+        _launcher.Last.Write("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"먼저 읽겠습니다\"}]}}\n");
+        await Eventually(() => session.AttachOutput((_, _, _) => { }).Count == 1);
+
+        var output = new DotDeck.App.ViewModels.Dialogs.AiSessionOutputViewModel(session, action => action());
+        Assert.Equal("실행 중 · 가드 확인 대기", output.StateText);
+        Assert.DoesNotContain("fake-prompt-secret-1234", output.Prompt, StringComparison.Ordinal);
+
+        _launcher.Last.Write("{\"type\":\"result\",\"is_error\":false,\"num_turns\":2}\n");
+        await Eventually(() => output.Lines.Count == 2);
+        Assert.Equal([AiOutputKind.Text, AiOutputKind.Result], output.Lines.Select(l => l.Kind));
+        Assert.Equal("먼저 읽겠습니다", output.Lines[0].Text);
+
+        output.Detach();
+        _launcher.Last.Write("{\"type\":\"result\",\"is_error\":false,\"num_turns\":3}\n");
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        Assert.Equal(2, output.Lines.Count); // a closed window no longer follows the session
+    }
+
     [Theory]
     [InlineData("claude", CliKind.Claude)]
     [InlineData("Claude.exe", CliKind.Claude)]

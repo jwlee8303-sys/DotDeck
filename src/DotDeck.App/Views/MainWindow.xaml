@@ -27,11 +27,11 @@
             <conv:BoolToHiddenConverter x:Key="BoolToHidden" />
             <BooleanToVisibilityConverter x:Key="BoolToVisible" />
 
-            <!-- Pane title (DataContext: the layout item). A terminal's title is edited in place by a right click. -->
+            <!-- Pane title (DataContext: the layout item). A terminal's title is edited in place ("이름 바꾸기" in the tab menu). -->
             <DataTemplate x:Key="DD.PaneTitle">
                 <Grid>
                     <TextBlock x:Name="TitleText" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                               MouseRightButtonUp="OnPaneTitleRightClick" ContextMenuOpening="OnPaneTitleContextMenuOpening" />
+                               MouseRightButtonUp="OnPaneTitleRightClick" />
                     <TextBox x:Name="RenameBox" Visibility="Collapsed" MinWidth="140" Padding="1,0" VerticalAlignment="Center"
                              AutomationProperties.Name="터미널 이름"
                              Text="{Binding Content.RenameText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, FallbackValue={x:Null}}"
@@ -123,8 +123,6 @@
                           Command="{Binding ToggleToolCommand}" CommandParameter="{Binding SearchResults}" />
                 <MenuItem Header="훅 테스트" IsCheckable="True" IsChecked="{Binding HookTest.IsVisible, Mode=OneWay}"
                           Command="{Binding ToggleToolCommand}" CommandParameter="{Binding HookTest}" />
-                <MenuItem Header="AI 작업" IsCheckable="True" IsChecked="{Binding AiWork.IsVisible, Mode=OneWay}"
-                          Command="{Binding ToggleToolCommand}" CommandParameter="{Binding AiWork}" />
                 <MenuItem Header="AI 모니터" IsCheckable="True" IsChecked="{Binding AiMonitor.IsVisible, Mode=OneWay}"
                           Command="{Binding ToggleToolCommand}" CommandParameter="{Binding AiMonitor}" />
                 <Separator />
@@ -247,11 +245,11 @@
                         Background="Transparent" BorderThickness="0" Foreground="{DynamicResource DD.Brush.Text.OnAccent}" Padding="6,0" />
             </StatusBarItem>
             <Separator DockPanel.Dock="Left" />
-            <StatusBarItem DockPanel.Dock="Left" Content="{Binding AiStatusText}" ToolTip="실행 중인 AI CLI 세션 (클릭하면 AI 작업 패널)"
+            <StatusBarItem DockPanel.Dock="Left" Content="{Binding AiStatusText}" ToolTip="실행 중인 AI CLI 세션 (클릭하면 AI 모니터)"
                            Background="{DynamicResource DD.Brush.StatusBar.AiRunning}" Cursor="Hand"
                            Visibility="{Binding HasRunningAiSessions, Converter={StaticResource BoolToVisible}}">
                 <StatusBarItem.InputBindings>
-                    <MouseBinding Gesture="LeftClick" Command="{Binding ShowAiWorkCommand}" />
+                    <MouseBinding Gesture="LeftClick" Command="{Binding ShowAiMonitorCommand}" />
                 </StatusBarItem.InputBindings>
             </StatusBarItem>
             <Separator DockPanel.Dock="Left"

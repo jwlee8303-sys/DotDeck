@@ -8,11 +8,23 @@ using DotDeck.Core.AiCli.Sessions;
 
 namespace DotDeck.App.ViewModels.Tools;
 
+/// <summary>What the "AI 모니터" toolbar does with a DotDeck session (supplied by the shell).</summary>
+/// <param name="OpenTerminal">Shows an interactive session's terminal tab.</param>
+/// <param name="ShowOutput">Shows a non-interactive session's output window.</param>
+/// <param name="ReviewChanges">Opens the change review of the session.</param>
+/// <param name="ConfirmStop">Asks before a running session is stopped.</param>
+public sealed record AiMonitorActions(
+    Action<AiSession> OpenTerminal,
+    Action<AiSession> ShowOutput,
+    Func<AiSession, Task> ReviewChanges,
+    Func<AiSession, bool> ConfirmStop);
+
 /// <summary>
-/// "AI 모니터" panel: a compact view of the AI sessions of this run (state, guard, scope, elapsed time and whether the
-/// session is producing output right now). Double click opens the session's terminal tab or its "AI 작업" entry.
-/// Claude or Codex started by hand in a plain terminal tab is listed too: the terminals' processes are checked while
-/// the panel is visible. Time-based texts are refreshed once a second while the panel is visible.
+/// "AI 모니터" panel: the AI sessions of this run (state, guard, scope, elapsed time and whether the session is producing
+/// output right now) with their actions: terminal tab, output window, change review, stop and clearing finished rows.
+/// Double click opens the session's terminal tab or its output. Claude or Codex started by hand in a plain terminal tab
+/// is listed too: the terminals' processes are checked while the panel is visible. Time-based texts are refreshed once
+/// a second while the panel is visible.
 /// </summary>
 public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
 {
@@ -24,18 +36,24 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
     private readonly SynchronizationContext? _ui;
     private readonly TimeProvider _time;
     private readonly Action<AiSession> _open;
+    private readonly AiMonitorActions? _actions;
+    private readonly HashSet<string> _cleared = new(StringComparer.Ordinal);
     private AiSessionManager? _manager;
     private Func<IEnumerable<TerminalPaneViewModel>>? _terminals;
     private Func<int, (string Name, DateTimeOffset? StartedAt)?>? _inspect;
     private Action<TerminalPaneViewModel>? _openTerminal;
     private ITimer? _timer;
 
-    public AiMonitorPaneViewModel(Action<AiSession> open, TimeProvider? time = null)
+    /// <param name="open">Double click on a DotDeck session: its terminal tab (interactive) or its output.</param>
+    /// <param name="time">Clock (tests).</param>
+    /// <param name="actions">Toolbar actions; without them only opening and clearing work.</param>
+    public AiMonitorPaneViewModel(Action<AiSession> open, TimeProvider? time = null, AiMonitorActions? actions = null)
         : base(PaneContentId, "AI 모니터", ToolLocation.Right)
     {
         _ui = SynchronizationContext.Current;
         _open = open ?? throw new ArgumentNullException(nameof(open));
         _time = time ?? TimeProvider.System;
+        _actions = actions;
     }
 
     /// <summary>Every session of this run, newest first.</summary>
@@ -48,6 +66,7 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
     partial void OnShowFinishedChanged(bool value) => Refresh();
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(OpenTerminalCommand), nameof(ShowOutputCommand), nameof(ReviewChangesCommand), nameof(StopCommand))]
     private AiMonitorItemViewModel? _selectedSession;
 
     public bool HasVisibleSessions => Sessions.Any(s => s.IsShown);
@@ -110,13 +129,24 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
     public void Refresh()
     {
         var now = _time.GetUtcNow();
+
+        // A session's terminal tab may have been renamed: the row shows the tab's name.
+        var names = _terminals?.Invoke()
+            .Where(t => t.Session is not null)
+            .GroupBy(t => t.Session!)
+            .ToDictionary(g => g.Key, g => g.First().DisplayName);
         foreach (var item in Sessions)
         {
-            item.Refresh(now, ShowFinished);
+            var name = item.Session is { } session && names is not null && names.TryGetValue(session, out var n) ? n : null;
+            item.Refresh(now, ShowFinished, name);
         }
 
         OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(HasVisibleSessions));
+        OpenTerminalCommand.NotifyCanExecuteChanged();
+        ShowOutputCommand.NotifyCanExecuteChanged();
+        ReviewChangesCommand.NotifyCanExecuteChanged();
+        StopCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
@@ -137,6 +167,78 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
         }
     }
 
+    /// <summary>"터미널 보기": the terminal tab of an interactive session or of a CLI run by hand.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenTerminal))]
+    private void OpenTerminal()
+    {
+        if (SelectedSession is { Session: { Terminal: not null } session })
+        {
+            _actions?.OpenTerminal(session);
+        }
+        else if (SelectedSession is { TerminalPane: { } terminal })
+        {
+            _openTerminal?.Invoke(terminal);
+        }
+    }
+
+    private bool CanOpenTerminal() => SelectedSession is { HasTerminal: true };
+
+    /// <summary>"출력 보기": the output window of a non-interactive session.</summary>
+    [RelayCommand(CanExecute = nameof(CanShowOutput))]
+    private void ShowOutput()
+    {
+        if (SelectedSession is { Session: { Terminal: null } session })
+        {
+            _actions?.ShowOutput(session);
+        }
+    }
+
+    private bool CanShowOutput() => _actions is not null && SelectedSession is { Session.Terminal: null };
+
+    /// <summary>"변경 검토": files changed in the session's scope since it started (DotDeck sessions only).</summary>
+    [RelayCommand(CanExecute = nameof(CanReviewChanges))]
+    private Task ReviewChanges() =>
+        SelectedSession is { Session: { } session } && _actions is not null ? _actions.ReviewChanges(session) : Task.CompletedTask;
+
+    private bool CanReviewChanges() => _actions is not null && SelectedSession is { Session: not null };
+
+    /// <summary>"중지": stops a running DotDeck session after asking (the whole process tree ends).</summary>
+    [RelayCommand(CanExecute = nameof(CanStop))]
+    private void Stop()
+    {
+        if (SelectedSession is { Session: { State: AiSessionState.Running } session }
+            && _manager is not null && _actions is not null && _actions.ConfirmStop(session))
+        {
+            _manager.Stop(session);
+        }
+    }
+
+    private bool CanStop() => _actions is not null && SelectedSession is { Session.State: AiSessionState.Running };
+
+    /// <summary>Removes finished rows from the list (a session's folder stays until cleanup).</summary>
+    [RelayCommand]
+    private void ClearFinished()
+    {
+        foreach (var item in Sessions.Where(s => !s.IsRunning).ToList())
+        {
+            if (item.Session is { } session)
+            {
+                _manager?.MarkClosed(session);
+                _cleared.Add(session.Id);
+            }
+
+            item.Detach();
+            Sessions.Remove(item);
+        }
+
+        if (SelectedSession is not null && !Sessions.Contains(SelectedSession))
+        {
+            SelectedSession = null;
+        }
+
+        Refresh();
+    }
+
     protected override void OnVisibilityChanged(bool isVisible)
     {
         UpdateTimer();
@@ -155,7 +257,7 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
 
         foreach (var session in _manager.Sessions)
         {
-            if (Sessions.All(s => s.Session != session))
+            if (!_cleared.Contains(session.Id) && Sessions.All(s => s.Session != session))
             {
                 Sessions.Insert(0, new AiMonitorItemViewModel(session, _time));
             }
@@ -248,6 +350,7 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
     private DateTimeOffset? _endedAt;
     private DateTimeOffset _now;
     private bool _processEnded;
+    private string? _terminalName;
 
     internal AiMonitorItemViewModel(AiSession session, TimeProvider time)
     {
@@ -281,7 +384,11 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
 
     private string CliName => Cli == CliKind.Claude ? "Claude" : "Codex";
 
-    public string Title => Session?.Title ?? CliName + " · " + TerminalPane!.DisplayName;
+    /// <summary>The session's terminal tab name (tabs can be renamed), else the session title; "Claude · 탭 이름" for a hand run.</summary>
+    public string Title => Session is { } session ? _terminalName ?? session.Title : CliName + " · " + TerminalPane!.DisplayName;
+
+    /// <summary>The row has a terminal tab to show (an interactive session, or a CLI run by hand).</summary>
+    public bool HasTerminal => TerminalPane is not null || Session?.Terminal is not null;
 
     public string KindText => CliName + (Session is null ? " · 터미널" : Session.Mode == LaunchMode.Interactive ? " · 대화형" : " · 자동");
 
@@ -361,9 +468,10 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
         }
     }
 
-    internal void Refresh(DateTimeOffset now, bool showFinished)
+    internal void Refresh(DateTimeOffset now, bool showFinished, string? terminalName = null)
     {
         _now = now;
+        _terminalName = terminalName ?? _terminalName;
         IsShown = showFinished || IsRunning;
         if (!IsRunning)
         {
@@ -392,7 +500,10 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
                 : string.Create(CultureInfo.InvariantCulture, $"{span.Seconds}초");
     }
 
-    // Only the time of the latest output is kept; the text itself is shown by the terminal tab or the AI 작업 panel.
+    /// <summary>Stops following the output (the row was cleared).</summary>
+    internal void Detach() => Unwatch();
+
+    // Only the time of the latest output is kept; the text itself is shown by the terminal tab or the output window.
     private void Watch()
     {
         if (!IsRunning)

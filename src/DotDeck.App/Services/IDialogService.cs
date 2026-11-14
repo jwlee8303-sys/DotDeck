@@ -68,6 +68,12 @@ public interface IDialogService
     /// <summary>AI change summary with per-file and full revert (SPEC 11.3-4). Reverts happen inside the dialog.</summary>
     void ShowChangeReview(ChangeReviewViewModel viewModel);
 
+    /// <summary>
+    /// Shows a non-interactive AI session's output in a modeless window (one per session: a second call brings the open
+    /// window forward). The window detaches <paramref name="viewModel"/> when it closes.
+    /// </summary>
+    void ShowAiOutput(AiSessionOutputViewModel viewModel) => viewModel.Detach();
+
     /// <summary>Project backup dialog: returns the chosen project ids and destination folder, or null.</summary>
     (IReadOnlyList<string> ProjectIds, string Destination)? ShowProjectBackup(
         IReadOnlyList<(string Id, string Name, string Root)> projects, string? lastDestination);

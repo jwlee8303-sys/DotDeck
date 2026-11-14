@@ -1,0 +1,63 @@
+<Window x:Class="DotDeck.App.Views.Dialogs.AiOutputWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:DotDeck.App.Converters"
+        Title="{Binding WindowTitle}"
+        Width="820" Height="560" MinWidth="420" MinHeight="260"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        Background="{DynamicResource DD.Brush.Panel.Background}"
+        Foreground="{DynamicResource DD.Brush.Text}"
+        FontFamily="{DynamicResource DD.Font.Ui}"
+        FontSize="{DynamicResource DD.FontSize.Ui}">
+    <Window.Resources>
+        <conv:NullToCollapsedConverter x:Key="NullToCollapsed" />
+    </Window.Resources>
+
+    <!-- Non-interactive AI session output (the AI 모니터 "출력 보기"). Follows the session until the window closes. -->
+    <DockPanel Margin="8">
+        <TextBlock DockPanel.Dock="Top" Margin="2,0,2,4" Style="{StaticResource DD.Text.Secondary}">
+            <Run Text="{Binding StartedText, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding StateText, Mode=OneWay}" />
+        </TextBlock>
+        <TextBlock DockPanel.Dock="Top" Margin="2,0,2,4" TextWrapping="Wrap" Foreground="{DynamicResource DD.Brush.Error}"
+                   Text="{Binding Message}" Visibility="{Binding Message, Converter={StaticResource NullToCollapsed}}" />
+        <Expander DockPanel.Dock="Top" Margin="0,2,0,4" Header="프롬프트·명령줄">
+            <StackPanel>
+                <TextBox IsReadOnly="True" TextWrapping="Wrap" MaxHeight="90" VerticalScrollBarVisibility="Auto" Text="{Binding Prompt, Mode=OneWay}"
+                         AutomationProperties.Name="프롬프트" />
+                <TextBox Margin="0,4,0,0" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="90" VerticalScrollBarVisibility="Auto"
+                         FontFamily="{DynamicResource DD.Font.Editor}" Text="{Binding CommandLine, Mode=OneWay}" AutomationProperties.Name="명령줄" />
+            </StackPanel>
+        </Expander>
+        <ListBox ItemsSource="{Binding Lines}" BorderThickness="0"
+                 FontFamily="{DynamicResource DD.Font.Editor}" FontSize="{DynamicResource DD.FontSize.Ui}"
+                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="AI 출력">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                    <Setter Property="MinHeight" Value="0" />
+                    <Setter Property="Padding" Value="6,1" />
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock x:Name="Line" Text="{Binding Text}" TextWrapping="Wrap" />
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Kind}" Value="Tool">
+                            <Setter TargetName="Line" Property="Foreground" Value="{DynamicResource DD.Brush.Text.Secondary}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Kind}" Value="System">
+                            <Setter TargetName="Line" Property="Foreground" Value="{DynamicResource DD.Brush.Text.Secondary}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Kind}" Value="Result">
+                            <Setter TargetName="Line" Property="FontWeight" Value="SemiBold" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsError}" Value="True">
+                            <Setter TargetName="Line" Property="Foreground" Value="{DynamicResource DD.Brush.Error}" />
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

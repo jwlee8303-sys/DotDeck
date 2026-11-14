@@ -6,7 +6,9 @@ using DotDeck.App.Themes;
 using DotDeck.App.ViewModels;
 using DotDeck.Core.Layout;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using AvalonDock.Controls;
 using AvalonDock.Layout;
@@ -452,7 +454,21 @@ public partial class MainWindow : Window
 
     private const string MoveMenuTag = "DotDeck.MoveToExtension";
 
-    /// <summary>Adds "확장 창으로 이동" to AvalonDock's tab menus (a theme change brings new menu instances).</summary>
+    // AvalonDock's own "close all" items act on every document of the whole layout and skip tool panes (terminals).
+    private static readonly string[] BuiltInGroupCloseCommands = ["CloseAllButThisCommand", "CloseAllCommand"];
+
+    /// <summary>The tab a tab menu was opened for.</summary>
+    private static LayoutContent? ContentOf(ContextMenu menu) => menu.DataContext switch
+    {
+        LayoutItem layoutItem => layoutItem.LayoutElement as LayoutContent,
+        LayoutContent content => content,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Completes AvalonDock's tab menus (a theme change brings new menu instances): "이름 바꾸기" for terminals,
+    /// "이 창을 제외하고 모두 닫기"/"모두 닫기" for the clicked tab's group, and "확장 창으로 이동".
+    /// </summary>
     private void EnsureTabMenus()
     {
         foreach (var menu in new[] { DockManager.DocumentContextMenu, DockManager.AnchorableContextMenu })
@@ -463,23 +479,105 @@ public partial class MainWindow : Window
                 continue;
             }
 
+            AddRenameItem(menu);
+            AddGroupCloseItems(menu);
+
             var item = new MenuItem { Header = "확장 창으로 이동", Tag = MoveMenuTag };
             item.Items.Add(new MenuItem { Header = "(없음)", IsEnabled = false });
             item.SubmenuOpened += (_, args) =>
             {
                 if (ReferenceEquals(args.OriginalSource, item))
                 {
-                    FillMoveMenu(item, menu.DataContext switch
-                    {
-                        LayoutItem layoutItem => layoutItem.LayoutElement as LayoutContent,
-                        LayoutContent content => content,
-                        _ => null,
-                    });
+                    FillMoveMenu(item, ContentOf(menu));
                 }
             };
             menu.Items.Add(new Separator());
             menu.Items.Add(item);
         }
+    }
+
+    // "이름 바꾸기" first in the menu, shown for terminal tabs only.
+    private void AddRenameItem(ContextMenu menu)
+    {
+        var rename = new MenuItem { Header = "이름 바꾸기" };
+        var separator = new Separator();
+        rename.Click += (_, _) =>
+        {
+            if (ContentOf(menu) is { Content: TerminalPaneViewModel terminal } content)
+            {
+                BeginTerminalRename(content, terminal);
+            }
+        };
+        menu.Opened += (_, _) =>
+        {
+            var visibility = ContentOf(menu)?.Content is TerminalPaneViewModel ? Visibility.Visible : Visibility.Collapsed;
+            rename.Visibility = visibility;
+            separator.Visibility = visibility;
+        };
+        menu.Items.Insert(0, rename);
+        menu.Items.Insert(1, separator);
+    }
+
+    // Replaces AvalonDock's "close all" items (document menu) or adds them (tool menu): both close the clicked tab's
+    // group only, documents, terminals and tool panes alike.
+    private void AddGroupCloseItems(ContextMenu menu)
+    {
+        var builtIn = menu.Items.OfType<MenuItem>()
+            .Where(i => BindingOperations.GetBinding(i, MenuItem.CommandProperty)?.Path?.Path is { } path
+                && BuiltInGroupCloseCommands.Contains(path))
+            .ToList();
+        foreach (var item in builtIn)
+        {
+            item.Visibility = Visibility.Collapsed;
+        }
+
+        var closeOthers = new MenuItem { Header = "이 창을 제외하고 모두 닫기" };
+        closeOthers.Click += (_, _) => CloseGroupTabs(ContentOf(menu), keepClicked: true);
+        var closeAll = new MenuItem { Header = "모두 닫기" };
+        closeAll.Click += (_, _) => CloseGroupTabs(ContentOf(menu), keepClicked: false);
+        menu.Opened += (_, _) =>
+        {
+            var content = ContentOf(menu);
+            var group = GroupOf(content);
+            closeOthers.IsEnabled = group.Any(c => c != content && c.Content is PaneViewModel pane && ShellViewModel.CanCloseTab(pane));
+            closeAll.IsEnabled = group.Any(c => c.Content is PaneViewModel pane && ShellViewModel.CanCloseTab(pane));
+        };
+
+        if (builtIn.Count > 0)
+        {
+            var index = menu.Items.IndexOf(builtIn[^1]) + 1;
+            menu.Items.Insert(index, closeOthers);
+            menu.Items.Insert(index + 1, closeAll);
+        }
+        else
+        {
+            menu.Items.Add(new Separator());
+            menu.Items.Add(closeOthers);
+            menu.Items.Add(closeAll);
+        }
+    }
+
+    /// <summary>The tabs of the group (document or tool pane) that holds <paramref name="content"/>.</summary>
+    private static List<LayoutContent> GroupOf(LayoutContent? content) => content switch
+    {
+        null => [],
+        { Parent: ILayoutContainer group } => [.. group.Children.OfType<LayoutContent>()],
+        _ => [content],
+    };
+
+    private void CloseGroupTabs(LayoutContent? clicked, bool keepClicked)
+    {
+        if (clicked is null || LayoutBusy())
+        {
+            return;
+        }
+
+        var panes = GroupOf(clicked)
+            .Where(c => !keepClicked || c != clicked)
+            .Select(c => c.Content)
+            .OfType<PaneViewModel>()
+            .ToList();
+        _shell.CloseTabs(panes);
     }
 
     private void FillMoveMenu(MenuItem menu, LayoutContent? content)
@@ -523,40 +621,64 @@ public partial class MainWindow : Window
         menu.Items.Add(create);
     }
 
-    // ===== Terminal title: rename in place =====
+    // ===== Terminal title: rename in place (tab menu "이름 바꾸기") =====
+
+    // The title the tab menu was last opened on: the same title (tab or tool title bar) gets the edit box.
+    private TextBox? _lastTitleRenameBox;
 
     private static TerminalPaneViewModel? TerminalOf(object? sender) =>
         sender is FrameworkElement { DataContext: LayoutContent { Content: TerminalPaneViewModel terminal } } ? terminal : null;
 
-    private void OnPaneTitleRightClick(object sender, MouseButtonEventArgs e)
-    {
-        if (TerminalOf(sender) is not { } terminal || sender is not TextBlock { Parent: Grid grid })
-        {
-            return;
-        }
+    // Not handled: the tab menu opens as usual.
+    private void OnPaneTitleRightClick(object sender, MouseButtonEventArgs e) =>
+        _lastTitleRenameBox = TerminalOf(sender) is not null && sender is TextBlock { Parent: Grid grid }
+            ? grid.Children.OfType<TextBox>().FirstOrDefault()
+            : null;
 
-        e.Handled = true;
+    private void BeginTerminalRename(LayoutContent content, TerminalPaneViewModel terminal)
+    {
         terminal.BeginRename();
-        if (grid.Children.OfType<TextBox>().FirstOrDefault() is { } box)
+
+        // After the menu closed and the tab activation settled, or the terminal view would take the focus back.
+        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () =>
         {
-            // After the tab activation settles, or the terminal view would take the focus back.
-            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () =>
+            if (!terminal.IsRenaming)
             {
-                if (terminal.IsRenaming)
-                {
-                    Keyboard.Focus(box);
-                    box.SelectAll();
-                }
-            });
-        }
+                return;
+            }
+
+            var box = _lastTitleRenameBox is { IsVisible: true, DataContext: LayoutContent shown } last && shown == content
+                ? last
+                : FindRenameBox(content);
+            if (box is null)
+            {
+                terminal.CancelRename();
+                return;
+            }
+
+            Keyboard.Focus(box);
+            box.SelectAll();
+        });
     }
 
-    // The tab's own menu stays closed while a right click renames a terminal.
-    private void OnPaneTitleContextMenuOpening(object sender, ContextMenuEventArgs e)
+    // The visible title edit box of a tab, in the main window or a floating window.
+    private static TextBox? FindRenameBox(LayoutContent content) =>
+        Application.Current.Windows.OfType<Window>()
+            .SelectMany(w => Descendants(w))
+            .OfType<TextBox>()
+            .FirstOrDefault(b => b.Name == "RenameBox" && b.IsVisible && b.DataContext == content);
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
-        if (TerminalOf(sender) is not null)
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
         {
-            e.Handled = true;
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var nested in Descendants(child))
+            {
+                yield return nested;
+            }
         }
     }
 

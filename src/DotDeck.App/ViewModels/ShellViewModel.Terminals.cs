@@ -299,6 +299,7 @@ public sealed partial class ShellViewModel
         pane.CloseRequested += OnTerminalCloseRequested;
         pane.NewTerminalRequested += OnNewTerminalRequested;
         pane.Ended += (_, _) => OnPropertyChanged(nameof(RunningTerminalCount));
+        pane.PropertyChanged += OnTerminalPropertyChanged;
         Tools.Add(pane);
         pane.IsVisible = true;
         pane.IsSelected = true;
@@ -330,7 +331,7 @@ public sealed partial class ShellViewModel
             }
 
             var question = pane.IsAiSession
-                ? $"{pane.Title} 세션이 실행 중입니다.\n\n탭을 닫으면 세션이 중지됩니다. 변경 검토는 AI 작업 패널에서 할 수 있습니다. 닫을까요?"
+                ? $"{pane.Title} 세션이 실행 중입니다.\n\n탭을 닫으면 세션이 중지됩니다. 변경 검토는 AI 모니터에서 할 수 있습니다. 닫을까요?"
                 : $"{pane.Title}이(가) 실행 중입니다.\n\n탭을 닫으면 터미널과 그 안에서 실행한 프로그램이 모두 종료됩니다. 닫을까요?";
             if (pane.IsRunning && !_dialogs.Confirm("터미널", question))
             {
@@ -342,10 +343,20 @@ public sealed partial class ShellViewModel
         });
     }
 
+    // A renamed tab is renamed in the AI 모니터 right away (not only on its next refresh).
+    private void OnTerminalPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TerminalPaneViewModel.Title))
+        {
+            AiMonitor.Refresh();
+        }
+    }
+
     private void CloseTerminal(TerminalPaneViewModel pane)
     {
         pane.CloseRequested -= OnTerminalCloseRequested;
         pane.NewTerminalRequested -= OnNewTerminalRequested;
+        pane.PropertyChanged -= OnTerminalPropertyChanged;
         Tools.Remove(pane);
         if (pane.Session is { } session)
         {

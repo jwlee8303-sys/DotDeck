@@ -128,6 +128,26 @@ public sealed class DialogService : IDialogService
         Modal(dialog.ShowDialog);
     }
 
+    public void ShowAiOutput(AiSessionOutputViewModel viewModel)
+    {
+        var open = Application.Current?.Windows.OfType<AiOutputWindow>()
+            .FirstOrDefault(w => w.DataContext is AiSessionOutputViewModel shown && shown.Session == viewModel.Session);
+        if (open is not null)
+        {
+            viewModel.Detach();
+            if (open.WindowState == WindowState.Minimized)
+            {
+                open.WindowState = WindowState.Normal;
+            }
+
+            open.Activate();
+            return;
+        }
+
+        var window = new AiOutputWindow(viewModel) { Owner = Application.Current?.MainWindow };
+        window.Show();
+    }
+
     public (IReadOnlyList<string> ProjectIds, string Destination)? ShowProjectBackup(
         IReadOnlyList<(string Id, string Name, string Root)> projects, string? lastDestination)
     {

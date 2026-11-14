@@ -147,6 +147,34 @@ public sealed class TerminalRestoreTests : IDisposable
         await completion.Task.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task Closing_a_tab_group_closes_ended_terminals_and_hides_tool_panes()
+    {
+        var shell = CreateShell();
+        shell.OpenTerminalCommand.Execute(null);
+        shell.OpenTerminalCommand.Execute(null);
+        var terminals = shell.Terminals.ToList();
+        Assert.Equal(2, terminals.Count);
+        foreach (var terminal in terminals)
+        {
+            terminal.Connection.Terminate(); // ended terminals close without asking
+        }
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (terminals.Any(t => t.IsRunning))
+        {
+            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "terminals did not end");
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+        }
+
+        shell.Output.IsVisible = true;
+        shell.CloseTabs([.. terminals, shell.Output]);
+
+        Assert.Empty(shell.Terminals);
+        Assert.False(shell.Output.IsVisible);
+        Assert.Contains(shell.Output, shell.Tools);
+    }
+
     private static void CheckPosition(DockingManager manager, string id, ShellViewModel shell)
     {
         var terminal = Assert.Single(manager.Layout.Descendents().OfType<LayoutAnchorable>(), a => a.ContentId == id);

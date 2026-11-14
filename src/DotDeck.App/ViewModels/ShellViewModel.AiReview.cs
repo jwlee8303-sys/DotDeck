@@ -8,20 +8,24 @@ using DotDeck.Core.Logging;
 
 namespace DotDeck.App.ViewModels;
 
-/// <summary>"AI 작업" panel and the change summary (SPEC 11.3-4): review, revert, and the review offered at session end.</summary>
+/// <summary>AI 모니터 actions and the change summary (SPEC 11.3-4): review, revert, and the review offered at session end.</summary>
 public sealed partial class ShellViewModel
 {
     private readonly HashSet<string> _aiEndSeen = new(StringComparer.Ordinal);
 
-    /// <summary>Shows the "AI 작업" panel (status bar click).</summary>
+    /// <summary>Shows the "AI 모니터" panel (status bar click), optionally with <paramref name="session"/> selected.</summary>
     [RelayCommand]
-    private void ShowAiWork()
+    private void ShowAiMonitor(AiSession? session = null)
     {
-        AiWork.IsVisible = true;
-        AiWork.IsActive = true;
+        AiMonitor.IsVisible = true;
+        AiMonitor.IsActive = true;
+        if (session is not null && AiMonitor.Sessions.FirstOrDefault(s => s.Session == session) is { } item)
+        {
+            AiMonitor.SelectedSession = item;
+        }
     }
 
-    /// <summary>"AI 모니터" row: an interactive session opens its terminal tab, another one its "AI 작업" entry.</summary>
+    /// <summary>"AI 모니터" row: an interactive session opens its terminal tab, another one its output window.</summary>
     private void OpenMonitoredAiSession(AiSession session)
     {
         if (session.Terminal is not null)
@@ -30,12 +34,11 @@ public sealed partial class ShellViewModel
             return;
         }
 
-        ShowAiWork();
-        if (AiWork.Sessions.FirstOrDefault(s => s.Session == session) is { } item)
-        {
-            AiWork.SelectedSession = item;
-        }
+        ShowAiOutput(session);
     }
+
+    /// <summary>The output window of a non-interactive session (it follows the session until closed).</summary>
+    private void ShowAiOutput(AiSession session) => _dialogs.ShowAiOutput(new AiSessionOutputViewModel(session, Post));
 
     private bool ConfirmStopAiSession(AiSession session) =>
         _dialogs.Confirm("세션 중지", $"{session.Title} 세션을 중지할까요?\n\n진행 중인 작업이 끊깁니다. 바뀐 파일은 변경 검토에서 확인할 수 있습니다.");
@@ -114,7 +117,7 @@ public sealed partial class ShellViewModel
         // Never stack a modal dialog on another one (checked after the summary was built): the panel button stays.
         if (onlyWhenChanged && _dialogs.IsShowingDialog)
         {
-            StatusMessage = $"{session.Title} 세션이 끝났습니다. AI 작업 패널의 \"변경 검토\"로 확인하세요.";
+            StatusMessage = $"{session.Title} 세션이 끝났습니다. AI 모니터의 \"변경 검토\"로 확인하세요.";
             return;
         }
 

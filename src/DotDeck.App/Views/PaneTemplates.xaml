@@ -106,8 +106,63 @@
                     <TextBlock Style="{StaticResource DD.Glyph}" FontSize="14" Text="&#xE710;" />
                 </Button>
             </StackPanel>
+            <!-- "숨겨진 프로젝트": a gray project-like header at the bottom; expanded, the hidden projects' names
+                 (right click → "숨기기 취소"). Shown while at least one project is hidden. -->
+            <DockPanel x:Name="HiddenSection" DockPanel.Dock="Bottom"
+                       Visibility="{Binding HasHiddenProjects, Converter={StaticResource SysBoolToVisible}}">
+                <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource DD.Brush.Border}" />
+                <Grid x:Name="HiddenHeader" DockPanel.Dock="Top" Margin="4,3" Background="Transparent" Cursor="Hand"
+                      ToolTip="숨긴 프로젝트 목록 (펼치기/접기)" AutomationProperties.Name="숨겨진 프로젝트">
+                    <Grid.InputBindings>
+                        <MouseBinding Gesture="LeftClick" Command="{Binding ToggleHiddenSectionCommand}" />
+                    </Grid.InputBindings>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="16" Height="16" CornerRadius="3" VerticalAlignment="Center" Margin="0,0,9,0"
+                            Background="{DynamicResource DD.Brush.Text.Disabled}">
+                        <TextBlock x:Name="HiddenChevron" Style="{StaticResource DD.Glyph}" FontSize="8"
+                                   Foreground="{DynamicResource DD.Brush.Panel.Background}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" Text="&#xEDDA;" />
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="{Binding HiddenProjectsTitle}" FontWeight="SemiBold" VerticalAlignment="Center"
+                               Foreground="{DynamicResource DD.Brush.Text.Secondary}" TextTrimming="CharacterEllipsis" />
+                </Grid>
+                <ScrollViewer x:Name="HiddenList" MaxHeight="200" VerticalScrollBarVisibility="Auto" Visibility="Collapsed"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding HiddenProjects}" Margin="0,0,0,3" AutomationProperties.Name="숨겨진 프로젝트 목록">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border x:Name="Row" Padding="29,2,4,2" Background="Transparent"
+                                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                    <Border.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="숨기기 취소(_U)" CommandParameter="{Binding Id}"
+                                                      Command="{Binding PlacementTarget.Tag.ShowProjectCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                        </ContextMenu>
+                                    </Border.ContextMenu>
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource DD.Brush.Text.Secondary}" />
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource DD.Brush.Hover}" />
+                                    </Trigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
             <explorerViews:ExplorerListView DataContext="{Binding List}" />
         </DockPanel>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsHiddenSectionExpanded}" Value="True">
+                <Setter TargetName="HiddenChevron" Property="Text" Value="&#xEDDC;" />
+                <Setter TargetName="HiddenList" Property="Visibility" Value="Visible" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type explorer:DetachedExplorerPaneViewModel}">

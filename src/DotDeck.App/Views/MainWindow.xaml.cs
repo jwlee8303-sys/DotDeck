@@ -79,6 +79,11 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
+
+        // The tray icon is there from startup (not only after the window was hidden to it) until the app exits.
+        _tray ??= CreateTray();
+        _tray.Show();
+
         _shell.PrepareLayoutContent();
         _restoring = true;
         try
@@ -166,7 +171,6 @@ public partial class MainWindow : Window
         }
 
         Activate();
-        _tray?.Hide();
     }
 
     private void ExitApplication()

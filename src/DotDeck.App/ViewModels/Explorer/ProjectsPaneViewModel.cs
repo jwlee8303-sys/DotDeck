@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotDeck.App.ViewModels.Dialogs;
 using DotDeck.Core.Explorer;
@@ -47,8 +48,21 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
 
     public IReadOnlyList<ExplorerViewModel> Explorers => _explorers;
 
-    /// <summary>Hidden projects, for "숨긴 프로젝트 표시".</summary>
+    /// <summary>Hidden projects, for "숨긴 프로젝트 표시" and the "숨겨진 프로젝트" section at the bottom of the pane.</summary>
     public ObservableCollection<ProjectDefinition> HiddenProjects { get; } = [];
+
+    /// <summary>The "숨겨진 프로젝트" section is shown (at least one project is hidden).</summary>
+    public bool HasHiddenProjects => HiddenProjects.Count > 0;
+
+    /// <summary>"숨겨진 프로젝트 (2)".</summary>
+    public string HiddenProjectsTitle => $"숨겨진 프로젝트 ({HiddenProjects.Count})";
+
+    /// <summary>The section lists the hidden projects' names (collapsed by default).</summary>
+    [ObservableProperty]
+    private bool _isHiddenSectionExpanded;
+
+    [RelayCommand]
+    private void ToggleHiddenSection() => IsHiddenSectionExpanded = !IsHiddenSectionExpanded;
 
     private ProjectRegistry Registry => _context.Registry.Registry;
 
@@ -560,6 +574,9 @@ public sealed partial class ProjectsPaneViewModel : ToolPaneViewModel
         {
             HiddenProjects.Add(hidden);
         }
+
+        OnPropertyChanged(nameof(HasHiddenProjects));
+        OnPropertyChanged(nameof(HiddenProjectsTitle));
 
         foreach (var explorer in _explorers.Where(x => !wanted.Any(p => p.Id == x.Id)).ToList())
         {

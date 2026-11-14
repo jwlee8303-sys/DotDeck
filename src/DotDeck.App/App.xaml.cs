@@ -101,7 +101,7 @@ public partial class App : Application
                 { _log.Warning("이전 AI 세션 폴더 정리를 완료하지 못했습니다."); }
             });
 
-            var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log));
+            var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log)) { CloseToTray = settings.CloseToTray };
             MainWindow = window;
             window.Show();
         }

@@ -5,12 +5,13 @@ namespace DotDeck.Core.Projects;
 /// <summary>Fixed facts about the built-in projects (SPEC 2.1).</summary>
 public static class BuiltinProjects
 {
-    public static IReadOnlyList<BuiltinProject> All { get; } = [BuiltinProject.Claude, BuiltinProject.Codex, BuiltinProject.System];
+    public static IReadOnlyList<BuiltinProject> All { get; } = [BuiltinProject.Claude, BuiltinProject.Codex, BuiltinProject.Gemini, BuiltinProject.System];
 
     public static string IdOf(BuiltinProject builtin) => builtin switch
     {
         BuiltinProject.Claude => "builtin.claude",
         BuiltinProject.Codex => "builtin.codex",
+        BuiltinProject.Gemini => "builtin.gemini",
         BuiltinProject.System => "builtin.system",
         _ => throw new ArgumentOutOfRangeException(nameof(builtin)),
     };
@@ -19,6 +20,7 @@ public static class BuiltinProjects
     {
         BuiltinProject.Claude => "Claude 전역",
         BuiltinProject.Codex => "Codex 전역",
+        BuiltinProject.Gemini => "Gemini 전역",
         BuiltinProject.System => "시스템",
         _ => throw new ArgumentOutOfRangeException(nameof(builtin)),
     };
@@ -28,6 +30,7 @@ public static class BuiltinProjects
     {
         BuiltinProject.Claude => "claude",
         BuiltinProject.Codex => "codex",
+        BuiltinProject.Gemini => "gemini",
         BuiltinProject.System => "system",
         _ => throw new ArgumentOutOfRangeException(nameof(builtin)),
     };
@@ -36,6 +39,7 @@ public static class BuiltinProjects
     {
         "claude" => BuiltinProject.Claude,
         "codex" => BuiltinProject.Codex,
+        "gemini" => BuiltinProject.Gemini,
         "system" => BuiltinProject.System,
         _ => null,
     };
@@ -45,6 +49,7 @@ public static class BuiltinProjects
     {
         BuiltinProject.Claude => paths.ClaudeHome,
         BuiltinProject.Codex => paths.CodexHome,
+        BuiltinProject.Gemini => paths.GeminiHome,
         _ => null,
     };
 
@@ -57,6 +62,7 @@ public static class BuiltinProjects
     {
         BuiltinProject.Claude => ["/projects", "/todos", "/shell-snapshots", "/statsig", "/file-history", "/debug"],
         BuiltinProject.Codex => ["/sessions", "/log"],
+        BuiltinProject.Gemini => ["/tmp", "/history"],
         _ => [],
     };
 

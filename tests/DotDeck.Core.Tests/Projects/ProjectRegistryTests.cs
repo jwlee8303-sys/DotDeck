@@ -33,7 +33,7 @@ public sealed class ProjectRegistryTests : IDisposable
         var result = registry.Load();
 
         Assert.Equal(ProjectRegistryLoadStatus.CreatedDefaults, result.Status);
-        Assert.Equal(["builtin.claude", "builtin.codex", "builtin.system"], registry.Projects.Select(p => p.Id));
+        Assert.Equal(["builtin.claude", "builtin.codex", "builtin.gemini", "builtin.system"], registry.Projects.Select(p => p.Id));
         Assert.True(File.Exists(FilePath));
         // New built-ins start from the global default extensions without rules.
         Assert.All(registry.Projects, p => Assert.Equal(VisibilitySettings.Default, p.Visibility));
@@ -54,7 +54,7 @@ public sealed class ProjectRegistryTests : IDisposable
         Assert.Equal("#68217A", project.Color);
         Assert.Null(project.Visibility.DefaultExtensions);
         Assert.False(project.Visibility.ShowAllFiles);
-        Assert.Equal(3, project.Order);
+        Assert.Equal(4, project.Order);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class ProjectRegistryTests : IDisposable
 
         var registry = LoadNew();
 
-        Assert.Equal(4, registry.Projects.Count);
+        Assert.Equal(5, registry.Projects.Count);
         Assert.Contains(registry.Projects, p => p.Builtin == BuiltinProject.System);
     }
 
@@ -108,7 +108,7 @@ public sealed class ProjectRegistryTests : IDisposable
         Assert.Equal(ProjectRegistryLoadStatus.RecoveredFromCorrupt, result.Status);
         var corrupt = Directory.GetFiles(Path.GetDirectoryName(FilePath)!, "projects.json.corrupt-*").Single();
         Assert.Equal("{ not json", File.ReadAllText(corrupt));
-        Assert.Equal(3, registry.Projects.Count);
+        Assert.Equal(4, registry.Projects.Count);
         Assert.False(registry.IsReadOnly);
     }
 
@@ -168,7 +168,7 @@ public sealed class ProjectRegistryTests : IDisposable
         var reloaded = LoadNew();
         Assert.Equal("builtin.system", reloaded.Projects[0].Id);
         Assert.True(reloaded.Projects[0].Hidden);
-        Assert.Equal([0, 1, 2], reloaded.Projects.Select(p => p.Order));
+        Assert.Equal([0, 1, 2, 3], reloaded.Projects.Select(p => p.Order));
     }
 
     [Fact]
@@ -196,7 +196,7 @@ public sealed class ProjectRegistryTests : IDisposable
         var registry = LoadNew();
 
         Assert.Throws<ArgumentException>(() => registry.AddFolder(name, root));
-        Assert.Equal(3, registry.Projects.Count);
+        Assert.Equal(4, registry.Projects.Count);
     }
 
     [Fact]
@@ -342,7 +342,7 @@ public sealed class ProjectRegistryTests : IDisposable
 
         Assert.Equal(ProjectRegistryLoadStatus.ReadOnlyUnreadable, result.Status);
         Assert.True(registry.IsReadOnly);
-        Assert.Equal(3, registry.Projects.Count);
+        Assert.Equal(4, registry.Projects.Count);
         Assert.Throws<InvalidOperationException>(() => registry.AddFolder("A", @"D:\a"));
     }
 

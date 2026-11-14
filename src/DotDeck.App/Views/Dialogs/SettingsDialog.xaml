@@ -37,6 +37,8 @@
                 <TextBox x:Name="BackupDirBox" AutomationProperties.Name="백업 폴더" />
             </DockPanel>
         </Grid>
+        <CheckBox x:Name="CloseToTrayBox" Margin="0,8,0,0" Content="창을 닫으면 트레이로 숨기기"
+                  ToolTip="X 버튼으로 닫으면 종료하지 않고 알림 영역(트레이)으로 숨깁니다. 끝내기는 파일 메뉴나 트레이 아이콘 메뉴에서 합니다." />
         <TextBlock Margin="0,10,0,4" Text="탐색기 기본 확장자" />
         <ctl:ExtensionChoicesView x:Name="ExtensionsView" />
         <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Style="{StaticResource DD.Text.Secondary}"

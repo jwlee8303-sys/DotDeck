@@ -17,6 +17,9 @@ public sealed record AppSettings
 
     public double EditorFontSize { get; init; } = 13.333;
 
+    /// <summary>Closing the main window (X) hides it to the notification area instead of exiting. On by default.</summary>
+    public bool CloseToTray { get; init; } = true;
+
     public int BackupRetention { get; init; } = 50;
 
     /// <summary>User-chosen backup folder; null uses <c>%LOCALAPPDATA%\DotDeck\backups</c>.</summary>

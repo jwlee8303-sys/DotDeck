@@ -151,6 +151,37 @@ public sealed class ShellLauncher : IShellLauncher
         }
     }
 
+    public bool OpenElevatedTerminal(string shellExecutable, string directory)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(shellExecutable);
+        ArgumentException.ThrowIfNullOrEmpty(directory);
+        // An elevated process ignores WorkingDirectory (it starts in System32), so the shell changes folder itself.
+        // The command is passed encoded so the path is never parsed by the command line.
+        var start = new ProcessStartInfo
+        {
+            FileName = shellExecutable,
+            UseShellExecute = true,
+            Verb = "runas",
+            Arguments = "-NoExit -EncodedCommand " + ElevatedStartCommand(directory),
+        };
+        try
+        {
+            using var _ = Process.Start(start);
+            return true;
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == ErrorCancelled)
+        {
+            return false;
+        }
+    }
+
+    private const int ErrorCancelled = 1223;
+
+    /// <summary>Base64 (UTF-16LE) of "Set-Location -LiteralPath '<directory>'" for PowerShell's -EncodedCommand.</summary>
+    internal static string ElevatedStartCommand(string directory) =>
+        Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(
+            "Set-Location -LiteralPath '" + directory.Replace("'", "''", StringComparison.Ordinal) + "'"));
+
     /// <summary>Finds Code.exe: per-user and machine installs, then a "...\Microsoft VS Code\bin" PATH entry.</summary>
     private static string? FindVsCode()
     {

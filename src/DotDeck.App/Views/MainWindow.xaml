@@ -26,6 +26,33 @@
             </ResourceDictionary.MergedDictionaries>
             <conv:BoolToHiddenConverter x:Key="BoolToHidden" />
             <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+
+            <!-- Pane title (DataContext: the layout item). A terminal's title is edited in place by a right click. -->
+            <DataTemplate x:Key="DD.PaneTitle">
+                <Grid>
+                    <TextBlock x:Name="TitleText" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                               MouseRightButtonUp="OnPaneTitleRightClick" ContextMenuOpening="OnPaneTitleContextMenuOpening" />
+                    <TextBox x:Name="RenameBox" Visibility="Collapsed" MinWidth="140" Padding="1,0" VerticalAlignment="Center"
+                             AutomationProperties.Name="터미널 이름"
+                             Text="{Binding Content.RenameText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, FallbackValue={x:Null}}"
+                             KeyDown="OnRenameKeyDown" LostKeyboardFocus="OnRenameLostFocus" />
+                </Grid>
+                <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding Content.IsRenaming, FallbackValue=False}" Value="True">
+                        <Setter TargetName="TitleText" Property="Visibility" Value="Collapsed" />
+                        <Setter TargetName="RenameBox" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </DataTemplate.Triggers>
+            </DataTemplate>
+
+            <!-- "+" after a terminal's title: a new terminal next to it. -->
+            <DataTemplate x:Key="DD.NewTerminalButton">
+                <Button Command="{Binding Content.NewTerminalCommand}" ToolTip="새 터미널 (이 터미널 옆에 엽니다)" AutomationProperties.Name="새 터미널"
+                        Focusable="False" Background="Transparent" BorderThickness="0" Padding="3,0" Margin="4,0,0,0" VerticalAlignment="Center"
+                        Visibility="{Binding Content.CanOpenTerminalHere, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}">
+                    <TextBlock Style="{StaticResource DD.Glyph}" FontSize="10" Text="&#xE710;" />
+                </Button>
+            </DataTemplate>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -98,6 +125,8 @@
                           Command="{Binding ToggleToolCommand}" CommandParameter="{Binding HookTest}" />
                 <MenuItem Header="AI 작업" IsCheckable="True" IsChecked="{Binding AiWork.IsVisible, Mode=OneWay}"
                           Command="{Binding ToggleToolCommand}" CommandParameter="{Binding AiWork}" />
+                <MenuItem Header="AI 모니터" IsCheckable="True" IsChecked="{Binding AiMonitor.IsVisible, Mode=OneWay}"
+                          Command="{Binding ToggleToolCommand}" CommandParameter="{Binding AiMonitor}" />
                 <Separator />
                 <MenuItem Header="화면 공유 모드(_S)" IsCheckable="True" IsChecked="{Binding IsScreenShareMode, Mode=OneWay}"
                           Command="{Binding ToggleScreenShareModeCommand}" ToolTip="켜면 비밀값을 화면에서 가립니다" />
@@ -121,6 +150,8 @@
                 <Separator />
                 <MenuItem Header="AI 세션 시작(_C)..." Command="{Binding StartAiSessionCommand}" InputGestureText="Ctrl+Alt+C" />
                 <MenuItem Header="새 PowerShell 터미널(_P)" Command="{Binding OpenTerminalCommand}" InputGestureText="Ctrl+Alt+T" />
+                <MenuItem Header="관리자 권한 PowerShell 터미널(_W)" Command="{Binding OpenAdministratorTerminalCommand}"
+                          ToolTip="DotDeck이 관리자 권한이면 탭으로, 아니면 UAC 확인 후 별도 PowerShell 창으로 엽니다" />
                 <Separator />
                 <MenuItem Header="관리자 권한으로 다시 시작(_A)" Command="{Binding RestartAsAdministratorCommand}" />
             </MenuItem>
@@ -134,6 +165,12 @@
                           IsEnabled="{Binding HasActiveTextDocument}" ToolTip="같은 파일을 다른 탭에서 함께 편집합니다" />
                 <MenuItem Header="탭 고정(_P)" IsCheckable="True" IsChecked="{Binding ActiveTextDocument.IsPinned, Mode=OneWay}"
                           Command="{Binding ActiveTextDocument.TogglePinCommand}" IsEnabled="{Binding HasActiveTextDocument}" />
+                <Separator />
+                <MenuItem Header="새 확장 창(_E)" Click="OnNewExtensionWindowClick"
+                          ToolTip="파일·터미널 등을 놓을 수 있는 별도 창을 엽니다. 탭을 끌어 놓거나 '확장 창으로 이동'으로 옮깁니다" />
+                <MenuItem x:Name="MoveToExtensionMenu" Header="현재 탭을 확장 창으로 이동(_M)" SubmenuOpened="OnMoveToExtensionSubmenuOpened">
+                    <MenuItem Header="(없음)" IsEnabled="False" />
+                </MenuItem>
                 <Separator />
                 <MenuItem Header="레이아웃 저장(_S)..." Click="OnSaveNamedLayoutClick" />
                 <MenuItem x:Name="LoadLayoutMenu" Header="레이아웃 불러오기(_L)" SubmenuOpened="OnLayoutSubmenuOpened">
@@ -250,15 +287,33 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource DD.Glyph}" FontSize="10" Margin="0,0,4,0" VerticalAlignment="Center"
                                    Text="&#xE718;" Visibility="{Binding Content.IsPinned, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}" />
-                        <TextBlock x:Name="HeaderText" Text="{Binding Title}" />
+                        <ContentPresenter x:Name="HeaderText" Content="{Binding}" ContentTemplate="{StaticResource DD.PaneTitle}" />
+                        <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource DD.NewTerminalButton}" />
                     </StackPanel>
                     <DataTemplate.Triggers>
                         <DataTrigger Binding="{Binding Content.IsPreview, FallbackValue=False}" Value="True">
-                            <Setter TargetName="HeaderText" Property="FontStyle" Value="Italic" />
+                            <Setter TargetName="HeaderText" Property="TextElement.FontStyle" Value="Italic" />
                         </DataTrigger>
                     </DataTemplate.Triggers>
                 </DataTemplate>
             </ad:DockingManager.DocumentHeaderTemplate>
+
+            <!-- Tabs of a tool pane group -->
+            <ad:DockingManager.AnchorableHeaderTemplate>
+                <DataTemplate>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource DD.PaneTitle}" />
+                </DataTemplate>
+            </ad:DockingManager.AnchorableHeaderTemplate>
+
+            <!-- Title bar of a tool pane group (shows the selected tab) -->
+            <ad:DockingManager.AnchorableTitleTemplate>
+                <DataTemplate>
+                    <DockPanel LastChildFill="True">
+                        <ContentPresenter DockPanel.Dock="Right" Content="{Binding}" ContentTemplate="{StaticResource DD.NewTerminalButton}" />
+                        <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource DD.PaneTitle}" />
+                    </DockPanel>
+                </DataTemplate>
+            </ad:DockingManager.AnchorableTitleTemplate>
 
             <ad:DockingManager.LayoutUpdateStrategy>
                 <docking:LayoutInitializer />

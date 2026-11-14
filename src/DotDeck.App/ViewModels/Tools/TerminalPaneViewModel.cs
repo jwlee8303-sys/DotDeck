@@ -80,7 +80,65 @@ public sealed partial class TerminalPaneViewModel : ToolPaneViewModel
 
     public TerminalConnection Connection { get; }
 
-    public string PersistentTitle => _baseTitle;
+    /// <summary>Name kept across restarts: the user's name for the tab, else the automatic one.</summary>
+    public string PersistentTitle => DisplayName;
+
+    /// <summary>The user's name for the tab ("제목 바꾸기"), or the automatic name (Windows PowerShell 2, session title).</summary>
+    public string DisplayName => _customTitle ?? _baseTitle;
+
+    private string? _customTitle;
+
+    /// <summary>The title is being edited in place (right click on the tab title).</summary>
+    [ObservableProperty]
+    private bool _isRenaming;
+
+    [ObservableProperty]
+    private string _renameText = string.Empty;
+
+    /// <summary>"+" on the title: asks the shell for a new terminal next to this one.</summary>
+    public event EventHandler? NewTerminalRequested;
+
+    /// <summary>Shows the "+" button on the tab title (pane title templates bind it; other panes have no such property).</summary>
+    public bool CanOpenTerminalHere => true;
+
+    [RelayCommand]
+    private void NewTerminal() => NewTerminalRequested?.Invoke(this, EventArgs.Empty);
+
+    public void BeginRename()
+    {
+        RenameText = DisplayName;
+        IsRenaming = true;
+    }
+
+    /// <summary>Applies the edited name. Empty input keeps the current name; the automatic name clears the custom one.</summary>
+    public void CommitRename()
+    {
+        if (!IsRenaming)
+        {
+            return;
+        }
+
+        IsRenaming = false;
+        var name = RenameText.Trim();
+        if (name.Length == 0)
+        {
+            return;
+        }
+
+        if (name.Length > MaxTitleLength)
+        {
+            name = name[..MaxTitleLength];
+        }
+
+        _customTitle = name == _baseTitle ? null : name;
+        UpdateTitle();
+    }
+
+    public void CancelRename() => IsRenaming = false;
+
+    public const int MaxTitleLength = 200;
+
+    private void UpdateTitle() => Title = IsRunning ? DisplayName : DisplayName + " (종료됨)";
 
     /// <summary>The interactive AI session shown in this tab, or null for a plain terminal.</summary>
     public AiSession? Session { get; }
@@ -159,7 +217,7 @@ public sealed partial class TerminalPaneViewModel : ToolPaneViewModel
 
         // The title follows the scope (a project excluded from the session leaves the title too).
         _baseTitle = session.Title;
-        Title = IsRunning ? _baseTitle : _baseTitle + " (종료됨)";
+        UpdateTitle();
 
         var scope = session.Scope;
         var wanted = scope.Projects.Select(p => (p.ProjectId, p.Name, p.Root, IsPrimary: p.ProjectId == scope.Primary.ProjectId)).ToList();
@@ -220,7 +278,7 @@ public sealed partial class TerminalPaneViewModel : ToolPaneViewModel
         {
             ExitCode = code;
             IsRunning = false;
-            Title = _baseTitle + " (종료됨)";
+            UpdateTitle();
             RefreshSession();
             Ended?.Invoke(this, EventArgs.Empty);
         }

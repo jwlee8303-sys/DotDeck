@@ -25,6 +25,20 @@ public sealed class AppSettingsTests : IDisposable
     }
 
     [Fact]
+    public void Close_to_tray_is_on_by_default_and_round_trips()
+    {
+        var path = _temp.Combine("tray-settings.json");
+        var store = new AppSettingsStore(PhysicalFileStore.Instance, path);
+        Assert.True(store.Load().CloseToTray);
+
+        File.WriteAllText(path, "{ \"Theme\": \"Dark\" }");
+        Assert.True(store.Load().CloseToTray);
+
+        store.Save(new AppSettings { CloseToTray = false });
+        Assert.False(store.Load().CloseToTray);
+    }
+
+    [Fact]
     public void Screen_share_mode_is_off_by_default_round_trips_and_ignores_the_old_mask_setting()
     {
         var path = _temp.Combine("settings.json");

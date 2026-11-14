@@ -6,6 +6,11 @@ using DotDeck.App.Themes;
 using DotDeck.App.ViewModels;
 using DotDeck.Core.Layout;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
+using AvalonDock.Controls;
+using AvalonDock.Layout;
+using DotDeck.App.ViewModels.Tools;
 
 namespace DotDeck.App.Views;
 
@@ -13,6 +18,8 @@ public partial class MainWindow : Window
 {
     private readonly ShellViewModel _shell;
     private readonly LayoutPersistence _layout;
+    private readonly LayoutInitializer _placement;
+    private readonly ExtensionWindows _extensions;
     private TrayIcon? _tray;
 
     /// <summary>X hides the window to the tray instead of exiting (settings; File > 끝내기 still exits).</summary>
@@ -34,7 +41,12 @@ public partial class MainWindow : Window
         };
 
         // Start from the code-built default so "reset layout" and first run share one definition.
+        // Tools go to their preferred side panes until the startup layout has been restored.
+        _placement = (LayoutInitializer)DockManager.LayoutUpdateStrategy;
+        _placement.ExplicitAnchor = () => _shell.PlacementAnchor;
+        _extensions = new ExtensionWindows(DockManager, _shell);
         DockManager.Layout = DefaultLayout.Create();
+        DockManager.ActiveContentChanged += OnDockActiveContentChanged;
         Loaded += OnLoaded;
         _shell.RestartElevatedRequested += (_, _) => RestartElevated();
         // The update flow already asked the exit questions; the updater waits for this process to exit.
@@ -49,7 +61,11 @@ public partial class MainWindow : Window
             ThemeManager.ApplyEditorFontSize(settings.EditorFontSize);
             ThemeManager.Apply(settings.Theme == "Light" ? ThemeKind.Light : ThemeKind.Dark);
         };
-        ThemeManager.Changed += (_, _) => ThemeManager.ApplyDocking(DockManager);
+        ThemeManager.Changed += (_, _) =>
+        {
+            ThemeManager.ApplyDocking(DockManager);
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, EnsureTabMenus);
+        };
 
         // Windows sign-out/shutdown must really exit, not hide to the tray.
         Application.Current.SessionEnding += (_, _) => _exitRequested = true;
@@ -83,10 +99,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_layout.TryRestore(DockManager, _shell) == LayoutRestoreResult.Failed)
+        if (WithPreferredLocations(() => _layout.TryRestore(DockManager, _shell)) == LayoutRestoreResult.Failed)
         {
             _shell.StatusMessage = "레이아웃 복원 실패 — 기본 레이아웃을 사용합니다. 자세한 내용은 출력 패널을 확인하세요.";
         }
+
+        // From now on new panes open next to the same kind (or beside the project area for the first one).
+        _placement.UsePreferredLocations = false;
+        EnsureTabMenus();
 
         _ = InitializeShellAsync();
     }
@@ -357,7 +377,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _shell.StatusMessage = _layout.TryLoadNamed(DockManager, _shell, name) == LayoutRestoreResult.Restored
+        _shell.StatusMessage = WithPreferredLocations(() => _layout.TryLoadNamed(DockManager, _shell, name)) == LayoutRestoreResult.Restored
             ? $"레이아웃을 불러왔습니다: {name}"
             : "레이아웃을 불러오지 못해 기본 레이아웃을 사용합니다. 자세한 내용은 출력 패널을 확인하세요.";
     }
@@ -379,8 +399,192 @@ public partial class MainWindow : Window
             return;
         }
 
-        LayoutPersistence.Reset(DockManager, _shell);
+        WithPreferredLocations(() =>
+        {
+            LayoutPersistence.Reset(DockManager, _shell);
+            return true;
+        });
         _shell.StatusMessage = "레이아웃을 초기화했습니다.";
+    }
+
+    // ===== Placement and extension windows =====
+
+    // Building a whole layout (restore, named layout, reset) places tools by their preferred side, not by kind.
+    private T WithPreferredLocations<T>(Func<T> action)
+    {
+        var previous = _placement.UsePreferredLocations;
+        _placement.UsePreferredLocations = true;
+        try
+        {
+            return action();
+        }
+        finally
+        {
+            _placement.UsePreferredLocations = previous;
+        }
+    }
+
+    private void OnDockActiveContentChanged(object? sender, EventArgs e)
+    {
+        if (DockManager.ActiveContent is { } active)
+        {
+            _placement.NoteActive(_extensions.Find(active));
+        }
+
+        EnsureTabMenus();
+    }
+
+    private void OnNewExtensionWindowClick(object sender, RoutedEventArgs e)
+    {
+        if (!LayoutBusy() && _extensions.Create() is null)
+        {
+            _shell.StatusMessage = "확장 창을 열지 못했습니다.";
+        }
+    }
+
+    private void OnMoveToExtensionSubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, MoveToExtensionMenu))
+        {
+            FillMoveMenu(MoveToExtensionMenu, DockManager.ActiveContent is { } active ? _extensions.Find(active) : null);
+        }
+    }
+
+    private const string MoveMenuTag = "DotDeck.MoveToExtension";
+
+    /// <summary>Adds "확장 창으로 이동" to AvalonDock's tab menus (a theme change brings new menu instances).</summary>
+    private void EnsureTabMenus()
+    {
+        foreach (var menu in new[] { DockManager.DocumentContextMenu, DockManager.AnchorableContextMenu })
+        {
+            if (menu is null || menu.ItemsSource is not null
+                || menu.Items.OfType<MenuItem>().Any(i => Equals(i.Tag, MoveMenuTag)))
+            {
+                continue;
+            }
+
+            var item = new MenuItem { Header = "확장 창으로 이동", Tag = MoveMenuTag };
+            item.Items.Add(new MenuItem { Header = "(없음)", IsEnabled = false });
+            item.SubmenuOpened += (_, args) =>
+            {
+                if (ReferenceEquals(args.OriginalSource, item))
+                {
+                    FillMoveMenu(item, menu.DataContext switch
+                    {
+                        LayoutItem layoutItem => layoutItem.LayoutElement as LayoutContent,
+                        LayoutContent content => content,
+                        _ => null,
+                    });
+                }
+            };
+            menu.Items.Add(new Separator());
+            menu.Items.Add(item);
+        }
+    }
+
+    private void FillMoveMenu(MenuItem menu, LayoutContent? content)
+    {
+        menu.Items.Clear();
+        if (content is null)
+        {
+            menu.Items.Add(new MenuItem { Header = "(이동할 탭 없음)", IsEnabled = false });
+            return;
+        }
+
+        var current = content.FindParent<LayoutDocumentFloatingWindow>();
+        var windows = _extensions.List();
+        for (var i = 0; i < windows.Count; i++)
+        {
+            var window = windows[i];
+
+            // Header as plain text: an underscore in a title must not become an access key.
+            var item = new MenuItem
+            {
+                Header = new TextBlock { Text = ExtensionWindows.NameOf(window, i) },
+                IsEnabled = !ReferenceEquals(window, current),
+            };
+            item.Click += (_, _) => _extensions.MoveTo(content, window);
+            menu.Items.Add(item);
+        }
+
+        if (windows.Count > 0)
+        {
+            menu.Items.Add(new Separator());
+        }
+
+        var create = new MenuItem { Header = "새 확장 창(_N)" };
+        create.Click += (_, _) =>
+        {
+            if (!LayoutBusy() && _extensions.Create(content) is null)
+            {
+                _shell.StatusMessage = "확장 창을 열지 못했습니다.";
+            }
+        };
+        menu.Items.Add(create);
+    }
+
+    // ===== Terminal title: rename in place =====
+
+    private static TerminalPaneViewModel? TerminalOf(object? sender) =>
+        sender is FrameworkElement { DataContext: LayoutContent { Content: TerminalPaneViewModel terminal } } ? terminal : null;
+
+    private void OnPaneTitleRightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (TerminalOf(sender) is not { } terminal || sender is not TextBlock { Parent: Grid grid })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        terminal.BeginRename();
+        if (grid.Children.OfType<TextBox>().FirstOrDefault() is { } box)
+        {
+            // After the tab activation settles, or the terminal view would take the focus back.
+            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () =>
+            {
+                if (terminal.IsRenaming)
+                {
+                    Keyboard.Focus(box);
+                    box.SelectAll();
+                }
+            });
+        }
+    }
+
+    // The tab's own menu stays closed while a right click renames a terminal.
+    private void OnPaneTitleContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (TerminalOf(sender) is not null)
+        {
+            e.Handled = true;
+        }
+    }
+
+    private void OnRenameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (TerminalOf(sender) is not { } terminal)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            terminal.CommitRename();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            terminal.CancelRename();
+            e.Handled = true;
+        }
+    }
+
+    private void OnRenameLostFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (TerminalOf(sender) is { IsRenaming: true } terminal)
+        {
+            terminal.CommitRename();
+        }
     }
 
     private void OnAboutClick(object sender, RoutedEventArgs e) =>

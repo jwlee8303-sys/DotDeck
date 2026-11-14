@@ -43,6 +43,7 @@ public sealed partial class ShellViewModel
             OfferReviewForFinishedSessions();
         });
         AiWork.Attach(manager);
+        AiMonitor.Attach(manager);
 
         // Scope narrowing must not wait for anything: the guard reads scope.json on the next tool call.
         registry.Changed += (_, _) => manager.OnProjectsChanged();

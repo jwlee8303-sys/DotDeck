@@ -79,6 +79,21 @@
         <editorViews:UntitledEditorView />
     </DataTemplate>
 
+    <!-- Guide tab of a new extension window -->
+    <DataTemplate DataType="{x:Type docs:ExtensionWindowDocumentViewModel}">
+        <Border Background="{DynamicResource DD.Brush.Panel.Background}">
+            <StackPanel Margin="24,20" MaxWidth="520" HorizontalAlignment="Left">
+                <TextBlock FontWeight="SemiBold" Text="확장 창" Margin="0,0,0,8" />
+                <TextBlock Style="{StaticResource PlaceholderText}" Margin="0,0,0,6"
+                           Text="파일·터미널·속성·출력 등 탭을 이 창으로 끌어다 놓아 배치하세요." />
+                <TextBlock Style="{StaticResource PlaceholderText}" Margin="0,0,0,6"
+                           Text="탭 메뉴(우클릭)나 창 → 현재 탭을 확장 창으로 이동으로도 옮길 수 있습니다." />
+                <TextBlock Style="{StaticResource PlaceholderText}" Margin="0"
+                           Text="이 창에서 마지막으로 사용한 파일·터미널 옆에 새 파일·터미널이 열립니다. 이 안내 탭은 닫아도 됩니다." />
+            </StackPanel>
+        </Border>
+    </DataTemplate>
+
     <!-- Flat button used in tool pane header bars -->
     <Style x:Key="PaneBarButton" TargetType="Button" BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
         <Setter Property="Margin" Value="1,0" />
@@ -269,6 +284,75 @@
                     </ListBox>
                 </DockPanel>
             </Grid>
+        </DockPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type tools:AiMonitorPaneViewModel}">
+        <DockPanel Background="{DynamicResource DD.Brush.Panel.Background}">
+            <ToolBar DockPanel.Dock="Top" ToolBarTray.IsLocked="True" Background="{DynamicResource DD.Brush.Panel.Background}">
+                <Button Content="열기" Command="{Binding OpenCommand}" ToolTip="선택한 세션의 터미널 탭(대화형) 또는 AI 작업 항목 열기" />
+                <Separator />
+                <CheckBox Content="끝난 세션 표시" IsChecked="{Binding ShowFinished}" VerticalAlignment="Center" />
+            </ToolBar>
+            <TextBlock DockPanel.Dock="Top" Margin="8,4" Style="{StaticResource DD.Text.Secondary}" Text="{Binding Summary}" />
+            <TextBlock DockPanel.Dock="Top" Style="{StaticResource PlaceholderText}"
+                       Text="표시할 AI 세션이 없습니다. 도구 메뉴의 &quot;Claude 세션 시작…&quot;(Ctrl+Alt+C)으로 시작하세요."
+                       Visibility="{Binding HasVisibleSessions, Converter={StaticResource SysFalseToVisible}}" />
+            <ListBox ItemsSource="{Binding Sessions}" SelectedItem="{Binding SelectedSession}" BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="AI 세션 모니터"
+                     Visibility="{Binding HasVisibleSessions, Converter={StaticResource SysBoolToVisible}}">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <Setter Property="Visibility" Value="{Binding IsShown, Converter={StaticResource SysBoolToVisible}}" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type tools:AiMonitorItemViewModel}">
+                        <Grid Margin="2,4" Background="Transparent" ToolTip="{Binding ScopeText}">
+                            <Grid.InputBindings>
+                                <MouseBinding Gesture="LeftDoubleClick" CommandParameter="{Binding}"
+                                              Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                            </Grid.InputBindings>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Ellipse x:Name="Dot" Width="8" Height="8" Margin="0,5,0,0" VerticalAlignment="Top"
+                                     Fill="{DynamicResource DD.Brush.Text.Disabled}" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
+                                <TextBlock Style="{StaticResource DD.Text.Secondary}" TextTrimming="CharacterEllipsis">
+                                    <Run Text="{Binding KindText, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding StartedText, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding ElapsedText, Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock TextTrimming="CharacterEllipsis">
+                                    <Run x:Name="Activity" Text="{Binding ActivityText, Mode=OneWay}" />
+                                    <Run x:Name="Guard" Text="{Binding GuardText, Mode=OneWay, StringFormat=· {0}}" Foreground="{DynamicResource DD.Brush.Text.Secondary}" />
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="{Binding ScopeText}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource DD.Brush.Error}" Text="{Binding Message}"
+                                           Visibility="{Binding Message, Converter={StaticResource SysNullToCollapsed}}" />
+                            </StackPanel>
+                        </Grid>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource DD.Brush.Info}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsRunning}" Value="False">
+                                <Setter TargetName="Guard" Property="Text" Value="" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource DD.Brush.Accent}" />
+                                <Setter TargetName="Activity" Property="Foreground" Value="{DynamicResource DD.Brush.Accent}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                                <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource DD.Brush.Error}" />
+                                <Setter TargetName="Activity" Property="Foreground" Value="{DynamicResource DD.Brush.Error}" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
         </DockPanel>
     </DataTemplate>
 

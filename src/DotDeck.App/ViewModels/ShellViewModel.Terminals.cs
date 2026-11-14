@@ -46,15 +46,8 @@ public sealed partial class ShellViewModel
     [RelayCommand]
     private void OpenTerminal()
     {
-        if (_terminalLauncher is not { } launcher || _locateShell is not { } locate || _terminalPaths is not { } paths)
+        if (TerminalTarget() is not var (launcher, shell, paths))
         {
-            _dialogs.ShowError("터미널", "터미널 기능을 사용할 수 없습니다.");
-            return;
-        }
-
-        if (locate() is not { } shell)
-        {
-            _dialogs.ShowError("터미널", "PowerShell을 찾을 수 없습니다. pwsh.exe(PowerShell 7) 또는 Windows PowerShell이 필요합니다.");
             return;
         }
 
@@ -73,8 +66,77 @@ public sealed partial class ShellViewModel
 
         var number = ++_terminalNumber;
         var title = number == 1 ? shell.DisplayName : string.Create(CultureInfo.InvariantCulture, $"{shell.DisplayName} {number}");
-        AddTerminal(new TerminalPaneViewModel(Guid.NewGuid().ToString("N"), title, new TerminalConnection(process, TerminalSize.Default, folder), CopyFromTerminal, _uiContext));
-        _log.Info($"터미널 시작: {shell.Executable} ({folder})");
+        AddTerminal(new TerminalPaneViewModel(Guid.NewGuid().ToString("N"), WithPrivilege(title, IsAdministrator), new TerminalConnection(process, TerminalSize.Default, folder), CopyFromTerminal, _uiContext));
+        _log.Info($"터미널 시작: {shell.Executable} ({folder}){(IsAdministrator ? " [관리자]" : string.Empty)}");
+    }
+
+    /// <summary>Prefix of the default title of a terminal that runs elevated.</summary>
+    public const string AdministratorTitlePrefix = "관리자: ";
+
+    /// <summary>
+    /// Tools menu "관리자 권한 PowerShell 터미널": a pseudo console runs with DotDeck's own rights, so an elevated tab
+    /// is only possible when DotDeck runs elevated; otherwise an elevated PowerShell window opens (UAC).
+    /// </summary>
+    [RelayCommand]
+    private void OpenAdministratorTerminal()
+    {
+        if (IsAdministrator)
+        {
+            OpenTerminal();
+            return;
+        }
+
+        if (TerminalTarget() is not var (_, shell, paths))
+        {
+            return;
+        }
+
+        var folder = TerminalFolder(paths);
+        try
+        {
+            if (!_shellLauncher.OpenElevatedTerminal(shell.Executable, folder))
+            {
+                StatusMessage = "관리자 권한 터미널을 취소했습니다.";
+                return;
+            }
+        }
+        catch (Exception ex) when (ex is Win32Exception or IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            _log.Warning($"관리자 권한 터미널을 시작하지 못했습니다: {shell.Executable}", ex);
+            _dialogs.ShowError("터미널", $"관리자 권한 터미널을 시작하지 못했습니다: {ex.Message}");
+            return;
+        }
+
+        StatusMessage = "관리자 권한 PowerShell을 별도 창으로 열었습니다. DotDeck 탭 안에서 쓰려면 DotDeck을 관리자 권한으로 다시 시작하세요.";
+        _log.Info($"관리자 권한 터미널 시작(별도 창): {shell.Executable} ({folder})");
+    }
+
+    /// <summary>The launcher, shell and paths for a new terminal, or null after telling the user what is missing.</summary>
+    private (ITerminalLauncher Launcher, ShellLocation Shell, AppPaths Paths)? TerminalTarget()
+    {
+        if (_terminalLauncher is not { } launcher || _locateShell is not { } locate || _terminalPaths is not { } paths)
+        {
+            _dialogs.ShowError("터미널", "터미널 기능을 사용할 수 없습니다.");
+            return null;
+        }
+
+        if (locate() is not { } shell)
+        {
+            _dialogs.ShowError("터미널", "PowerShell을 찾을 수 없습니다. pwsh.exe(PowerShell 7) 또는 Windows PowerShell이 필요합니다.");
+            return null;
+        }
+
+        return (launcher, shell, paths);
+    }
+
+    /// <summary>
+    /// Adds or removes the administrator prefix so a title tells the terminal's real rights (a restored tab runs with
+    /// the rights of this run, which may differ from the run that saved it).
+    /// </summary>
+    internal static string WithPrivilege(string title, bool elevated)
+    {
+        var plain = title.StartsWith(AdministratorTitlePrefix, StringComparison.Ordinal) ? title[AdministratorTitlePrefix.Length..] : title;
+        return elevated ? AdministratorTitlePrefix + plain : plain;
     }
 
     private string TerminalFolder(AppPaths paths)
@@ -117,7 +179,7 @@ public sealed partial class ShellViewModel
                     var folder = Directory.Exists(state.WorkingDirectory) ? state.WorkingDirectory : fallback;
                     return new TerminalConnection(launcher.Start(ShellTerminal.Plan(shell, folder, paths), TerminalSize.Default), TerminalSize.Default, folder);
                 }).ConfigureAwait(true);
-                AddTerminal(new TerminalPaneViewModel(state.Id, state.Title, connection, CopyFromTerminal, _uiContext));
+                AddTerminal(new TerminalPaneViewModel(state.Id, WithPrivilege(state.Title, IsAdministrator), connection, CopyFromTerminal, _uiContext));
                 _terminalNumber++;
             }
             catch (Exception ex) when (ex is Win32Exception or IOException or UnauthorizedAccessException or ArgumentException)
@@ -188,9 +250,30 @@ public sealed partial class ShellViewModel
         }
     }
 
+    /// <summary>
+    /// Pane a pane being added should open next to (the terminal whose "+" was clicked). The docking layout reads it
+    /// while the pane is inserted; null lets the layout use the last active pane of the same kind.
+    /// </summary>
+    public PaneViewModel? PlacementAnchor { get; private set; }
+
+    /// <summary>"+" on a terminal title: a new PowerShell terminal next to that terminal.</summary>
+    private void OnNewTerminalRequested(object? sender, EventArgs e)
+    {
+        PlacementAnchor = sender as TerminalPaneViewModel;
+        try
+        {
+            OpenTerminal();
+        }
+        finally
+        {
+            PlacementAnchor = null;
+        }
+    }
+
     internal void AddTerminal(TerminalPaneViewModel pane)
     {
         pane.CloseRequested += OnTerminalCloseRequested;
+        pane.NewTerminalRequested += OnNewTerminalRequested;
         pane.Ended += (_, _) => OnPropertyChanged(nameof(RunningTerminalCount));
         Tools.Add(pane);
         pane.IsVisible = true;
@@ -238,6 +321,7 @@ public sealed partial class ShellViewModel
     private void CloseTerminal(TerminalPaneViewModel pane)
     {
         pane.CloseRequested -= OnTerminalCloseRequested;
+        pane.NewTerminalRequested -= OnNewTerminalRequested;
         Tools.Remove(pane);
         if (pane.Session is { } session)
         {

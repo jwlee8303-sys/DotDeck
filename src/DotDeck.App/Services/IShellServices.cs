@@ -31,4 +31,10 @@ public interface IShellLauncher
 
     /// <summary>Opens Windows Terminal (or PowerShell when it is missing) in <paramref name="directory"/>.</summary>
     void OpenTerminal(string directory);
+
+    /// <summary>
+    /// Opens <paramref name="shellExecutable"/> (PowerShell) elevated in its own console window in
+    /// <paramref name="directory"/>. Returns false when the UAC prompt was declined.
+    /// </summary>
+    bool OpenElevatedTerminal(string shellExecutable, string directory);
 }

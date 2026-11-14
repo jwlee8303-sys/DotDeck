@@ -21,6 +21,22 @@ public sealed partial class ShellViewModel
         AiWork.IsActive = true;
     }
 
+    /// <summary>"AI 모니터" row: an interactive session opens its terminal tab, another one its "AI 작업" entry.</summary>
+    private void OpenMonitoredAiSession(AiSession session)
+    {
+        if (session.Terminal is not null)
+        {
+            ShowAiTerminal(session);
+            return;
+        }
+
+        ShowAiWork();
+        if (AiWork.Sessions.FirstOrDefault(s => s.Session == session) is { } item)
+        {
+            AiWork.SelectedSession = item;
+        }
+    }
+
     private bool ConfirmStopAiSession(AiSession session) =>
         _dialogs.Confirm("세션 중지", $"{session.Title} 세션을 중지할까요?\n\n진행 중인 작업이 끊깁니다. 바뀐 파일은 변경 검토에서 확인할 수 있습니다.");
 

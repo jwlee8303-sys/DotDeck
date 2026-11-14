@@ -48,6 +48,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly FileRoleResolver _roles;
     private readonly EditorOverrideStore _editorOverrides;
     private readonly IClipboardService _clipboard;
+    private readonly IShellLauncher _shellLauncher;
     private int _scratchCounter;
 
     public ShellViewModel(ShellServices services, string version, bool isAdministrator)
@@ -57,6 +58,7 @@ public sealed partial class ShellViewModel : ObservableObject
         _log = services.Log;
         _dialogs = services.Dialogs;
         _clipboard = services.Clipboard;
+        _shellLauncher = services.Shell;
         _wordWrapExtensions = new DotDeck.Core.Settings.AppSettingsStore(services.Store, services.Paths.SettingsFile).Load().WordWrapExtensions;
         _buffers = new DocumentBufferManager(services.Reader, WordWrapDefaultFor);
         Documents.CollectionChanged += (_, _) =>
@@ -123,7 +125,8 @@ public sealed partial class ShellViewModel : ObservableObject
         SearchResults = new SearchResultsPaneViewModel(services.Store, SearchRoots, OpenSearchHitAsync);
         HookTest = new HookTestPaneViewModel { Dialogs = services.Dialogs, WorkingDirectory = services.Paths.Home };
         AiWork = new AiSessionsPaneViewModel(ReviewAiChangesAsync, ConfirmStopAiSession, ShowAiTerminal) { IsVisible = false };
-        Tools = [Properties, Output, Validation, SearchResults, HookTest, AiWork];
+        AiMonitor = new AiMonitorPaneViewModel(OpenMonitoredAiSession) { IsVisible = false };
+        Tools = [Properties, Output, Validation, SearchResults, HookTest, AiWork, AiMonitor];
         Projects = new ProjectsPaneViewModel(explorerContext, services.Session, Tools.Add, tool => Tools.Remove(tool));
         Tools.Insert(0, Projects);
         Projects.List.PropertyChanged += (_, e) =>
@@ -186,6 +189,9 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>"AI 작업" panel: sessions, their output and the change review (SPEC 11.3-4).</summary>
     public AiSessionsPaneViewModel AiWork { get; }
 
+    /// <summary>"AI 모니터": compact state of the AI sessions of this run.</summary>
+    public AiMonitorPaneViewModel AiMonitor { get; }
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveActiveCommand))]
     private PaneViewModel? _activeContent;
@@ -216,7 +222,21 @@ public sealed partial class ShellViewModel : ObservableObject
 
         return (PaneViewModel?)Tools.FirstOrDefault(t => t.ContentId == contentId)
             ?? Documents.FirstOrDefault(d => d.ContentId == contentId && d.IsRestorable)
-            ?? CreateSystemDocument(contentId);
+            ?? CreateSystemDocument(contentId)
+            ?? (ExtensionWindowDocumentViewModel.NumberOf(contentId) is { } number ? AddExtensionWindowDocument(number) : null);
+    }
+
+    private int _extensionWindowCounter;
+
+    /// <summary>Adds the guide tab of a new extension window (the view floats it into its own window).</summary>
+    public ExtensionWindowDocumentViewModel AddExtensionWindowDocument() => AddExtensionWindowDocument(_extensionWindowCounter + 1);
+
+    private ExtensionWindowDocumentViewModel AddExtensionWindowDocument(int number)
+    {
+        _extensionWindowCounter = Math.Max(_extensionWindowCounter, number);
+        var document = new ExtensionWindowDocumentViewModel(number, CloseDocument);
+        Documents.Add(document);
+        return document;
     }
 
     [RelayCommand]

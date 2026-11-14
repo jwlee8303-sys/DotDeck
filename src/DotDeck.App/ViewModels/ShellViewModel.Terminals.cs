@@ -27,8 +27,15 @@ public sealed partial class ShellViewModel
     /// <summary>Running plain terminals (AI sessions are counted and confirmed by the session manager).</summary>
     public int RunningTerminalCount => Terminals.Count(t => t.IsRunning && !t.IsAiSession);
 
-    /// <summary>Connects the terminal launcher (once, from App startup; tests pass fakes).</summary>
-    public void AttachTerminals(ITerminalLauncher launcher, Func<ShellLocation?> locateShell, AppPaths paths)
+    /// <summary>
+    /// Connects the terminal launcher (once, from App startup; tests pass fakes). With <paramref name="inspectProcess"/>
+    /// the "AI 모니터" also lists Claude/Codex started by hand in a terminal tab.
+    /// </summary>
+    public void AttachTerminals(
+        ITerminalLauncher launcher,
+        Func<ShellLocation?> locateShell,
+        AppPaths paths,
+        Func<int, (string Name, DateTimeOffset? StartedAt)?>? inspectProcess = null)
     {
         ArgumentNullException.ThrowIfNull(launcher);
         ArgumentNullException.ThrowIfNull(locateShell);
@@ -37,6 +44,23 @@ public sealed partial class ShellViewModel
         _locateShell = locateShell;
         _terminalPaths = paths;
         _uiContext ??= SynchronizationContext.Current;
+        if (inspectProcess is not null)
+        {
+            AiMonitor.AttachTerminals(() => [.. Terminals], inspectProcess, ShowTerminal);
+        }
+    }
+
+    /// <summary>Shows and activates a terminal tab (AI 모니터 double click on a terminal run).</summary>
+    internal void ShowTerminal(TerminalPaneViewModel pane)
+    {
+        if (!Terminals.Contains(pane))
+        {
+            return; // the tab was closed meanwhile
+        }
+
+        pane.IsVisible = true;
+        pane.IsSelected = true;
+        pane.IsActive = true;
     }
 
     /// <summary>

@@ -159,6 +159,94 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
     }
 
     [Theory]
+    [InlineData("claude", CliKind.Claude)]
+    [InlineData("Claude.exe", CliKind.Claude)]
+    [InlineData("codex", CliKind.Codex)]
+    [InlineData("codex.exe", CliKind.Codex)]
+    [InlineData("codex-command-runner", null)]
+    [InlineData("node", null)]
+    [InlineData("powershell", null)]
+    [InlineData(null, null)]
+    public void Process_names_map_to_their_cli(string? name, CliKind? expected) =>
+        Assert.Equal(expected, AiMonitorPaneViewModel.ClassifyProcess(name));
+
+    [Fact]
+    public void Cli_started_in_a_terminal_is_listed_until_it_ends()
+    {
+        var process = new TerminalProcess();
+        using var connection = new TerminalConnection(process, TerminalSize.Default, @"D:\work");
+        var terminal = new TerminalPaneViewModel("t1", "Windows PowerShell", connection, _ => { }, ui: null);
+        var started = _time.GetUtcNow().AddMinutes(-2);
+        var names = new Dictionary<int, string> { [1] = "powershell", [2] = "claude", [3] = "claude", [4] = "rg" };
+        var openedTerminals = new List<TerminalPaneViewModel>();
+        var pane = Pane();
+        pane.AttachTerminals(() => [terminal], id => names.TryGetValue(id, out var n) ? (n, id == 2 ? started : started.AddSeconds(5)) : null, openedTerminals.Add);
+
+        Assert.Empty(pane.Sessions); // only the shell runs
+
+        process.Ids = [1, 2, 3, 4]; // claude and a helper claude process: one row
+        pane.Tick();
+        var item = Assert.Single(pane.Sessions);
+        Assert.Null(item.Session);
+        Assert.Same(terminal, item.TerminalPane);
+        Assert.Equal("Claude · Windows PowerShell", item.Title);
+        Assert.Equal("Claude · 터미널", item.KindText);
+        Assert.Equal(@"D:\work", item.ScopeText);
+        Assert.Equal("직접 실행 · 가드 없음", item.GuardText);
+        Assert.Equal("2분 0초", item.ElapsedText);
+        Assert.True(item.IsRunning);
+
+        pane.OpenCommand.Execute(item);
+        Assert.Equal([terminal], openedTerminals);
+        Assert.Empty(_opened);
+
+        process.Ids = [1];
+        pane.Tick();
+        Assert.False(item.IsRunning);
+        Assert.Equal("종료됨", item.ActivityText);
+        Assert.Equal("실행 중 0 · 작업 중 0 · 끝남 1", pane.Summary);
+
+        names[5] = "codex";
+        process.Ids = [1, 5]; // started again: a new row
+        pane.Tick();
+        Assert.Equal(2, pane.Sessions.Count);
+        Assert.Equal("Codex · 터미널", pane.Sessions[0].KindText);
+        Assert.True(pane.Sessions[0].IsRunning);
+    }
+
+    [Fact]
+    public void Process_inspector_reads_the_own_process()
+    {
+        using var self = System.Diagnostics.Process.GetCurrentProcess();
+        var info = DotDeck.App.Infrastructure.Windows.ProcessInspector.Inspect(self.Id);
+
+        Assert.NotNull(info);
+        Assert.Equal(self.ProcessName, info.Value.Name, ignoreCase: true);
+        Assert.NotNull(info.Value.StartedAt);
+        Assert.Null(DotDeck.App.Infrastructure.Windows.ProcessInspector.Inspect(0));
+    }
+
+    [Fact]
+    public void Terminal_output_marks_the_terminal_run_busy()
+    {
+        var process = new TerminalProcess { Ids = [2] };
+        using var connection = new TerminalConnection(process, TerminalSize.Default);
+        var terminal = new TerminalPaneViewModel("t1", "PS", connection, _ => { }, ui: null);
+        var pane = Pane();
+        pane.AttachTerminals(() => [terminal], _ => ("codex", null), _ => { });
+        var item = Assert.Single(pane.Sessions);
+        Assert.Equal("출력 없음", item.ActivityText);
+
+        process.Write("thinking…");
+        Assert.True(SpinWait.SpinUntil(() =>
+        {
+            pane.Refresh();
+            return item.IsBusy;
+        }, TimeSpan.FromSeconds(10)));
+        Assert.Equal("작업 중", item.ActivityText);
+    }
+
+    [Theory]
     [InlineData(0, "0초")]
     [InlineData(59, "59초")]
     [InlineData(61, "1분 1초")]
@@ -174,6 +262,44 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
         public override DateTimeOffset GetUtcNow() => new(Interlocked.Read(ref _ticks), TimeSpan.Zero);
 
         public void Advance(TimeSpan delta) => Interlocked.Add(ref _ticks, delta.Ticks);
+    }
+
+    private sealed class TerminalProcess : ITerminalProcess
+    {
+        private readonly TaskCompletionSource<int> _exit = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly AnonymousPipeServerStream _output = new(PipeDirection.Out);
+
+        public TerminalProcess() => Output = new AnonymousPipeClientStream(PipeDirection.In, _output.ClientSafePipeHandle);
+
+        public IReadOnlyList<int> Ids { get; set; } = [1];
+
+        public int ProcessId => 1;
+
+        public Stream Output { get; }
+
+        public Stream Input { get; } = new MemoryStream();
+
+        public Task<int> Exited => _exit.Task;
+
+        public void Write(string text) => _output.Write(Encoding.UTF8.GetBytes(text));
+
+        public void Resize(TerminalSize size)
+        {
+        }
+
+        public IReadOnlyList<int> JobProcessIds() => Ids;
+
+        public void Terminate(int exitCode = 1)
+        {
+            _output.Dispose();
+            _exit.TrySetResult(exitCode);
+        }
+
+        public void Dispose()
+        {
+            Terminate(-1);
+            Output.Dispose();
+        }
     }
 
     private sealed class Launcher : ICliProcessLauncher

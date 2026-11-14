@@ -296,7 +296,7 @@
             </ToolBar>
             <TextBlock DockPanel.Dock="Top" Margin="8,4" Style="{StaticResource DD.Text.Secondary}" Text="{Binding Summary}" />
             <TextBlock DockPanel.Dock="Top" Style="{StaticResource PlaceholderText}"
-                       Text="표시할 AI 세션이 없습니다. 도구 메뉴의 &quot;Claude 세션 시작…&quot;(Ctrl+Alt+C)으로 시작하세요."
+                       Text="표시할 AI 세션이 없습니다. 도구 메뉴의 &quot;Claude 세션 시작…&quot;(Ctrl+Alt+C)으로 시작하거나 터미널 탭에서 claude·codex를 실행하세요."
                        Visibility="{Binding HasVisibleSessions, Converter={StaticResource SysFalseToVisible}}" />
             <ListBox ItemsSource="{Binding Sessions}" SelectedItem="{Binding SelectedSession}" BorderThickness="0"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="AI 세션 모니터"

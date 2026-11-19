@@ -131,10 +131,14 @@ public static class ProjectsFileSerializer
             case null:
                 break;
             case JsonArray array:
+                // An entry under a renamed id is migrated only when the file has no entry with the new id; otherwise
+                // the new entry wins wherever it is and the old one is kept verbatim.
+                var migrateLegacy = !array.Any(n => n is JsonObject o && o["id"] is JsonValue v
+                    && v.TryGetValue<string>(out var rawId) && rawId == BuiltinProjects.IdOf(BuiltinProject.Antigravity));
                 foreach (var item in array)
                 {
                     // Duplicate ids are kept verbatim but not loaded, so nothing is lost on save.
-                    if (item is JsonObject entry && TryReadProject(entry, version) is { } definition && seenIds.Add(definition.Id))
+                    if (item is JsonObject entry && TryReadProject(entry, version, migrateLegacy) is { } definition && seenIds.Add(definition.Id))
                     {
                         projects.Add(definition);
                     }
@@ -152,7 +156,7 @@ public static class ProjectsFileSerializer
         return new ProjectsFileContent(projects, unrecognized, ExtractExtra(obj, s_knownRootKeys)) { FileVersion = version };
     }
 
-    private static ProjectDefinition? TryReadProject(JsonObject entry, int fileVersion)
+    private static ProjectDefinition? TryReadProject(JsonObject entry, int fileVersion, bool migrateLegacy)
     {
         if (!TryGetString(entry, "id", required: true, out var id) || string.IsNullOrWhiteSpace(id)
             || !TryGetString(entry, "kind", required: true, out var kindText)
@@ -179,6 +183,12 @@ public static class ProjectsFileSerializer
         switch (kindText)
         {
             case "builtin":
+                // Ids renamed since (builtin.gemini → builtin.agy) are migrated; the new id is written on the next save.
+                if (migrateLegacy)
+                {
+                    id = BuiltinProjects.MigrateId(id!);
+                }
+
                 if (!TryGetString(entry, "builtinKey", required: true, out var key)
                     || BuiltinProjects.FromKey(key) is not { } builtin
                     || id != BuiltinProjects.IdOf(builtin))

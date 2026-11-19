@@ -5,13 +5,13 @@ namespace DotDeck.Core.Projects;
 /// <summary>Fixed facts about the built-in projects (SPEC 2.1).</summary>
 public static class BuiltinProjects
 {
-    public static IReadOnlyList<BuiltinProject> All { get; } = [BuiltinProject.Claude, BuiltinProject.Codex, BuiltinProject.Gemini, BuiltinProject.System];
+    public static IReadOnlyList<BuiltinProject> All { get; } = [BuiltinProject.Claude, BuiltinProject.Codex, BuiltinProject.Antigravity, BuiltinProject.System];
 
     public static string IdOf(BuiltinProject builtin) => builtin switch
     {
         BuiltinProject.Claude => "builtin.claude",
         BuiltinProject.Codex => "builtin.codex",
-        BuiltinProject.Gemini => "builtin.gemini",
+        BuiltinProject.Antigravity => "builtin.agy",
         BuiltinProject.System => "builtin.system",
         _ => throw new ArgumentOutOfRangeException(nameof(builtin)),
     };
@@ -20,17 +20,29 @@ public static class BuiltinProjects
     {
         BuiltinProject.Claude => "Claude 전역",
         BuiltinProject.Codex => "Codex 전역",
-        BuiltinProject.Gemini => "Gemini 전역",
+        BuiltinProject.Antigravity => "agy 전역",
         BuiltinProject.System => "시스템",
         _ => throw new ArgumentOutOfRangeException(nameof(builtin)),
     };
+
+    /// <summary>Key and id the Antigravity CLI (agy) project had while it was named "Gemini 전역" (≤ 1.10).</summary>
+    public const string LegacyAntigravityKey = "gemini";
+
+    public const string LegacyAntigravityId = "builtin.gemini";
+
+    /// <summary>
+    /// Maps a project id stored by an older version to the current one ("builtin.gemini" → "builtin.agy").
+    /// Every reader of a persisted project id goes through this, so saved state follows the rename.
+    /// </summary>
+    public static string MigrateId(string id) =>
+        string.Equals(id, LegacyAntigravityId, StringComparison.Ordinal) ? IdOf(BuiltinProject.Antigravity) : id;
 
     /// <summary>JSON key used in projects.json.</summary>
     public static string KeyOf(BuiltinProject builtin) => builtin switch
     {
         BuiltinProject.Claude => "claude",
         BuiltinProject.Codex => "codex",
-        BuiltinProject.Gemini => "gemini",
+        BuiltinProject.Antigravity => "agy",
         BuiltinProject.System => "system",
         _ => throw new ArgumentOutOfRangeException(nameof(builtin)),
     };
@@ -39,7 +51,7 @@ public static class BuiltinProjects
     {
         "claude" => BuiltinProject.Claude,
         "codex" => BuiltinProject.Codex,
-        "gemini" => BuiltinProject.Gemini,
+        "agy" or LegacyAntigravityKey => BuiltinProject.Antigravity,
         "system" => BuiltinProject.System,
         _ => null,
     };
@@ -49,7 +61,7 @@ public static class BuiltinProjects
     {
         BuiltinProject.Claude => paths.ClaudeHome,
         BuiltinProject.Codex => paths.CodexHome,
-        BuiltinProject.Gemini => paths.GeminiHome,
+        BuiltinProject.Antigravity => paths.AntigravityHome,
         _ => null,
     };
 
@@ -62,7 +74,7 @@ public static class BuiltinProjects
     {
         BuiltinProject.Claude => ["/projects", "/todos", "/shell-snapshots", "/statsig", "/file-history", "/debug"],
         BuiltinProject.Codex => ["/sessions", "/log"],
-        BuiltinProject.Gemini => ["/tmp", "/history"],
+        BuiltinProject.Antigravity => ["/tmp", "/history"],
         _ => [],
     };
 

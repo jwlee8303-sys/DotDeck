@@ -85,7 +85,12 @@ public sealed class SessionStateStore
                 {
                     if (node is JsonObject obj && TryReadState(obj) is { } state)
                     {
-                        result[id] = state;
+                        // A renamed project id must not override state already saved under the new id.
+                        var current = Projects.BuiltinProjects.MigrateId(id);
+                        if (current == id || !result.ContainsKey(current))
+                        {
+                            result[current] = state;
+                        }
                     }
                 }
                 catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or FormatException)

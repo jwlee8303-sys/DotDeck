@@ -11,6 +11,31 @@ public sealed class SessionDocumentsTests : IDisposable
     public void Dispose() => _temp.Dispose();
 
     [Fact]
+    public void Legacy_gemini_explorer_state_moves_to_agy_without_overriding_new_state()
+    {
+        var file = _temp.Combine("session.json");
+        File.WriteAllText(file, """
+            { "schemaVersion": 1, "explorers": {
+                "builtin.gemini": { "collapsed": true, "expanded": ["/config"] },
+                "builtin.claude": { "collapsed": false, "expanded": [] } } }
+            """);
+        var store = new SessionStateStore(PhysicalFileStore.Instance, file, new ListAppLog());
+
+        var states = store.LoadExplorers();
+
+        Assert.False(states.ContainsKey("builtin.gemini"));
+        Assert.True(states["builtin.agy"].IsCollapsed);
+        Assert.Equal(["/config"], states["builtin.agy"].Expanded);
+
+        File.WriteAllText(file, """
+            { "schemaVersion": 1, "explorers": {
+                "builtin.agy": { "collapsed": false, "expanded": [] },
+                "builtin.gemini": { "collapsed": true, "expanded": [] } } }
+            """);
+        Assert.False(store.LoadExplorers()["builtin.agy"].IsCollapsed);
+    }
+
+    [Fact]
     public void Documents_round_trip_and_keep_other_sections()
     {
         var file = _temp.Combine("session.json");

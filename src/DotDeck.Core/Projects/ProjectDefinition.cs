@@ -14,7 +14,9 @@ public enum BuiltinProject
     Claude,
     Codex,
     System,
-    Gemini,
+
+    /// <summary>Antigravity CLI (agy). Root is ~/.gemini; named "Gemini" up to 1.10.</summary>
+    Antigravity,
 }
 
 /// <summary>

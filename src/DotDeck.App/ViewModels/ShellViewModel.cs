@@ -218,6 +218,13 @@ public sealed partial class ShellViewModel : ObservableObject
             return null;
         }
 
+        // Detached explorer panes of a renamed built-in project (builtin.gemini → builtin.agy) keep their place.
+        if (contentId.StartsWith(DetachedExplorerPaneViewModel.ContentIdPrefix, StringComparison.Ordinal))
+        {
+            contentId = DetachedExplorerPaneViewModel.ContentIdPrefix
+                + BuiltinProjects.MigrateId(contentId[DetachedExplorerPaneViewModel.ContentIdPrefix.Length..]);
+        }
+
         return (PaneViewModel?)Tools.FirstOrDefault(t => t.ContentId == contentId)
             ?? Documents.FirstOrDefault(d => d.ContentId == contentId && d.IsRestorable)
             ?? CreateSystemDocument(contentId)

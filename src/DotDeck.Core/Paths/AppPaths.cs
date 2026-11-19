@@ -22,7 +22,8 @@ public sealed record AppPaths(string Home, HomeSource HomeSource, string Roaming
 
     public string CodexHome => Path.Combine(Home, ".codex");
 
-    public string GeminiHome => Path.Combine(Home, ".gemini");
+    /// <summary>Antigravity CLI (agy) home. agy keeps its files under ~/.gemini (antigravity-cli/, config/, …).</summary>
+    public string AntigravityHome => Path.Combine(Home, ".gemini");
 
     public string ProjectsFile => Path.Combine(RoamingDataDir, "projects.json");
 

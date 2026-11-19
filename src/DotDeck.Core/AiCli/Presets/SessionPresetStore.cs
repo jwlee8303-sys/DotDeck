@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotDeck.Core.AiCli.Launch;
+using DotDeck.Core.AiCli.Scope;
 using DotDeck.Core.Files;
 using DotDeck.Core.Projects;
 
@@ -413,7 +414,11 @@ public sealed class SessionPresetStore
             {
                 if (StringList(value) is { } ids)
                 {
-                    last[key] = ids;
+                    var current = BuiltinProjects.MigrateId(key);
+                    if (current == key || !last.ContainsKey(current))
+                    {
+                        last[current] = MigrateIds(ids);
+                    }
                 }
             }
         }
@@ -427,9 +432,10 @@ public sealed class SessionPresetStore
                 {
                     var claude = Text(c["claude"]?["sessionId"]);
                     var codex = Text(c["codex"]?["threadId"]);
-                    if (claude is not null || codex is not null)
+                    var current = MigrateScopeKey(key);
+                    if ((claude is not null || codex is not null) && (current == key || !conversations.ContainsKey(current)))
                     {
-                        conversations[key] = new ConversationIds(claude, codex);
+                        conversations[current] = new ConversationIds(claude, codex);
                     }
                 }
             }
@@ -437,6 +443,29 @@ public sealed class SessionPresetStore
 
         return new State(presets, unreadable, last, conversations, Extra(root, s_rootKeys));
     }
+
+    /// <summary>Rebuilds a <see cref="ScopeKey"/> whose project ids were renamed; other keys are returned unchanged.</summary>
+    private static string MigrateScopeKey(string key)
+    {
+        try
+        {
+            if (JsonSerializer.Deserialize<string[]>(key) is [var primary, .. var additional]
+                && (primary == BuiltinProjects.LegacyAntigravityId || additional.Contains(BuiltinProjects.LegacyAntigravityId)))
+            {
+                var migrated = BuiltinProjects.MigrateId(primary);
+                return ScopeKey.Of(migrated, additional.Select(BuiltinProjects.MigrateId));
+            }
+        }
+        catch (JsonException)
+        {
+            // Not a scope key written by this app; keep it as is.
+        }
+
+        return key;
+    }
+
+    private static List<string> MigrateIds(IEnumerable<string> ids) =>
+        ids.Select(BuiltinProjects.MigrateId).Distinct(StringComparer.Ordinal).ToList();
 
     private static SessionPreset? ReadPreset(JsonObject entry)
     {
@@ -463,8 +492,8 @@ public sealed class SessionPresetStore
         {
             Id = id,
             Name = name,
-            PrimaryProjectId = primary,
-            AdditionalProjectIds = additional,
+            PrimaryProjectId = BuiltinProjects.MigrateId(primary),
+            AdditionalProjectIds = MigrateIds(additional).Where(i => i != BuiltinProjects.MigrateId(primary)).ToList(),
             Cli = cli.Value,
             Mode = mode.Value,
             IncludeOpenDocuments = includeDocs,

@@ -121,6 +121,34 @@ public sealed class SessionPresetStoreTests : IDisposable
     }
 
     [Fact]
+    public void Legacy_gemini_project_ids_in_presets_are_migrated()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+        File.WriteAllText(FilePath, """
+            {
+              "schemaVersion": 1,
+              "presets": [
+                { "id": "p1", "name": "A", "primary": "builtin.gemini", "additional": ["builtin.gemini", "builtin.agy", "x"] },
+                { "id": "p2", "name": "B", "primary": "x", "additional": ["builtin.gemini", "builtin.agy"] } ],
+              "lastAdditional": { "builtin.gemini": ["builtin.gemini", "y"] },
+              "conversations": {
+                "[\"x\",\"builtin.gemini\"]": { "codex": { "threadId": "t1" } },
+                "plain": { "claude": { "sessionId": "s1" } }
+              }
+            }
+            """);
+
+        var store = NewStore();
+
+        Assert.Equal("builtin.agy", store.Presets[0].PrimaryProjectId);
+        Assert.Equal(["x"], store.Presets[0].AdditionalProjectIds);
+        Assert.Equal(["builtin.agy"], store.Presets[1].AdditionalProjectIds);
+        Assert.Equal(["builtin.agy", "y"], store.GetLastAdditional("builtin.agy"));
+        Assert.Equal("t1", store.GetConversation(ScopeKey.Of("x", ["builtin.agy"]))?.CodexThreadId);
+        Assert.Equal("s1", store.GetConversation("plain")?.ClaudeSessionId);
+    }
+
+    [Fact]
     public void Corrupt_file_is_preserved_and_replaced()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);

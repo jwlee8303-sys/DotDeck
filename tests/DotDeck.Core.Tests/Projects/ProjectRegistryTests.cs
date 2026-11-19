@@ -33,10 +33,58 @@ public sealed class ProjectRegistryTests : IDisposable
         var result = registry.Load();
 
         Assert.Equal(ProjectRegistryLoadStatus.CreatedDefaults, result.Status);
-        Assert.Equal(["builtin.claude", "builtin.codex", "builtin.gemini", "builtin.system"], registry.Projects.Select(p => p.Id));
+        Assert.Equal(["builtin.claude", "builtin.codex", "builtin.agy", "builtin.system"], registry.Projects.Select(p => p.Id));
         Assert.True(File.Exists(FilePath));
         // New built-ins start from the global default extensions without rules.
         Assert.All(registry.Projects, p => Assert.Equal(VisibilitySettings.Default, p.Visibility));
+    }
+
+    [Fact]
+    public void Legacy_gemini_builtin_is_migrated_to_agy_with_its_settings()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+        File.WriteAllText(FilePath, """
+            {
+              "schemaVersion": 2,
+              "projects": [
+                { "id": "builtin.gemini", "kind": "builtin", "builtinKey": "gemini", "order": 0, "hidden": true,
+                  "excludedFolders": ["/tmp"] }
+              ]
+            }
+            """);
+
+        var registry = LoadNew();
+
+        var agy = registry.Find("builtin.agy");
+        Assert.NotNull(agy);
+        Assert.Equal(BuiltinProject.Antigravity, agy.Builtin);
+        Assert.Equal("agy 전역", agy.Name);
+        Assert.True(agy.Hidden);
+        Assert.Equal(["/tmp"], agy.ExcludedFolders);
+        Assert.Null(registry.Find("builtin.gemini"));
+
+        registry.SetHidden("builtin.agy", false);
+        var saved = File.ReadAllText(FilePath);
+        Assert.Contains("\"builtin.agy\"", saved, StringComparison.Ordinal);
+        Assert.Contains("\"builtinKey\": \"agy\"", saved, StringComparison.Ordinal);
+        Assert.DoesNotContain("gemini", saved, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void New_agy_entry_wins_over_legacy_gemini_entry_in_either_order(bool legacyFirst)
+    {
+        const string legacy = """{ "id": "builtin.gemini", "kind": "builtin", "builtinKey": "gemini", "order": 0, "hidden": true }""";
+        const string current = """{ "id": "builtin.agy", "kind": "builtin", "builtinKey": "agy", "order": 1, "hidden": false }""";
+        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+        File.WriteAllText(FilePath, $$"""{ "schemaVersion": 2, "projects": [ {{(legacyFirst ? legacy : current)}}, {{(legacyFirst ? current : legacy)}} ] }""");
+
+        var registry = LoadNew();
+
+        var agy = Assert.Single(registry.Projects, p => p.Builtin == BuiltinProject.Antigravity);
+        Assert.Equal("builtin.agy", agy.Id);
+        Assert.False(agy.Hidden);
     }
 
     [Fact]

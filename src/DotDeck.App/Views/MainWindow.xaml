@@ -7,6 +7,7 @@
         xmlns:vm="clr-namespace:DotDeck.App.ViewModels"
         xmlns:docking="clr-namespace:DotDeck.App.Docking"
         xmlns:conv="clr-namespace:DotDeck.App.Converters"
+        xmlns:themes="clr-namespace:DotDeck.App.Themes"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:ShellViewModel}"
         Title="{Binding Title}"
@@ -27,6 +28,8 @@
             </ResourceDictionary.MergedDictionaries>
             <conv:BoolToHiddenConverter x:Key="BoolToHidden" />
             <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+            <conv:FileIconConverter x:Key="FileIcon" />
+            <conv:FileTabToVisibleConverter x:Key="FileTabToVisible" />
 
             <!-- Pane title (DataContext: the layout item). A terminal's title is edited in place ("이름 바꾸기" in the tab menu). -->
             <DataTemplate x:Key="DD.PaneTitle">
@@ -294,6 +297,23 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource DD.Glyph}" FontSize="10" Margin="0,0,4,0" VerticalAlignment="Center"
                                    Text="&#xE718;" Visibility="{Binding Content.IsPinned, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}" />
+                        <!-- File tabs: colored file icon; a warning badge while the validation pane reports issues for it.
+                             The converter takes the document itself, so other tabs (start page, terminals) get no icon. -->
+                        <Grid Width="16" Height="16" Margin="0,0,5,0" VerticalAlignment="Center"
+                              Visibility="{Binding Content, Converter={StaticResource FileTabToVisible}}">
+                            <Image SnapsToDevicePixels="True" UseLayoutRounding="True">
+                                <Image.Source>
+                                    <MultiBinding Converter="{StaticResource FileIcon}">
+                                        <Binding Path="Content" />
+                                        <Binding Path="(themes:FileIcons.Version)" />
+                                    </MultiBinding>
+                                </Image.Source>
+                            </Image>
+                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="9" Text="&#xE7BA;" Margin="0,0,-4,-3"
+                                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Foreground="{DynamicResource DD.Brush.Warning}"
+                                       ToolTip="검증 결과에 오류나 경고가 있습니다"
+                                       Visibility="{Binding Content.HasValidationIssues, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}" />
+                        </Grid>
                         <ContentPresenter x:Name="HeaderText" Content="{Binding}" ContentTemplate="{StaticResource DD.PaneTitle}" />
                         <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource DD.NewTerminalButton}" />
                     </StackPanel>

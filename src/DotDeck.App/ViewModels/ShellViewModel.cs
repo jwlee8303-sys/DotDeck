@@ -61,6 +61,7 @@ public sealed partial class ShellViewModel : ObservableObject
         _shellLauncher = services.Shell;
         _wordWrapExtensions = new DotDeck.Core.Settings.AppSettingsStore(services.Store, services.Paths.SettingsFile).Load().WordWrapExtensions;
         _buffers = new DocumentBufferManager(services.Reader, WordWrapDefaultFor);
+        _buffers.DirtyChanged += Themes.FileIcons.SetDirty;
         Documents.CollectionChanged += (_, _) =>
         {
             if (ActiveDocument is { } active && !Documents.Contains(active))

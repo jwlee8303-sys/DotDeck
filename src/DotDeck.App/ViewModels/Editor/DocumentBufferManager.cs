@@ -13,6 +13,9 @@ public sealed class DocumentBufferManager(TextFileReader reader, Func<string, bo
 
     public TextFileReader Reader => _reader;
 
+    /// <summary>An open file gained or lost unsaved changes (path, dirty); also (path, false) when its buffer closes.</summary>
+    public event Action<string, bool>? DirtyChanged;
+
     public DocumentBuffer? Find(string path) => _buffers.GetValueOrDefault(Normalize(path));
 
     /// <summary>
@@ -30,6 +33,7 @@ public sealed class DocumentBufferManager(TextFileReader reader, Func<string, bo
             if (!_buffers.TryGetValue(key, out buffer))
             {
                 buffer = new DocumentBuffer(snapshot) { DefaultWordWrap = wordWrapDefault?.Invoke(key) ?? false };
+                buffer.PropertyChanged += OnBufferPropertyChanged;
                 _buffers[key] = buffer;
             }
         }
@@ -48,9 +52,21 @@ public sealed class DocumentBufferManager(TextFileReader reader, Func<string, bo
     public void Release(DocumentBuffer buffer)
     {
         ArgumentNullException.ThrowIfNull(buffer);
-        if (--buffer.ReferenceCount <= 0)
+        if (--buffer.ReferenceCount <= 0 && _buffers.Remove(Normalize(buffer.Path)))
         {
-            _buffers.Remove(Normalize(buffer.Path));
+            buffer.PropertyChanged -= OnBufferPropertyChanged;
+            if (buffer.IsDirty)
+            {
+                DirtyChanged?.Invoke(buffer.Path, false);
+            }
+        }
+    }
+
+    private void OnBufferPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is DocumentBuffer buffer && e.PropertyName == nameof(DocumentBuffer.IsDirty))
+        {
+            DirtyChanged?.Invoke(buffer.Path, buffer.IsDirty);
         }
     }
 

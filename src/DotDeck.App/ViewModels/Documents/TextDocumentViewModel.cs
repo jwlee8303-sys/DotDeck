@@ -100,6 +100,10 @@ public sealed partial class TextDocumentViewModel : DocumentViewModel
     [ObservableProperty]
     private bool _isPreview;
 
+    /// <summary>The validation pane shows errors or warnings for this (active) document: the tab gets a warning badge.</summary>
+    [ObservableProperty]
+    private bool _hasValidationIssues;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanClose))]
     private bool _isPinned;

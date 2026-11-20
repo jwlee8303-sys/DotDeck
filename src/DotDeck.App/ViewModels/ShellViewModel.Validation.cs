@@ -21,6 +21,7 @@ public sealed partial class ShellViewModel
         if (_validated is not null)
         {
             _validated.Buffer.TextChanged -= OnValidatedTextChanged;
+            _validated.HasValidationIssues = false; // only the document the pane follows carries the badge
         }
 
         _validated = value is not null && EditorRegistry.Get(value.Kind).Validate is not null ? value : null;
@@ -72,6 +73,7 @@ public sealed partial class ShellViewModel
         if (version == _validationVersion && _validated == doc)
         {
             Validation.Show(doc.Buffer.FileName, issues);
+            doc.HasValidationIssues = issues.Any(i => i.Severity >= IssueSeverity.Warning);
         }
     }
 

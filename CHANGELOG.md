@@ -4,7 +4,9 @@
 ## [Unreleased]
 
 ### Added
-- 파일 아이콘 가져오기 도구(`build/icons/update-file-icons.ps1`, `build/icons/IconGen`). Material Icon Theme 5.40.0(MIT)을 무결성 검증 후 내려받아 SVG를 WPF XAML로 변환하고, 제3자 로고 아이콘(AI 도구·Microsoft 제품 37개)은 같은 색 계열의 일반 아이콘으로 바꿔 앱에 포함. 아직 화면에는 표시하지 않음
+- 파일 아이콘 가져오기 도구(`build/icons/update-file-icons.ps1`, `build/icons/IconGen`). Material Icon Theme 5.40.0(MIT)을 무결성 검증 후 내려받아 SVG를 WPF XAML로 변환하고, 제3자 로고 아이콘(AI 도구·Microsoft 제품 37개)은 같은 색 계열의 일반 아이콘으로 바꿔 앱에 포함
+- 탐색기 트리와 문서 탭에 파일 종류별 컬러 아이콘(VS Code의 Material Icon Theme와 같은 그림). 폴더는 이름에 따라 다른 아이콘, 펼치면 열린 폴더 아이콘. 라이트 테마에서는 라이트용 아이콘. 환경 변수·PATH 같은 가상 항목과 메뉴·도구 모음 아이콘은 그대로
+- 탐색기에서 열려 있고 저장하지 않은 파일 옆에 ● 표시, 문서 탭 아이콘에 검증 결과(오류·경고)가 있으면 ⚠ 표시(검증 창이 보고 있는 활성 문서만). 표시만 하며 동작은 바뀌지 않음
 
 ### Changed
 - 기본 프로젝트 "Gemini 전역"을 "agy 전역"(Antigravity CLI, 루트 `~/.gemini`)으로 변경. 저장된 순서·숨김·제외 폴더, 탐색기 상태, AI 세션 프리셋과 이어하기 대화, 떼어 낸 탐색기 패널 위치는 다음 실행 때 새 ID(`builtin.agy`)로 자동 이전됨.

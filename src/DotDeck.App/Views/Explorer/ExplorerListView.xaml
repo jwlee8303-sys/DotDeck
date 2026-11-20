@@ -7,10 +7,13 @@
              xmlns:core="clr-namespace:DotDeck.Core.Explorer;assembly=DotDeck.Core"
              xmlns:vis="clr-namespace:DotDeck.Core.Explorer.Visibility;assembly=DotDeck.Core"
              xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+             xmlns:themes="clr-namespace:DotDeck.App.Themes"
              Background="{DynamicResource DD.Brush.Panel.Background}">
     <UserControl.Resources>
         <conv:DepthToIndentConverter x:Key="Indent" />
         <conv:FileKindToGlyphConverter x:Key="FileGlyph" />
+        <conv:FileIconConverter x:Key="FileIcon" />
+        <conv:DirtyFileToVisibleConverter x:Key="DirtyToVisible" />
         <conv:NullToCollapsedConverter x:Key="NullToCollapsed" />
         <BooleanToVisibilityConverter x:Key="TrueToVisible" />
         <conv:FalseToVisibleConverter x:Key="FalseToVisible" />
@@ -278,7 +281,18 @@
                 </Button>
                 <TextBlock x:Name="Pin" Style="{StaticResource RowGlyph}" FontSize="11" Text="&#xE718;" Width="14"
                            Foreground="{DynamicResource DD.Brush.Text.Secondary}" ToolTip="최상위에 고정됨" Visibility="Collapsed" />
-                <TextBlock x:Name="Icon" Style="{StaticResource RowGlyph}"
+                <!-- Colored file/folder icon (16x16 vector, same 18px slot as the glyph it replaced). Virtual nodes keep the glyph. -->
+                <Image x:Name="FileIcon" Width="16" Height="16" Margin="1,0" VerticalAlignment="Center"
+                       SnapsToDevicePixels="True" UseLayoutRounding="True">
+                    <Image.Source>
+                        <MultiBinding Converter="{StaticResource FileIcon}">
+                            <Binding Path="Node" />
+                            <Binding Path="IsExpanded" />
+                            <Binding Path="(themes:FileIcons.Version)" />
+                        </MultiBinding>
+                    </Image.Source>
+                </Image>
+                <TextBlock x:Name="Icon" Style="{StaticResource RowGlyph}" Visibility="Collapsed"
                            Text="{Binding Node.FileKind, Converter={StaticResource FileGlyph}}"
                            Foreground="{DynamicResource DD.Brush.FileKind.Text}" />
                 <TextBlock x:Name="Label" Text="{Binding Name}" Margin="4,0,0,0" VerticalAlignment="Center" />
@@ -316,6 +330,16 @@
                            Visibility="{Binding FlatDirectoryText, Converter={StaticResource NullToCollapsed}}" />
                 <TextBox x:Name="Editor" Style="{StaticResource InlineEditor}" Visibility="Collapsed"
                          Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}" />
+                <!-- Open with unsaved changes. Display only. -->
+                <TextBlock x:Name="Dirty" Text="&#x25CF;" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource DD.Brush.Text.Secondary}" ToolTip="저장하지 않은 변경 있음">
+                    <TextBlock.Visibility>
+                        <MultiBinding Converter="{StaticResource DirtyToVisible}">
+                            <Binding Path="Node.FullPath" />
+                            <Binding Path="(themes:FileIcons.DirtyVersion)" />
+                        </MultiBinding>
+                    </TextBlock.Visibility>
+                </TextBlock>
                 <TextBlock x:Name="Lock" Style="{StaticResource RowGlyph}" FontSize="11" Text="&#xE72E;" Margin="4,0,0,0"
                            Foreground="{DynamicResource DD.Brush.FileKind.Secret}" Visibility="Collapsed" />
                 <TextBlock x:Name="Warn" Style="{StaticResource RowGlyph}" FontSize="11" Text="&#xE7BA;" Margin="4,0,0,0"
@@ -414,10 +438,13 @@
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Node.Kind}" Value="{x:Static core:NodeKind.Virtual}">
                     <Setter TargetName="Icon" Property="Text" Value="&#xE7F4;" />
+                    <Setter TargetName="Icon" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="FileIcon" Property="Visibility" Value="Collapsed" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsEnabled}" Value="False">
                     <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource DD.Brush.Text.Disabled}" />
                     <Setter TargetName="Icon" Property="Foreground" Value="{DynamicResource DD.Brush.Text.Disabled}" />
+                    <Setter TargetName="FileIcon" Property="Opacity" Value="0.4" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>

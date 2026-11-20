@@ -108,7 +108,7 @@
                             <MenuItem Header="평면" Command="{Binding Explorer.SetViewModeCommand}" CommandParameter="Flat"
                                       IsCheckable="True" IsChecked="{Binding Explorer.IsFlatMode, Mode=OneWay}" />
                             <Separator />
-                            <MenuItem Header="평면: 이름순" Command="{Binding Explorer.SetFlatSortCommand}" CommandParameter="Name"
+                            <MenuItem Header="평면: 폴더·이름순" Command="{Binding Explorer.SetFlatSortCommand}" CommandParameter="Name"
                                       IsCheckable="True" IsChecked="{Binding Explorer.IsCustomFlatSort, Mode=OneWay, Converter={StaticResource Invert}}" />
                             <MenuItem Header="평면: 사용자 순서(끌어서 정렬)" Command="{Binding Explorer.SetFlatSortCommand}" CommandParameter="Custom"
                                       IsCheckable="True" IsChecked="{Binding Explorer.IsCustomFlatSort, Mode=OneWay}" />

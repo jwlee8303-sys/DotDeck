@@ -247,9 +247,10 @@ public sealed class VisibleProjectSource : IProjectSource
 
     private List<NodeInfo> Sort(List<NodeInfo> files)
     {
+        // Grouped by folder first (root files, then folders in path order), then by name within a folder.
         var byName = files
-            .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(f => f.FlatDirectory, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(f => f.FlatDirectory, FolderComparer.Instance)
+            .ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(f => f.RelativePath, StringComparer.Ordinal);
         if (_view.FlatSort != FlatSort.Custom || _view.FlatOrder.Count == 0)
         {
@@ -268,6 +269,31 @@ public sealed class VisibleProjectSource : IProjectSource
             .ThenBy(x => x.ByName)
             .Select(x => x.File)
             .ToList();
+    }
+
+    /// <summary>
+    /// Folder keys compared segment by segment without case, so a folder's subfolders stay right after it
+    /// ("a", "a\b", "a-c" rather than "a", "a-c", "a\b"); "" (the root) comes first.
+    /// </summary>
+    private sealed class FolderComparer : IComparer<string?>
+    {
+        public static readonly FolderComparer Instance = new();
+
+        public int Compare(string? x, string? y)
+        {
+            var left = string.IsNullOrEmpty(x) ? [] : x.Split(RelativeKey.Separator);
+            var right = string.IsNullOrEmpty(y) ? [] : y.Split(RelativeKey.Separator);
+            for (var i = 0; i < Math.Min(left.Length, right.Length); i++)
+            {
+                var result = StringComparer.OrdinalIgnoreCase.Compare(left[i], right[i]);
+                if (result != 0)
+                {
+                    return result;
+                }
+            }
+
+            return left.Length.CompareTo(right.Length);
+        }
     }
 
     /// <summary>Pinned items that still exist, in pin order. Pinned files are shown whatever their rules say.</summary>

@@ -401,6 +401,24 @@ public sealed class VisibleProjectSourceTests : IDisposable
     }
 
     [Fact]
+    public void Flat_view_sorts_by_folder_first_then_by_name()
+    {
+        Touch("z.md");
+        Touch("a.md");
+        Touch("b/a.md");
+        Touch("a-c/a.md");
+        Touch("a/z.md");
+        Touch("a/b/a.md");
+        Touch("a/m.md");
+
+        var files = Source(ExplorerViewMode.Flat).GetChildren(null);
+
+        Assert.Equal(
+            ["a.md", "z.md", @"a\m.md", @"a\z.md", @"a\b\a.md", @"a-c\a.md", @"b\a.md"],
+            files.Select(f => f.RelativePath));
+    }
+
+    [Fact]
     public void Flat_custom_order_puts_ordered_files_first_then_the_rest_by_name()
     {
         Touch("z.md");

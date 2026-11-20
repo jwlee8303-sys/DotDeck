@@ -1063,10 +1063,5 @@ public partial class MainWindow : Window
     }
 
     private void OnAboutClick(object sender, RoutedEventArgs e) =>
-        MessageBox.Show(
-            this,
-            $"DotDeck {_shell.Version}\n개발 환경 설정 파일·문서 에디터\n\n홈: {_shell.Paths.Home}\n데이터: {_shell.Paths.LocalDataDir}",
-            "DotDeck 정보",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        new Dialogs.AboutDialog(_shell.Version, _shell.Paths.Home, _shell.Paths.LocalDataDir, _shell.RevealInExplorer) { Owner = this }.ShowDialog();
 }

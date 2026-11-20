@@ -9,6 +9,9 @@
 - 탐색기에서 열려 있고 저장하지 않은 파일 옆에 ● 표시, 문서 탭 아이콘에 검증 결과(오류·경고)가 있으면 ⚠ 표시(검증 창이 보고 있는 활성 문서만). 표시만 하며 동작은 바뀌지 않음
 - Claude Code·Codex·agy·공유(AGENTS.md, SKILL.md) 설정 파일과 폴더에 DotDeck 전용 아이콘(Claude 주황 원, Codex 초록 사각형, agy 파랑 삼각형, 공유 회색 연결 노드). settings.json·config.toml·agents·hooks처럼 흔한 이름은 해당 도구 설정 폴더(.claude, .codex, .gemini, .agents) 안에서만 적용
 - 사용자 아이콘 매핑 `%APPDATA%\DotDeck\icons\associations.json`(파일 이름·확장자·폴더 이름 → 기존 아이콘 키). 저장하면 바로 다시 읽고, 잘못된 항목은 출력 창에 경고만 남기고 건너뜀
+- 도움말 → DotDeck 정보를 대화상자로 바꾸고 서드파티 고지(THIRD-PARTY-NOTICES.txt)를 읽기 전용으로 표시, "라이선스 폴더 열기" 버튼 추가
+- THIRD-PARTY-NOTICES.txt에 배포되는 모든 NuGet 패키지(AvalonDock·AvalonEdit·CommunityToolkit.Mvvm·DiffPlex·Markdig·Tomlyn·Velopack·WebView2)와 .NET 런타임의 라이선스 원문 추가. 자체 포함 배포물에는 .NET 런타임의 서드파티 고지(`licenses/THIRD-PARTY-NOTICES-dotnet-runtime.txt`)도 함께 넣음. 패키지 빌드는 고지·아이콘 라이선스 누락과 글꼴 파일 포함을 오류로 처리
+- 파일 아이콘 문서 [docs/icons.md](docs/icons.md)
 
 ### Changed
 - 기본 프로젝트 "Gemini 전역"을 "agy 전역"(Antigravity CLI, 루트 `~/.gemini`)으로 변경. 저장된 순서·숨김·제외 폴더, 탐색기 상태, AI 세션 프리셋과 이어하기 대화, 떼어 낸 탐색기 패널 위치는 다음 실행 때 새 ID(`builtin.agy`)로 자동 이전됨.

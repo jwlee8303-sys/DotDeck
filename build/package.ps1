@@ -61,6 +61,14 @@ Invoke-Checked dotnet @('publish', 'src/DotDeck.App', '-c', 'Release', '-r', 'wi
 foreach ($required in 'DotDeck.exe', 'DotDeck.dll', 'DotDeck.Core.dll', 'Velopack.dll', 'coreclr.dll', 'PresentationFramework.dll') {
     if (-not (Test-Path (Join-Path $appDir $required))) { throw "Publish output is missing $required (single-file or framework-dependent build?)" }
 }
+# Third-party notices ship with the app; font files never do (fonts come from Windows: Segoe UI, Segoe Fluent Icons).
+foreach ($notice in 'THIRD-PARTY-NOTICES.txt', 'licenses/LICENSE-material-icon-theme.txt', 'licenses/THIRD-PARTY-NOTICES-dotnet-runtime.txt') {
+    if (-not (Test-Path (Join-Path $appDir $notice))) { throw "Publish output is missing $notice" }
+}
+# Filter by extension: Windows PowerShell ignores -Include together with -LiteralPath.
+$fontExtensions = '.ttf', '.otf', '.ttc', '.woff', '.woff2', '.eot', '.fon'
+$fonts = @(Get-ChildItem -LiteralPath $appDir -Recurse -File | Where-Object { $fontExtensions -contains $_.Extension.ToLowerInvariant() })
+if ($fonts.Count -gt 0) { throw "Publish output must not contain font files: $($fonts[0].FullName)" }
 $published = (Get-Item (Join-Path $appDir 'DotDeck.Core.dll')).VersionInfo.ProductVersion
 if (-not $published.StartsWith($Version)) { throw "DotDeck.Core.dll version $published does not match $Version" }
 

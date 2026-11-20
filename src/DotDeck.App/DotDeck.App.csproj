@@ -56,6 +56,14 @@
     <None Include="Assets\FileIcons\LICENSE-material-icon-theme.txt" Link="licenses\LICENSE-material-icon-theme.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- A self-contained publish ships the .NET runtime, so its third-party notices (from the runtime pack actually used) go with it. -->
+  <Target Name="PublishRuntimeThirdPartyNotices" BeforeTargets="ComputeResolvedFilesToPublishList" Condition="'$(SelfContained)' == 'true'">
+    <ItemGroup>
+      <_DotDeckRuntimeNotices Include="%(ResolvedRuntimePack.PackageDirectory)\THIRD-PARTY-NOTICES.TXT" Condition="'%(ResolvedRuntimePack.FrameworkName)' == 'Microsoft.NETCore.App'" />
+      <ResolvedFileToPublish Include="@(_DotDeckRuntimeNotices)" Condition="Exists('%(Identity)')" RelativePath="licenses\THIRD-PARTY-NOTICES-dotnet-runtime.txt" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <ProjectReference Include="..\DotDeck.Core\DotDeck.Core.csproj" />
   </ItemGroup>

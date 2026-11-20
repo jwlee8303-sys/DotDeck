@@ -157,6 +157,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public AppPaths Paths { get; }
 
+    /// <summary>Opens Explorer at a folder or file (dialogs that show app folders).</summary>
+    public void RevealInExplorer(string path) => _shellLauncher.RevealInExplorer(path);
+
     /// <summary>Explorer settings changed by the settings dialog (global default extensions).</summary>
     public ExplorerPreferences ExplorerPreferences { get; } = new();
 

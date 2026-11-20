@@ -14,6 +14,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The real Material mapping shipped with the app, for end-to-end icon resolution tests. -->
+    <None Include="..\..\src\DotDeck.App\Assets\FileIcons\material-icons.json" Link="Icons\material-icons.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\DotDeck.Core\DotDeck.Core.csproj" />
   </ItemGroup>
 

@@ -1,0 +1,17 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.5949,0,0,0.61208,9.182,1.311">
+        <GeometryDrawing Brush="#FF651FFF">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="EvenOdd" Figures="M -2.482 0.404 A 1.93 1.93 0 0 1 -0.16 0.427 l 6.967 5.356 a 1.93 1.93 0 0 1 0 3.058 L 4.15 10.883 l 2.7 2.171 c 0.983 0.79 0.956 2.294 -0.053 3.048 l -7.152 5.344 a 1.93 1.93 0 0 1 -2.439 -0.106 l -5.596 -4.996 l -0.782 -0.672 c -3.492 -3 -3.062 -8.526 0.845 -10.951 z m 5.6 9.65 L -0.13 7.444 a 1.93 1.93 0 0 0 -2.384 -0.026 l -2.403 1.848 a 1.93 1.93 0 0 0 0 3.058 l 2.42 1.86 a 1.93 1.93 0 0 0 2.352 0 l 3.246 -2.494 l 2.944 2.366 a 0.643 0.643 0 0 1 -0.018 1.016 l -7.152 5.344 a 0.64 0.64 0 0 1 -0.813 -0.035 l -5.6 -5 l -0.796 -0.684 c -2.839 -2.439 -2.482 -6.935 0.705 -8.896 l 0.023 -0.014 l 5.888 -4.349 a 0.64 0.64 0 0 1 0.774 0.008 l 6.967 5.356 a 0.643 0.643 0 0 1 0 1.02 z m -1.049 0.807 l -2.998 2.304 a 0.64 0.64 0 0 1 -0.783 0 l -2.421 -1.86 a 0.643 0.643 0 0 1 0 -1.02 l 2.403 -1.848 a 0.64 0.64 0 0 1 0.795 0.009 z" />
+          </GeometryDrawing.Geometry>
+          <GeometryDrawing.Pen>
+            <Pen Thickness="1.073" Brush="#FF651FFF" MiterLimit="4" />
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

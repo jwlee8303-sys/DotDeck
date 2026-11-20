@@ -1,0 +1,27 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.666667,0,0,0.666667,0,0">
+        <GeometryDrawing Brush="#FF1E88E5">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 2.985 3.333 a 0.618 0.618 0 0 0 -0.617 0.716 l 2.621 15.914 a 0.84 0.84 0 0 0 0.822 0.701 h 12.576 a 0.62 0.62 0 0 0 0.618 -0.519 l 2.627 -16.09 a 0.618 0.618 0 0 0 -0.617 -0.716 z m 11.039 11.501 H 10.01 L 8.923 9.16 h 6.074 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <DrawingGroup Transform="0.30877,0,0,0.30877,2.368,-9.404">
+          <GeometryDrawing>
+            <GeometryDrawing.Brush>
+              <LinearGradientBrush StartPoint="64.01,65.26" EndPoint="32.99,89.48" MappingMode="Absolute" SpreadMethod="Pad">
+                <GradientStop Color="#FF1565C0" Offset="0.18" />
+                <GradientStop Color="#FF1E88E5" Offset="1" />
+              </LinearGradientBrush>
+            </GeometryDrawing.Brush>
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="M 59.67 60.12 H 40.9 L 37.75 78.5 h -13 L 9.4 96.73 a 2.7 2.7 0 0 0 1.75 0.66 h 40.74 a 2 2 0 0 0 2 -1.68 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

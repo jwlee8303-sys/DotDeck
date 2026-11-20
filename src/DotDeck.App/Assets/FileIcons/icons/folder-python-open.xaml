@@ -1,0 +1,22 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <GeometryDrawing Brush="#FF42A5F5">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 14.483 6 H 4.721 a 1 1 0 0 0 -0.949 0.684 L 2 12 V 5 h 12 a 1 1 0 0 0 -1 -1 H 7.562 a 1 1 0 0 1 -0.64 -0.232 l -0.644 -0.536 A 1 1 0 0 0 5.638 3 H 2 a 1 1 0 0 0 -1 1 v 8 a 1 1 0 0 0 1 1 h 11 l 2.403 -5.606 A 1 1 0 0 0 14.483 6" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FF0277BD">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 10.537 5 A 1.287 1.287 0 0 0 9.25 6.287 v 0.756 h 1.93 c 0.176 0 0.32 0.257 0.32 0.432 H 8.287 A 1.287 1.287 0 0 0 7 8.762 v 1.702 a 1.285 1.285 0 0 0 1.286 1.286 h 0.532 v -1.206 a 1.283 1.283 0 0 1 1.278 -1.287 h 2.367 a 1.283 1.283 0 0 0 1.287 -1.278 V 6.287 A 1.287 1.287 0 0 0 12.463 5 Z m -0.324 0.725 c 0.18 0 0.324 0.054 0.324 0.32 c 0 0.265 -0.144 0.4 -0.324 0.4 c -0.175 0 -0.32 -0.135 -0.32 -0.4 s 0.145 -0.32 0.32 -0.32" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FFFDD835">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 14.182 7.25 v 1.206 a 1.283 1.283 0 0 1 -1.278 1.287 h -2.367 a 1.283 1.283 0 0 0 -1.287 1.278 v 1.691 A 1.287 1.287 0 0 0 10.536 14 h 1.927 a 1.287 1.287 0 0 0 1.287 -1.287 v -0.756 h -1.931 c -0.176 0 -0.32 -0.256 -0.32 -0.432 h 3.214 A 1.287 1.287 0 0 0 16 10.238 V 8.537 a 1.287 1.287 0 0 0 -1.287 -1.287 Z M 9.844 9.281 l -0.002 0.002 l 0.017 -0.001 z m 2.943 3.274 c 0.175 0 0.32 0.135 0.32 0.4 a 0.32 0.32 0 0 1 -0.32 0.32 c -0.18 0 -0.324 -0.054 -0.324 -0.32 c 0 -0.265 0.144 -0.4 0.324 -0.4" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

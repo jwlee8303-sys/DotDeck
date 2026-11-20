@@ -1,0 +1,17 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <GeometryDrawing Brush="#FFFF9800">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="m 6.922 3.768 l -0.644 -0.536 A 1 1 0 0 0 5.638 3 H 2 a 1 1 0 0 0 -1 1 v 8 a 1 1 0 0 0 1 1 h 12 a 1 1 0 0 0 1 -1 V 5 a 1 1 0 0 0 -1 -1 H 7.562 a 1 1 0 0 1 -0.64 -0.232" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FFFFFDE7">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 11.5 5 a 1 1 0 0 0 -0.508 0.135 L 7.516 7.127 A 1.02 1.02 0 0 0 7 8.016 v 3.97 a 0.97 0.97 0 0 0 0.508 0.854 l 0.492 0.28 V 8.467 a 0.9 0.9 0 0 1 0.07 -0.291 a 0.82 0.82 0 0 1 0.344 -0.399 l 2.7 -1.545 a 0.8 0.8 0 0 1 0.788 0 L 14.6 7.777 a 0.8 0.8 0 0 1 0.375 0.493 a 0.8 0.8 0 0 1 0.025 0.197 v 3.068 a 0.79 0.79 0 0 1 -0.398 0.69 l -2.704 1.546 a 0.8 0.8 0 0 1 -0.398 0.106 V 15 a 1.03 1.03 0 0 0 0.51 -0.135 l 3.474 -1.992 a 1.02 1.02 0 0 0 0.516 -0.889 V 8.016 a 1 1 0 0 0 -0.037 -0.274 a 1 1 0 0 0 -0.477 -0.615 L 12.01 5.135 A 1 1 0 0 0 11.5 5 m 0 2.225 a 0.6 0.6 0 0 0 -0.283 0.074 l -1.93 1.105 a 0.57 0.57 0 0 0 -0.256 0.309 a 0.6 0.6 0 0 0 -0.031 0.185 l -0.008 4.79 l 1.008 0.564 V 12.02 l 1.201 0.687 a 0.57 0.57 0 0 0 0.569 0 l 1.945 -1.115 A 0.57 0.57 0 0 0 14 11.1 V 8.898 a 0.57 0.57 0 0 0 -0.287 -0.494 L 11.783 7.3 a 0.6 0.6 0 0 0 -0.283 -0.074 m 0 1.109 a 0.34 0.34 0 0 1 0.168 0.045 l 1.16 0.664 a 0.34 0.34 0 0 1 0.164 0.225 L 13 9.34 v 1.324 a 0.34 0.34 0 0 1 -0.17 0.293 l -1.16 0.664 a 0.35 0.35 0 0 1 -0.17 0.045 a 0.35 0.35 0 0 1 -0.17 -0.045 l -1.16 -0.666 a 0.34 0.34 0 0 1 -0.17 -0.29 V 9.34 a 0.4 0.4 0 0 1 0.02 -0.117 a 0.34 0.34 0 0 1 0.152 -0.18 l 1.16 -0.664 a 0.34 0.34 0 0 1 0.168 -0.045" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

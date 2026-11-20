@@ -1,0 +1,19 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.016667,0,0,0.016667,0,16">
+        <GeometryDrawing Brush="#FFF44336">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 560 -160 v -80 h 120 q 17 0 28.5 -11.5 T 720 -280 v -80 q 0 -38 22 -69 t 58 -44 v -14 q -36 -13 -58 -44 t -22 -69 v -80 q 0 -17 -11.5 -28.5 T 680 -720 H 560 v -80 h 120 q 50 0 85 35 t 35 85 v 80 q 0 17 11.5 28.5 T 840 -560 h 40 v 160 h -40 q -17 0 -28.5 11.5 T 800 -360 v 80 q 0 50 -35 85 t -85 35 z m -280 0 q -50 0 -85 -35 t -35 -85 v -80 q 0 -17 -11.5 -28.5 T 120 -400 H 80 v -160 h 40 q 17 0 28.5 -11.5 T 160 -600 v -80 q 0 -50 35 -85 t 85 -35 h 120 v 80 H 280 q -17 0 -28.5 11.5 T 240 -680 v 80 q 0 38 -22 69 t -58 44 v 14 q 36 13 58 44 t 22 69 v 80 q 0 17 11.5 28.5 T 280 -240 h 120 v 80 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFF44336">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 360 -600 h 80 v 40 h -80 z m 80 240 h 40 v -200 h -40 v 80 h -80 v -80 h -40 v 200 h 40 v -80 h 80 z m 200 -200 v -40 H 530 a 10 10 0 0 0 -10 10 v 100 a 10 10 0 0 0 10 10 h 70 v 80 h -80 v 40 h 110 a 10 10 0 0 0 10 -10 v -140 a 10 10 0 0 0 -10 -10 h -70 v -40 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

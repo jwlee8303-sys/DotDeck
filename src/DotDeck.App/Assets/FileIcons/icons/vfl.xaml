@@ -1,0 +1,31 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.666667,0,0,0.666667,0,0">
+        <GeometryDrawing Brush="#FFF4511E">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 19.97 3 H 4.03 A 1.03 1.03 0 0 0 3 4.03 v 4.136 c 1.548 -1.19 3.563 -1.958 5.948 -1.958 c 5.107 0.004 8.35 3.575 8.348 8.082 c 0 3.13 -1.46 5.485 -3.745 6.71 h 6.419 A 1.03 1.03 0 0 0 21 19.967 V 4.031 a 1.03 1.03 0 0 0 -1.03 -1.03 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing>
+          <GeometryDrawing.Brush>
+            <RadialGradientBrush Center="205.45,208.29" GradientOrigin="205.45,208.29" RadiusX="225.35" RadiusY="225.35" MappingMode="Absolute" SpreadMethod="Pad" Transform="0.04556,0,0,0.0456,2.888,2.88">
+              <GradientStop Color="#FFFFD600" Offset="0" />
+              <GradientStop Color="#FFF9A825" Offset="0.35" />
+              <GradientStop Color="#FFF4511E" Offset="1" />
+            </RadialGradientBrush>
+          </GeometryDrawing.Brush>
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 3 17.722 v 2.247 A 1.03 1.03 0 0 0 4.03 21 h 1.837 C 4.474 20.21 3.49 19 3 17.722" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFF4511E">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 8.948 8.23 C 6.362 8.142 4.35 9.09 3 10.496 v 3.162 c 0.918 -2.653 3.447 -3.87 5.565 -3.849 c 2.647 0.027 4.689 2.025 4.7 4.284 c 0.012 2.158 -0.892 3.748 -3.33 4.14 c -1.33 0.213 -3.41 -0.568 -3.318 -2.578 c 0.046 -1.037 0.854 -1.622 1.777 -1.58 c -0.904 1.213 0.293 2.102 1.139 1.92 c 1.048 -0.223 1.475 -1.155 1.475 -1.877 c 0 -0.762 -0.717 -1.994 -2.498 -1.952 c -2.204 0.053 -3.59 1.64 -3.638 3.603 c -0.056 2.468 2.254 4.091 4.623 4.12 c 3.478 0.046 5.542 -2.24 5.538 -5.585 c -0.005 -3.03 -2.434 -5.946 -6.085 -6.072 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

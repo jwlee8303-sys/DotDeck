@@ -1,0 +1,35 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.666667,0,0,0.666667,0,0">
+        <GeometryDrawing Brush="#FFFFCA28">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 8.046 4.862 L 0.908 12 l 7.138 7.138 l 2.71 -2.691 L 6.308 12 l 4.446 -4.447 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing>
+          <GeometryDrawing.Geometry>
+            <EllipseGeometry Center="14.543,7.812" RadiusX="2.101" RadiusY="2.798" />
+          </GeometryDrawing.Geometry>
+          <GeometryDrawing.Pen>
+            <Pen Thickness="1.455" Brush="#FFFFCA28" MiterLimit="4" />
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFFCA28">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 20.616 4.152 l 1.47 0.69 l -7.783 15.005 l -1.47 -0.69 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing>
+          <GeometryDrawing.Geometry>
+            <EllipseGeometry Center="20.35,16.198" RadiusX="2.101" RadiusY="2.798" />
+          </GeometryDrawing.Geometry>
+          <GeometryDrawing.Pen>
+            <Pen Thickness="1.455" Brush="#FFFFCA28" MiterLimit="4" />
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

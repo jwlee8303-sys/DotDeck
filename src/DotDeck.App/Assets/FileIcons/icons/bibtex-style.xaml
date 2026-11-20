@@ -1,0 +1,44 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.015625,0,0,0.015625,0,0">
+        <GeometryDrawing Brush="#FF795548">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 96 832 h 832 c 17.728 0 32 14.272 32 32 v 64 c 0 17.728 -14.272 32 -32 32 H 96 c -17.728 0 -32 -14.272 -32 -32 v -64 c 0 -17.728 14.272 -32 32 -32" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF4CAF50">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 160 192 h 64 c 17.728 0 32 14.272 32 32 v 512 c 0 17.728 -14.272 32 -32 32 h -64 c -17.728 0 -32 -14.272 -32 -32 V 224 c 0 -17.728 14.272 -32 32 -32" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFF44336">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 512 96 c 0 -17.728 -14.272 -32 -32 -32 H 352 c -17.728 0 -32 14.272 -32 32 v 640 c 0 17.728 14.272 32 32 32 h 128 c 17.728 0 32 -14.272 32 -32 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFFEB3B">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 320 192 v 64 h 192 v -64 z m 0 384 v 64 h 192 v -64 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFBBDEFB">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 608 320 h 256 c 17.728 0 32 14.272 32 32 v 384 c 0 17.728 -14.272 32 -32 32 H 608 c -17.728 0 -32 -14.272 -32 -32 V 352 c 0 -17.728 14.272 -32 32 -32" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF2196F3">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 608 320 c -17.673 0 -32 14.327 -32 32 v 352 c 35.346 0 64 -28.654 64 -64 v -32 a 32 32 0 0 1 32 -32 c 17.673 0 32 -14.327 32 -32 v -64 a 32 32 0 0 1 32 -32 c 17.673 0 32 -14.327 32 -32 v -96 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF000000">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 745.606 339.205 L 924.74 473.693 a 15.965 15.965 0 0 1 3.19 22.401 a 15.965 15.965 0 0 1 -22.403 3.19 l -179.133 -134.49 a 15.965 15.965 0 0 1 -3.19 -22.401 a 15.965 15.965 0 0 1 22.402 -3.19 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

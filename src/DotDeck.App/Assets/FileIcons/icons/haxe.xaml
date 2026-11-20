@@ -1,0 +1,74 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.07619,0,0,0.07619,0,0">
+        <GeometryDrawing Brush="#FFFB8C00">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 41.559 104.988 l 63.43 -63.43 l 63.432 63.43 l -63.431 63.431 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFFB300">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 41.578 105.037 L 29.973 61.726 L 18.368 18.415 l 43.31 11.605 l 43.312 11.605 l -31.706 31.706 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFFCA28">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 104.735 41.555 L 61.545 30.01 L 18.367 18.413 l 22.927 0.185 l 23.228 0.294 l 20.263 11.36 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFFEA00">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 18.368 18.417 l 11.597 43.177 l 11.544 43.19 l -11.303 -19.948 l -11.36 -20.263 l -0.294 -23.229 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFEF6C00">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 104.999 41.579 l 43.31 -11.605 l 43.312 -11.605 l -11.605 43.311 l -11.605 43.311 l -31.706 -31.706 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFE64A19">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 168.49 104.735 l 11.545 -43.19 l 11.598 -43.177 l -0.185 22.927 l -0.294 23.228 l -11.36 20.264 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFFCA28">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 191.628 18.365 l -43.176 11.597 l -43.19 11.544 l 19.948 -11.303 l 20.263 -11.36 l 23.228 -0.293 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFEF6C00">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 168.419 104.987 l 11.605 43.311 l 11.605 43.311 l -43.311 -11.605 l -43.311 -11.605 l 31.706 -31.706 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFB8C00">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 105.261 168.47 l 43.19 11.544 l 43.177 11.597 l -22.927 -0.185 l -23.229 -0.294 l -20.263 -11.36 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFE64A19">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 191.631 191.617 l -11.597 -43.177 l -11.545 -43.19 l 11.304 19.948 l 11.36 20.263 l 0.293 23.229 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFFA000">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 104.99 168.422 l -43.31 11.605 l -43.311 11.605 l 11.605 -43.311 l 11.605 -43.311 l 31.706 31.706 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFFEA00">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 41.51 105.27 l -11.545 43.19 l -11.597 43.176 l 0.185 -22.927 l 0.294 -23.228 l 11.36 -20.264 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFEF6C00">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 18.368 191.63 l 43.176 -11.598 l 43.19 -11.544 l -19.947 11.303 l -20.264 11.36 l -23.228 0.293 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

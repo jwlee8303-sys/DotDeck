@@ -1,0 +1,24 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.022222,0,0,0.022222,0,0">
+        <GeometryDrawing Brush="#FF4DB6AC">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 209.25 329.98 L 52.37 387.636 l 121.32 85.822 l 96.752 -95.805 l -61.197 -47.674 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF00897B">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 480.19 71.446 c -13.123 1.784 -9.565 1.013 -28.4 16.091 c -18.009 14.417 -69.925 100.35 -97.674 129.26 c -24.688 25.721 -34.46 12.199 -60.102 33.661 c -25.68 21.494 -65.273 64.464 -65.273 64.464 l 63.978 47.319 l 101.43 -139.48 c 23.948 -32.932 23.693 -37.266 36.743 -71.821 c 6.385 -16.906 17.76 -29.899 27.756 -45.808 c 12.488 -19.874 30.186 -34.855 21.543 -33.68 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFFB74D">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 478.21 69.796 c -31.267 -0.188 -62.068 137.25 -115.56 242.69 c -54.543 107.52 -162.24 176.82 -162.24 176.82 c 18.157 8.243 34.682 4.91 54.236 23.395 c 13.375 16.164 52.091 95.975 75.174 146.12 c 0 0 18.965 -10.297 42.994 -27.694 c 24.03 -17.398 53.124 -41.897 73.384 -70.301 c 26.884 -37.692 47.897 -61.042 65.703 -75.271 s 32.404 -19.336 46.459 -20.54 c 50.237 -4.305 124.58 85.792 124.58 85.792 S 527.27 70.097 478.2 69.797 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

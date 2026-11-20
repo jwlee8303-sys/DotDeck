@@ -1,0 +1,40 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <GeometryDrawing>
+        <GeometryDrawing.Brush>
+          <LinearGradientBrush StartPoint="11.328,8.203" EndPoint="90.301,10.761" MappingMode="Absolute" SpreadMethod="Pad" Transform="0.15939,0,0,0.16254,-0.134,-0.857">
+            <GradientStop Color="#FF69F0AE" Offset="0" />
+            <GradientStop Color="#FF4FC3F7" Offset="1" />
+          </LinearGradientBrush>
+        </GeometryDrawing.Brush>
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 8.5 8.811 c 0 -0.53 0.368 -1.174 0.82 -1.44 l 3.86 -2.257 c 0.452 -0.265 0.82 -0.052 0.82 0.479 v 4.596 c 0 0.527 -0.368 1.17 -0.82 1.436 l -3.86 2.261 c -0.452 0.265 -0.82 0.051 -0.82 -0.479 z m 0 0" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing>
+        <GeometryDrawing.Brush>
+          <LinearGradientBrush StartPoint="11.328,8.203" EndPoint="90.301,10.761" MappingMode="Absolute" SpreadMethod="Pad" Transform="0.15939,0,0,0.16253,0.195,-0.856">
+            <GradientStop Color="#FF69F0AE" Offset="0" />
+            <GradientStop Color="#FF4FC3F7" Offset="1" />
+          </LinearGradientBrush>
+        </GeometryDrawing.Brush>
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 2 5.593 c 0 -0.53 0.368 -0.745 0.82 -0.479 l 3.86 2.258 c 0.452 0.264 0.82 0.909 0.82 1.44 v 4.595 c 0 0.53 -0.368 0.744 -0.82 0.48 l -3.86 -2.262 c -0.452 -0.264 -0.82 -0.909 -0.82 -1.44 z m 0 0" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing>
+        <GeometryDrawing.Brush>
+          <LinearGradientBrush StartPoint="11.328,8.203" EndPoint="90.301,10.761" MappingMode="Absolute" SpreadMethod="Pad" Transform="0.15784,0,0,0.16493,0.15,-0.355">
+            <GradientStop Color="#FF69F0AE" Offset="0" />
+            <GradientStop Color="#FF4FC3F7" Offset="1" />
+          </LinearGradientBrush>
+        </GeometryDrawing.Brush>
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 3.336 4.467 c -0.448 -0.27 -0.448 -0.706 0 -0.972 l 3.821 -2.293 c 0.447 -0.27 1.173 -0.27 1.62 0 l 3.888 2.332 c 0.447 0.268 0.447 0.702 0 0.971 L 8.843 6.799 c -0.447 0.268 -1.173 0.268 -1.624 0 z m 0 0" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

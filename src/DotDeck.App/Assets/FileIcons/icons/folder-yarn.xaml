@@ -1,0 +1,17 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <GeometryDrawing Brush="#FF0288D1">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="m 6.922 3.768 l -0.644 -0.536 A 1 1 0 0 0 5.638 3 H 2 a 1 1 0 0 0 -1 1 v 8 a 1 1 0 0 0 1 1 h 12 a 1 1 0 0 0 1 -1 V 5 a 1 1 0 0 0 -1 -1 H 7.562 a 1 1 0 0 1 -0.64 -0.232" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FFB3E5FC">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 11.492 4 c -0.34 0.01 -0.668 1.049 -0.668 1.049 a 1.79 1.79 0 0 0 -1.523 0.607 a 1.25 1.25 0 0 1 -0.502 0.305 c -0.054 0.02 -0.119 0.015 -0.28 0.467 c -0.25 0.692 0.42 1.457 0.42 1.457 A 3.7 3.7 0 0 0 7.846 9.19 a 3.4 3.4 0 0 0 -0.229 1.573 a 1.96 1.96 0 0 0 -0.61 1.039 a 1.8 1.8 0 0 0 0.231 1.054 l 0.002 0.006 a 0.25 0.25 0 0 0 0.34 0.116 s -0.377 0.455 -0.025 0.648 a 1.02 1.02 0 0 0 1.15 -0.027 c 0.208 -0.216 0.25 -0.695 0.328 -0.891 l 0.002 -0.004 v -0.002 l 0.002 -0.002 l 0.002 -0.002 h 0.01 l 0.005 0.004 c 0.029 0.022 0.075 0.1 0.118 0.145 a 1.3 1.3 0 0 0 0.18 0.134 l -0.01 0.004 a 0.57 0.57 0 0 0 -0.291 0.737 c 0.069 0.17 0.314 0.28 0.716 0.277 a 20.997 21 0 0 0 2.229 -0.207 a 0.55 0.55 0 0 0 0.34 -0.197 a 8 8 0 0 0 2.019 -0.942 a 3.6 3.6 0 0 1 1.367 -0.65 a 0.387 0.387 0 0 0 0.271 -0.445 a 0.375 0.375 0 0 0 -0.437 -0.311 a 2.9 2.9 0 0 0 -1.477 0.574 a 2.2 2.2 0 0 1 -1.171 0.467 l -0.012 -0.021 a 4.2 4.2 0 0 0 -0.09 -1.862 a 3.95 3.95 0 0 0 -0.904 -1.388 a 5.05 5.05 0 0 0 0.896 -1.932 a 4.2 4.2 0 0 0 -0.18 -2.191 c -0.05 -0.1 -0.492 0.168 -0.492 0.168 a 6.7 6.7 0 0 0 -0.53 -1.032 a 0.17 0.17 0 0 0 -0.104 -0.031" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

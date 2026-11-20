@@ -1,3 +1,8 @@
 # Bundled third-party web assets are pinned by SHA-256 (THIRD-PARTY-NOTICES.txt): keep their bytes exactly.
 src/DotDeck.App/Assets/Terminal/xterm/** -text
 src/DotDeck.App/Assets/Terminal/addon-fit/** -text
+# Generated file icons (build/icons/update-file-icons.ps1) are written with LF; keep them byte-identical to the generator output.
+src/DotDeck.App/Assets/FileIcons/icons/*.xaml text eol=lf
+src/DotDeck.App/Assets/FileIcons/SOURCE.md text eol=lf
+src/DotDeck.App/Assets/FileIcons/material-icons.json -text
+src/DotDeck.App/Assets/FileIcons/LICENSE-material-icon-theme.txt -text

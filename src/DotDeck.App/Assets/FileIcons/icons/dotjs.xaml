@@ -1,0 +1,39 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.04,0,0,0.04,0,0">
+        <DrawingGroup Transform="1,0,0,1,-6.66,100.49">
+          <DrawingGroup Transform="-0.3005,0.95378,-0.96071,-0.27755,0,0">
+            <GeometryDrawing Brush="#9A2196F3">
+              <GeometryDrawing.Geometry>
+                <EllipseGeometry Center="37.18,-256.97" RadiusX="110.14" RadiusY="139.47" />
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+          <DrawingGroup Transform="-0.3005,0.95378,-0.96071,-0.27755,0,0">
+            <GeometryDrawing Brush="#9A2196F3">
+              <GeometryDrawing.Geometry>
+                <EllipseGeometry Center="38.835,-197.03" RadiusX="110.14" RadiusY="139.47" />
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+          <DrawingGroup Transform="-0.95378,-0.3005,0.27755,-0.96071,0,0">
+            <GeometryDrawing Brush="#9A2196F3">
+              <GeometryDrawing.Geometry>
+                <EllipseGeometry Center="-224.78,-5.066" RadiusX="110.14" RadiusY="139.47" />
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+          <DrawingGroup Transform="-0.95378,-0.3005,0.27755,-0.96071,0,0">
+            <GeometryDrawing Brush="#9A2196F3">
+              <GeometryDrawing.Geometry>
+                <EllipseGeometry Center="-228.55,-60.291" RadiusX="110.14" RadiusY="139.47" />
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+        </DrawingGroup>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

@@ -36,6 +36,8 @@ public sealed partial class ThemeColorTests
             if (relative.StartsWith(@"Themes\", StringComparison.OrdinalIgnoreCase)
                 || relative.StartsWith(@"bin\", StringComparison.OrdinalIgnoreCase)
                 || relative.StartsWith(@"obj\", StringComparison.OrdinalIgnoreCase)
+                // Generated file icon artwork: its colors are the icon itself, the same in every theme.
+                || relative.StartsWith(@"Assets\FileIcons\", StringComparison.OrdinalIgnoreCase)
                 || s_allowed.ContainsKey(relative))
             {
                 continue;

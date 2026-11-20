@@ -1,0 +1,22 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.016667,0,0,0.016667,0,16">
+        <GeometryDrawing Brush="#FFF9A825">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 560 -160 v -80 h 120 q 17 0 28.5 -11.5 T 720 -280 v -80 q 0 -38 22 -69 t 58 -44 v -14 q -36 -13 -58 -44 t -22 -69 v -80 q 0 -17 -11.5 -28.5 T 680 -720 H 560 v -80 h 120 q 50 0 85 35 t 35 85 v 80 q 0 17 11.5 28.5 T 840 -560 h 40 v 160 h -40 q -17 0 -28.5 11.5 T 800 -360 v 80 q 0 50 -35 85 t -85 35 z m -280 0 q -50 0 -85 -35 t -35 -85 v -80 q 0 -17 -11.5 -28.5 T 120 -400 H 80 v -160 h 40 q 17 0 28.5 -11.5 T 160 -600 v -80 q 0 -50 35 -85 t 85 -35 h 120 v 80 H 280 q -17 0 -28.5 11.5 T 240 -680 v 80 q 0 38 -22 69 t -58 44 v 14 q 36 13 58 44 t 22 69 v 80 q 0 17 11.5 28.5 T 280 -240 h 120 v 80 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFF9A825">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 581.79 -570.48 L 446.07 -434.76 l -67.859 -67.859 l -22.62 22.62 l 90.479 90.479 l 158.34 -158.34 z" />
+          </GeometryDrawing.Geometry>
+          <GeometryDrawing.Pen>
+            <Pen Thickness="36.192" Brush="#FFF9A825" MiterLimit="4" />
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

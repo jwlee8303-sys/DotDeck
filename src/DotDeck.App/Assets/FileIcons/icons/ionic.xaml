@@ -1,0 +1,19 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.03125,0,0,0.03125,0,0">
+        <GeometryDrawing Brush="#FF448AFF">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 423.59 132.8 a 31.86 31.86 0 0 0 5.408 -17.804 c 0 -17.675 -14.33 -32 -32 -32 a 31.85 31.85 0 0 0 -17.805 5.409 c -34.486 -25.394 -77.085 -40.409 -123.2 -40.409 c -114.88 0 -208 93.125 -208 208 c 0 114.88 93.125 208 208 208 c 114.87 0 208 -93.123 208 -208 c 0 -46.111 -15.016 -88.71 -40.408 -123.2 z m -31.762 259.03 c -17.646 17.646 -38.191 31.499 -61.064 41.174 c -23.672 10.012 -48.826 15.089 -74.766 15.089 s -51.095 -5.077 -74.767 -15.089 c -22.873 -9.675 -43.417 -23.527 -61.064 -41.174 s -31.5 -38.191 -41.174 -61.064 c -10.013 -23.672 -15.09 -48.828 -15.09 -74.768 s 5.077 -51.095 15.089 -74.767 c 9.674 -22.873 23.527 -43.417 41.174 -61.064 s 38.191 -31.5 61.064 -41.174 c 23.673 -10.013 48.828 -15.09 74.768 -15.09 s 51.094 5.077 74.766 15.089 a 191.2 191.2 0 0 1 37.802 21.327 a 31.85 31.85 0 0 0 -3.568 14.679 c 0 17.675 14.327 32 32 32 c 5.293 0 10.28 -1.293 14.678 -3.568 a 191 191 0 0 1 21.327 37.801 c 10.013 23.672 15.09 48.827 15.09 74.767 s -5.077 51.096 -15.09 74.768 c -9.675 22.873 -23.527 43.418 -41.175 61.064" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF448AFF">
+          <GeometryDrawing.Geometry>
+            <EllipseGeometry Center="256,256" RadiusX="96" RadiusY="96" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

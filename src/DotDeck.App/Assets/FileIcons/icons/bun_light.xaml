@@ -1,0 +1,59 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.5,0,0,0.5,0,0">
+        <GeometryDrawing Brush="#FFFFF8E1">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 15.696 27.002 a 13.73 13.73 0 0 1 -9.071 -3.062 a 8.86 8.86 0 0 1 -3.6 -6.505 c -0.252 -5.091 3.813 -7.747 8.748 -10.455 c 0.28 -0.165 0.537 -0.322 0.793 -0.48 a 7.8 7.8 0 0 1 3.52 -1.5 a 2 2 0 0 1 0.695 0.118 a 14.8 14.8 0 0 1 2.95 1.576 c 0.972 0.6 2.182 1.348 3.707 2.173 a 10.14 10.14 0 0 1 5.274 6.147 A 8.8 8.8 0 0 1 29 17.035 a 8.15 8.15 0 0 1 -2.525 5.959 a 15.6 15.6 0 0 1 -10.778 4.008 Z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF37474F">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 16.087 6 a 1 1 0 0 1 0.358 0.06 l 0.038 0.013 l 0.037 0.012 a 14.5 14.5 0 0 1 2.684 1.46 a 72 72 0 0 0 3.767 2.205 a 9.17 9.17 0 0 1 4.767 5.493 A 8 8 0 0 1 28 17.055 a 7.18 7.18 0 0 1 -2.234 5.233 a 14.6 14.6 0 0 1 -10.07 3.714 a 12.74 12.74 0 0 1 -8.415 -2.816 l -0.027 -0.024 l -0.029 -0.023 a 7.98 7.98 0 0 1 -3.202 -5.758 c -0.223 -4.516 3.431 -6.89 8.231 -9.525 l 0.027 -0.015 l 0.027 -0.015 q 0.389 -0.231 0.783 -0.474 A 7.4 7.4 0 0 1 16.087 6 m 0 -2 c -1.618 0 -3.248 1.19 -4.795 2.103 c -4.52 2.481 -9.56 5.41 -9.267 11.376 a 9.9 9.9 0 0 0 3.942 7.215 a 14.77 14.77 0 0 0 9.73 3.308 c 7.122 0 14.335 -4.134 14.303 -10.957 a 9.6 9.6 0 0 0 -0.322 -2.29 a 11.16 11.16 0 0 0 -5.764 -6.768 c -3.495 -1.89 -5.242 -3.326 -6.798 -3.811 A 3 3 0 0 0 16.086 4 Z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF37474F">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 19.855 20.236 A 0.8 0.8 0 0 0 19.26 20 h -6.514 a 0.8 0.8 0 0 0 -0.596 0.236 a 0.51 0.51 0 0 0 -0.137 0.463 a 4.37 4.37 0 0 0 1.641 2.339 a 4.2 4.2 0 0 0 2.349 0.926 a 4.2 4.2 0 0 0 2.343 -0.926 a 4.37 4.37 0 0 0 1.642 -2.339 a 0.5 0.5 0 0 0 -0.132 -0.463 Z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFF8BBD0">
+          <GeometryDrawing.Geometry>
+            <EllipseGeometry Center="22.5,18.5" RadiusX="2.5" RadiusY="1.5" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFF8BBD0">
+          <GeometryDrawing.Geometry>
+            <EllipseGeometry Center="9.5,18.5" RadiusX="2.5" RadiusY="1.5" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF37474F">
+          <GeometryDrawing.Geometry>
+            <EllipseGeometry Center="10,16" RadiusX="2" RadiusY="2" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF37474F">
+          <GeometryDrawing.Geometry>
+            <EllipseGeometry Center="22,16" RadiusX="2" RadiusY="2" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF455A64">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 9.996 18 A 2 2 0 1 0 8 15.996 V 16 a 2 2 0 0 0 1.996 2" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFAFAFA">
+          <GeometryDrawing.Geometry>
+            <EllipseGeometry Center="9,15" RadiusX="1" RadiusY="1" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFAFAFA">
+          <GeometryDrawing.Geometry>
+            <EllipseGeometry Center="21,15" RadiusX="1" RadiusY="1" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

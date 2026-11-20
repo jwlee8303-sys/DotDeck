@@ -1,0 +1,152 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.666667,0,0,0.666667,0,0">
+        <DrawingGroup Transform="0.47102,0,0,0.47102,11.282,3.07">
+          <GeometryDrawing>
+            <GeometryDrawing.Brush>
+              <LinearGradientBrush StartPoint="-31.824,-11.741" EndPoint="19.682,35.548" MappingMode="Absolute" SpreadMethod="Pad" Transform="0.95818,0,0,1.0436,0,0">
+                <GradientStop Color="#FFBA68C8" Offset="0" />
+                <GradientStop Color="#FF7E57C2" Offset="1" />
+              </LinearGradientBrush>
+            </GeometryDrawing.Brush>
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="M 8.002 6.127 L 4.117 8.719 L 0.116 2.723 L 4 0.13 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+        <DrawingGroup Transform="0.47102,0,0,0.47102,12.215,13.552">
+          <GeometryDrawing>
+            <GeometryDrawing.Brush>
+              <LinearGradientBrush StartPoint="12.022,13.922" EndPoint="-15.716,-23.952" MappingMode="Absolute" SpreadMethod="Pad" Transform="0.96226,0,0,1.0392,0,0">
+                <GradientStop Color="#FF5E35B1" Offset="0" />
+                <GradientStop Color="#FF8E24AA" Offset="0.14" />
+                <GradientStop Color="#FFAD1457" Offset="0.29" />
+                <GradientStop Color="#FFC2185B" Offset="0.84" />
+                <GradientStop Color="#FFEC407A" Offset="1" />
+              </LinearGradientBrush>
+            </GeometryDrawing.Brush>
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="m 9.179 1.887 l 6.637 9.946 l -7.906 5.276 l -6.637 -9.946 L 0.115 5.43 L 8.02 0.153 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+        <DrawingGroup Transform="0.47102,0,0,0.47102,8.41,16.686">
+          <GeometryDrawing>
+            <GeometryDrawing.Brush>
+              <LinearGradientBrush StartPoint="-23.39,-57.289" EndPoint="23.931,8.573" MappingMode="Absolute" SpreadMethod="Pad" Transform="1.0429,0,0,0.95884,0,0">
+                <GradientStop Color="#FFBA68C8" Offset="0" />
+                <GradientStop Color="#FF7E57C2" Offset="1" />
+              </LinearGradientBrush>
+            </GeometryDrawing.Brush>
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="m 7.3 1.88 l 1.462 2.189 l -6.018 4.015 L 0.124 4.16 l 1.315 -0.877 L 6.143 0.144 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+        <DrawingGroup Transform="0.47102,0,0,0.47102,16.99,11.686">
+          <GeometryDrawing>
+            <GeometryDrawing.Brush>
+              <LinearGradientBrush StartPoint="-53.331,-30.517" EndPoint="6.771,18.785" MappingMode="Absolute" SpreadMethod="Pad" Transform="0.99898,0,0,1.001,0,0">
+                <GradientStop Color="#FFBA68C8" Offset="0" />
+                <GradientStop Color="#FF7E57C2" Offset="1" />
+              </LinearGradientBrush>
+            </GeometryDrawing.Brush>
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="M 2.328 1.146 L 4.016 0.02 l 2.619 3.925 L 2.75 6.537 l -1.46 -2.19 l 2.197 -1.466 z m -1.04 3.201 L 0.132 2.612 l 2.197 -1.466 l 1.158 1.735 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+        <DrawingGroup Transform="0.47102,0,0,0.47102,2.738,8.18">
+          <GeometryDrawing>
+            <GeometryDrawing.Brush>
+              <LinearGradientBrush StartPoint="-14.029,-23.111" EndPoint="41.998,26.259" MappingMode="Absolute" SpreadMethod="Pad" Transform="1.0003,0,0,0.99965,0,0">
+                <GradientStop Color="#FFBA68C8" Offset="0" />
+                <GradientStop Color="#FF7E57C2" Offset="1" />
+              </LinearGradientBrush>
+            </GeometryDrawing.Brush>
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="m 5.346 9.155 l -1.315 0.877 L 0.03 4.035 L 6.047 0.019 l 2.805 4.204 L 4.15 7.36 l 4.703 -3.138 l 1.197 1.793 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+        <DrawingGroup Transform="0.47102,0,0,0.47102,4.753,2.36">
+          <GeometryDrawing>
+            <GeometryDrawing.Brush>
+              <LinearGradientBrush StartPoint="31.177,41.442" EndPoint="3.37,3.402" MappingMode="Absolute" SpreadMethod="Pad" Transform="0.96254,0,0,1.0389,0,0">
+                <GradientStop Color="#FF7E57C2" Offset="0" />
+                <GradientStop Color="#FF7B1FA2" Offset="0.14" />
+                <GradientStop Color="#FFAD1457" Offset="0.29" />
+                <GradientStop Color="#FFC2185B" Offset="0.84" />
+                <GradientStop Color="#FFEC407A" Offset="1" />
+              </LinearGradientBrush>
+            </GeometryDrawing.Brush>
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="m 14.533 9.934 l 1.197 1.793 l -7.907 5.276 l -1.196 -1.793 L 0.052 5.358 L 7.958 0.082 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+        <DrawingGroup Transform="0.47102,0,0,0.47102,11.32,3.106">
+          <GeometryDrawing>
+            <GeometryDrawing.Brush>
+              <LinearGradientBrush StartPoint="-31.905,-14.258" EndPoint="19.599,42.767" MappingMode="Absolute" SpreadMethod="Pad" Transform="0.95823,0,0,1.0436,0,0">
+                <GradientStop Color="#FFBA68C8" Offset="0" />
+                <GradientStop Color="#FF7E57C2" Offset="1" />
+              </LinearGradientBrush>
+            </GeometryDrawing.Brush>
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="M 6.235 7.177 L 4.038 8.643 L 2.84 6.849 L 0.036 2.646 L 3.92 0.053 L 7.923 6.05 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+        <GeometryDrawing Brush="#FF673AB7">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 9.632 19.05 l -0.545 -0.818 l 2.215 -1.478 l 0.546 0.817 z m 7.965 -5.315 l -0.545 -0.817 l 1.035 -0.691 l 0.545 0.817 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF7E57C2">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 5.256 12.492 l -0.564 -0.845 l 2.216 -1.478 l 0.563 0.845 z m 7.965 -5.315 l -0.564 -0.845 l 1.035 -0.69 l 0.564 0.844 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF880E4F">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 16.538 14.441 l -3.724 2.485 l -0.545 -0.817 l 3.724 -2.485 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFAD1457">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 11.598 7.039 l 0.564 0.844 l -3.724 2.485 l -0.564 -0.844 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFAB47BC">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 4.2 6.363 l 0.703 1.054 l -1.053 0.702 l -0.703 -1.053 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF7E57C2">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 7.996 18.99 l 0.703 1.054 l -1.054 0.703 l -0.702 -1.054 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <DrawingGroup Transform="0.461918,0.092149,-0.092149,0.461918,4.886233,1.590867">
+          <GeometryDrawing>
+            <GeometryDrawing.Brush>
+              <LinearGradientBrush StartPoint="4.301,34.41" EndPoint="34.534,4.514" MappingMode="Absolute" SpreadMethod="Pad" Transform="1.002,0,0,0.99796,0,0">
+                <GradientStop Color="#FF7E57C2" Offset="0" />
+                <GradientStop Color="#FF8E24AA" Offset="0.14" />
+                <GradientStop Color="#FFC2185B" Offset="0.53" />
+                <GradientStop Color="#FFC2185B" Offset="0.79" />
+                <GradientStop Color="#FFEC407A" Offset="1" />
+              </LinearGradientBrush>
+            </GeometryDrawing.Brush>
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="M 8.372 38.294 L 0.017 29.876 L 29.749 0.08 l 8.636 8.201 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

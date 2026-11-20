@@ -1,0 +1,14 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.666667,0,0,0.666667,0,0">
+        <GeometryDrawing Brush="#FF9575CD">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="m 16.145 6.113 l 2.757 1.59 a 0.54 0.54 0 0 1 0.27 0.469 v 7.656 a 0.54 0.54 0 0 1 -0.27 0.469 l -1.675 0.965 l -0.239 -0.137 l -0.843 -0.488 Z M 5.973 13.25 l 9.101 5.254 l -2.804 1.621 a 0.53 0.53 0 0 1 -0.54 0 l -6.632 -3.828 a 0.54 0.54 0 0 1 -0.27 -0.469 v -1.914 l 0.067 -0.039 Z m 2.156 -1.242 l 5.863 -3.387 v 6.774 Z m 5.863 -5.871 l -9.164 5.289 V 8.172 a 0.54 0.54 0 0 1 0.27 -0.469 l 6.632 -3.828 a 0.53 0.53 0 0 1 0.54 0 l 1.722 0.996 Z m -3.34 -4.125 a 2.68 2.68 0 0 1 2.696 0 L 19.98 5.84 a 2.69 2.69 0 0 1 1.344 2.332 v 7.656 c 0 0.961 -0.512 1.852 -1.344 2.332 l -6.632 3.828 a 2.68 2.68 0 0 1 -2.696 0 L 4.02 18.16 a 2.69 2.69 0 0 1 -1.344 -2.332 V 8.172 c 0 -0.965 0.511 -1.852 1.344 -2.332 Z m 0 0" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

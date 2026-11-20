@@ -1,0 +1,50 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <GeometryDrawing Brush="#FF2196F3">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="m 6.922 3.768 l -0.644 -0.536 A 1 1 0 0 0 5.638 3 H 2 a 1 1 0 0 0 -1 1 v 8 a 1 1 0 0 0 1 1 h 12 a 1 1 0 0 0 1 -1 V 5 a 1 1 0 0 0 -1 -1 H 7.562 a 1 1 0 0 1 -0.64 -0.232" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FFBBDEFB">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="EvenOdd" Figures="M 10.991 8.994 h 1.019 v 0.998 h -1.02 z m -1.491 0.01 h 1.018 v 0.999 H 9.499 z m 2.998 0 h 0.999 v 0.999 h -0.999 z M 14.5 7 H 16 v 5 h -1.5 z" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <DrawingGroup Transform="1,0,0,1,0,-1">
+        <GeometryDrawing Brush="#FFBBDEFB">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="EvenOdd" Figures="m 13 7 l 1 -1 l 2 2 l -1 1 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+      <DrawingGroup Transform="1,0,0,-1,0,20">
+        <GeometryDrawing Brush="#FFBBDEFB">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="EvenOdd" Figures="m 13 7 l 1 -1 l 2 2 l -1 1 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+      <GeometryDrawing Brush="#FFBBDEFB">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="EvenOdd" Figures="M 7 7 h 1.5 v 5 H 7 z" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <DrawingGroup Transform="-1,0,0,1,23,-1">
+        <GeometryDrawing Brush="#FFBBDEFB">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="EvenOdd" Figures="m 13 7 l 1 -1 l 2 2 l -1 1 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+      <DrawingGroup Transform="-1,0,0,-1,23,20">
+        <GeometryDrawing Brush="#FFBBDEFB">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="EvenOdd" Figures="m 13 7 l 1 -1 l 2 2 l -1 1 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

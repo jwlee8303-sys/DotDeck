@@ -1,0 +1,39 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.5,0,0,0.5,0,0">
+        <GeometryDrawing Brush="#FF757575">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="EvenOdd" Figures="M 14.999 11 h 10 l -5 11 H 10 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFBDBDBD">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="EvenOdd" Figures="M 19.998 2 L 25 10.998 H 15 l -5 -9 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF9E9E9E">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="EvenOdd" Figures="m 14.998 11 l -5 11 l -5.237 -8.795 L 10 2 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFFB74D">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="EvenOdd" Figures="m 16.999 16.005 l 3 -0.006 l 7 12 h -3 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFF9800">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="EvenOdd" Figures="m 15.999 17.998 l 1 -1.993 l 7 11.994 l -1 2 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFEF6C00">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="EvenOdd" Figures="M 26 29.999 h -3.001 l 1 -2 h 3 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

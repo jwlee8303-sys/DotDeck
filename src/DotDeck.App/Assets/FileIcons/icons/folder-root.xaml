@@ -1,0 +1,20 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <GeometryDrawing>
+        <GeometryDrawing.Geometry>
+          <EllipseGeometry Center="8,8" RadiusX="6" RadiusY="6" />
+        </GeometryDrawing.Geometry>
+        <GeometryDrawing.Pen>
+          <Pen Thickness="2" Brush="#FF90A4AE" MiterLimit="4" />
+        </GeometryDrawing.Pen>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FF90A4AE">
+        <GeometryDrawing.Geometry>
+          <EllipseGeometry Center="8,8" RadiusX="3" RadiusY="3" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

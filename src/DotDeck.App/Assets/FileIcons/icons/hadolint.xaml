@@ -1,0 +1,44 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.015625,0,0,0.015625,0,0">
+        <GeometryDrawing Brush="#FF1976D2">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 128 704 h 768 c 35.456 0 64 28.544 64 64 v 128 c 0 35.456 -28.544 64 -64 64 H 128 c -35.456 0 -64 -28.544 -64 -64 V 768 c 0 -35.456 28.544 -64 64 -64" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFE0E0E0">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 160 768 h 704 c 17.728 0 32 14.272 32 32 s -14.272 32 -32 32 H 160 c -17.728 0 -32 -14.272 -32 -32 s 14.272 -32 32 -32" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF1A237E">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 160 64 c -53.02 0 -96 42.98 -96 96 v 320 c 0 160 128 352 288 352 h 320 c 160 0 288 -256 288 -512 V 128 c 0 -35.346 -28.654 -64 -64 -64 s -64 28.654 -64 64 s 28.654 64 64 64 v 128 h -64 c -64 -64 -128 -128 -192 -128 v -32 c 0 -53.02 -42.98 -96 -96 -96 s -96 42.98 -96 96 v 32 H 256 v -32 c 0 -53.02 -42.98 -96 -96 -96" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFAFAFA">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 224 320 c -53.02 0 -96 42.98 -96 96 s 42.98 96 96 96 s 96 -42.98 96 -96 s -42.98 -96 -96 -96 m 256 0 c -53.02 0 -96 42.98 -96 96 s 42.98 96 96 96 s 96 -42.98 96 -96 s -42.98 -96 -96 -96" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF000000">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 224 384 a 32 32 0 0 0 -32 32 a 32 32 0 0 0 32 32 a 32 32 0 0 0 32 -32 a 32 32 0 0 0 -32 -32 m 256 0 a 32 32 0 0 0 -32 32 a 32 32 0 0 0 32 32 a 32 32 0 0 0 32 -32 a 32 32 0 0 0 -32 -32" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFAD1457">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 320 512 h 64 c 17.728 0 32 14.272 32 32 s -14.272 32 -32 32 h -64 c -17.728 0 -32 -14.272 -32 -32 s 14.272 -32 32 -32" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF757575">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 352 592 c -8.864 0 -16 7.136 -16 16 v 6.762 l -61.281 35.383 A 15.964 15.964 0 0 0 268.86 672 a 15.966 15.966 0 0 0 21.858 5.855 L 352 642.475 l 61.281 35.38 A 15.966 15.966 0 0 0 435.14 672 a 15.964 15.964 0 0 0 -5.858 -21.855 L 368 614.762 V 608 c 0 -8.864 -7.136 -16 -16 -16 m -80.422 -368.008 c -2.578 0.07 -5.18 0.768 -7.578 2.153 A 15.964 15.964 0 0 0 258.145 248 l 32 55.426 A 15.964 15.964 0 0 0 312 309.28 a 15.964 15.964 0 0 0 5.855 -21.855 l -32 -55.426 a 15.96 15.96 0 0 0 -14.277 -8.008 z m 160.844 0 A 15.96 15.96 0 0 0 418.145 232 l -32 55.426 A 15.964 15.964 0 0 0 392 309.28 a 15.964 15.964 0 0 0 21.855 -5.855 l 32 -55.426 A 15.964 15.964 0 0 0 440 226.145 a 16 16 0 0 0 -7.578 -2.153 M 160 128 c -17.728 0 -32 14.272 -32 32 v 64 c 0 17.728 14.272 32 32 32 s 32 -14.272 32 -32 v -64 c 0 -17.728 -14.272 -32 -32 -32 m 384 0 c -17.728 0 -32 14.272 -32 32 v 64 c 0 17.728 14.272 32 32 32 s 32 -14.272 32 -32 v -64 c 0 -17.728 -14.272 -32 -32 -32" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

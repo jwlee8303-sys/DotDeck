@@ -1,0 +1,17 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <GeometryDrawing Brush="#FF0288D1">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="m 6.922 3.768 l -0.644 -0.536 A 1 1 0 0 0 5.638 3 H 2 a 1 1 0 0 0 -1 1 v 8 a 1 1 0 0 0 1 1 h 12 a 1 1 0 0 0 1 -1 V 5 a 1 1 0 0 0 -1 -1 H 7.562 a 1 1 0 0 1 -0.64 -0.232" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FFB3E5FC">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 12 6.5 V 8 l 2 -2 l -2 -2 v 1.5 a 3.99 4.008 0 0 0 -4 4 a 3.95 3.967 0 0 0 0.62 2.13 l 0.73 -0.731 A 2.93 2.943 0 0 1 9 9.5 a 2.994 3.007 0 0 1 3 -3 m 3.38 0.87 l -0.73 0.73 A 2.985 2.997 0 0 1 12 12.5 V 11 l -2 2 l 2 2 v -1.5 a 3.99 4.008 0 0 0 4 -4 a 3.936 3.952 0 0 0 -0.62 -2.13" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

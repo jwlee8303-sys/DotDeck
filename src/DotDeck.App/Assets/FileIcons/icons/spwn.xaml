@@ -1,0 +1,26 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.666667,0,0,0.666667,0,0">
+        <DrawingGroup Transform="0.06153,0,0,0.06153,13.512,10.42">
+          <GeometryDrawing Brush="#FFE040FB">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="30.125,-29" RadiusX="110.12" RadiusY="110.12" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FF00BFA5">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="-79.266,80.375" RadiusX="110.12" RadiusY="110.12" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FFF5F5F5">
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="m 30.875 -29.75 l -55.437 -0.001 l -55.437 0.001 l 27.624 27.624 l -57.45 57.45 l 56.063 56.063 l 57.45 -57.45 l 27.188 27.188 V 25.686 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

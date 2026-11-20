@@ -1,0 +1,42 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <GeometryDrawing Brush="#FF455A64">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 1 8 a 7 7 0 0 0 4 6.316 V 15 h 6 v -0.684 A 7 7 0 0 0 15 8 z" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FFF5F5F5">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 8 3 a 5 5 0 0 0 -5 5 h 10 a 5 5 0 0 0 -5 -5" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FF2196F3">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 2.092 9 A 6 6 0 0 0 8 14 a 6 6 0 0 0 5.908 -5 z" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FF455A64">
+        <GeometryDrawing.Geometry>
+          <EllipseGeometry Center="5.5,6.5" RadiusX="0.5" RadiusY="0.5" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FF455A64">
+        <GeometryDrawing.Geometry>
+          <EllipseGeometry Center="10.5,6.5" RadiusX="0.5" RadiusY="0.5" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FF455A64">
+        <GeometryDrawing.Geometry>
+          <EllipseGeometry Center="6.5,5.5" RadiusX="0.5" RadiusY="0.5" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FF455A64">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 8 2 a 6 6 0 0 0 -6 6 h 1 a 5 5 0 0 1 5 -5 a 5 5 0 0 1 5 5 h 1 a 6 6 0 0 0 -6 -6" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

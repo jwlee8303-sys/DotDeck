@@ -1,0 +1,24 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.0625,0,0,0.0625,0,0">
+        <GeometryDrawing Brush="#FF37474F">
+          <GeometryDrawing.Geometry>
+            <EllipseGeometry Center="128,128" RadiusX="97.4" RadiusY="97.4" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFF9A825">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 130.974 23.383 c 57.809 1.624 103.262 49.782 101.638 107.591 s -49.782 103.262 -107.59 101.639 C 67.303 230.989 21.85 183.01 23.383 125.293 c 1.533 -57.81 49.602 -103.443 107.41 -101.91 z m -0.541 10.823 c -51.766 -1.353 -94.875 39.59 -96.137 91.447 c -1.353 51.766 39.59 94.875 91.357 96.137 c 51.766 1.353 94.875 -39.59 96.137 -91.357 c 1.443 -51.856 -39.5 -94.875 -91.357 -96.227 c 0.09 0 0 0 0 0" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFF9A825">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 137.9 93.403 c -4.149 3.968 -2.525 12.806 3.878 19.57 s 15.241 8.838 19.209 4.78 s 2.706 -12.987 -3.788 -19.751 s -15.422 -8.748 -19.57 -4.78 z m 52.217 -25.162 c 8.207 8.568 14.43 18.758 18.398 29.851 c 0 0 2.706 7.395 -5.862 7.395 H 181.73 s -6.674 -0.54 -6.944 5.14 c -0.451 7.035 -0.27 12.988 -0.27 12.988 c 0.27 4.058 1.803 8.026 4.328 11.183 l 21.554 22.727 a 9.184 9.184 0 0 1 1.082 12.355 c -10.912 18.578 -28.408 32.286 -49.06 38.509 c -6.314 1.894 -6.945 -3.247 -6.765 -6.764 c 0 -2.255 2.616 -52.397 2.616 -52.397 c 0.721 -5.411 -0.992 -10.912 -4.78 -14.881 c -6.764 -7.215 -11.003 -11.814 -11.003 -11.814 s -4.78 -4.78 -11.634 -11.904 c -3.788 -3.878 -9.018 -5.862 -14.43 -5.501 H 54.027 c -3.427 0 -8.658 -0.812 -6.403 -7.035 c 7.305 -20.292 21.915 -37.066 41.124 -46.896 c 3.878 -2.705 9.199 -1.984 12.265 1.714 l 21.554 22.727 c 3.066 2.705 6.944 4.329 11.003 4.78 c 0 0 5.862 0.45 12.987 0.36 c 5.591 0 5.501 -6.764 5.501 -6.764 s 0.902 -13.888 1.173 -20.923 c -0.27 -2.976 1.894 -5.591 4.78 -5.862 c 0.991 -0.09 1.893 0.09 2.795 0.451 c 11.003 4.69 21.013 11.634 29.22 20.292 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

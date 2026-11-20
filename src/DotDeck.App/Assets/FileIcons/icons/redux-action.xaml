@@ -1,0 +1,33 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.666667,0,0,0.666667,0,0">
+        <GeometryDrawing Brush="#FFAB47BC">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 15.878 15.787 a 1.437 1.437 0 0 0 -0.154 -2.866 h -0.05 a 1.43 1.43 0 0 0 -1.382 1.484 c 0.025 0.384 0.179 0.717 0.41 0.947 c -0.87 1.714 -2.201 2.968 -4.197 4.017 c -1.356 0.717 -2.764 0.972 -4.17 0.793 c -1.152 -0.153 -2.048 -0.665 -2.61 -1.51 c -0.82 -1.253 -0.896 -2.61 -0.205 -3.965 c 0.486 -0.973 1.253 -1.69 1.74 -2.047 a 14 14 0 0 1 -0.333 -1.305 c -3.71 2.686 -3.326 6.32 -2.2 8.034 c 0.844 1.28 2.558 2.073 4.451 2.073 a 6.3 6.3 0 0 0 1.536 -0.18 c 3.275 -0.64 5.757 -2.584 7.164 -5.475 z" />
+          </GeometryDrawing.Geometry>
+          <GeometryDrawing.Pen>
+            <Pen Thickness="0.435" Brush="#FFAB47BC" LineJoin="Round" />
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFAB47BC">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 20.381 12.614 c -1.944 -2.277 -4.81 -3.53 -8.085 -3.53 h -0.41 a 1.41 1.41 0 0 0 -1.253 -0.769 h -0.051 A 1.43 1.43 0 0 0 9.2 9.8 a 1.437 1.437 0 0 0 1.433 1.381 h 0.05 a 1.44 1.44 0 0 0 1.255 -0.87 h 0.46 c 1.945 0 3.787 0.563 5.45 1.663 c 1.28 0.845 2.2 1.945 2.712 3.276 c 0.435 1.074 0.41 2.123 -0.05 3.019 c -0.717 1.356 -1.92 2.098 -3.506 2.098 a 6.5 6.5 0 0 1 -2.508 -0.537 c -0.281 0.256 -0.793 0.665 -1.151 0.92 c 1.1 0.513 2.226 0.794 3.3 0.794 c 2.457 0 4.274 -1.356 4.965 -2.712 c 0.742 -1.484 0.69 -4.043 -1.229 -6.218 z" />
+          </GeometryDrawing.Geometry>
+          <GeometryDrawing.Pen>
+            <Pen Thickness="0.435" Brush="#FFAB47BC" LineJoin="Round" />
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFAB47BC">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 7.383 16.222 a 1.437 1.437 0 0 0 1.433 1.382 h 0.051 a 1.43 1.43 0 0 0 1.382 -1.484 a 1.437 1.437 0 0 0 -1.433 -1.382 h -0.051 c -0.051 0 -0.128 0 -0.18 0.025 c -1.048 -1.74 -1.483 -3.633 -1.33 -5.68 c 0.103 -1.535 0.614 -2.866 1.51 -3.966 c 0.742 -0.947 2.175 -1.407 3.147 -1.433 c 2.712 -0.05 3.864 3.327 3.94 4.683 c 0.333 0.076 0.896 0.256 1.28 0.383 c -0.307 -4.145 -2.866 -6.294 -5.322 -6.294 c -2.303 0 -4.427 1.663 -5.271 4.12 c -1.177 3.275 -0.41 6.422 1.023 8.904 a 1.15 1.15 0 0 0 -0.179 0.742 z" />
+          </GeometryDrawing.Geometry>
+          <GeometryDrawing.Pen>
+            <Pen Thickness="0.435" Brush="#FFAB47BC" LineJoin="Round" />
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

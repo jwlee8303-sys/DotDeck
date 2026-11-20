@@ -1,0 +1,30 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.053333,0,0,0.053333,0,0">
+        <DrawingGroup Transform="1,0,0,1,0,-822.52">
+          <DrawingGroup Transform="-0.98339,0.18149,0.60192,0.79856,0,0">
+            <GeometryDrawing Brush="#FF0097A7">
+              <GeometryDrawing.Geometry>
+                <RectangleGeometry Rect="405.55,967.22,107.25,156.59" RadiusX="12.306" RadiusY="12.31" />
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+          <DrawingGroup Transform="-0.98528,0.17093,-0.59175,0.80612,0,0">
+            <GeometryDrawing Brush="#FF3F51B5">
+              <GeometryDrawing.Geometry>
+                <RectangleGeometry Rect="-1156.5,1461.9,108.34,123.15" RadiusX="10.69" RadiusY="12.31" />
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+          <GeometryDrawing Brush="#FF3F51B5">
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="M 52.112 965.158 c -1.343 3.515 -26.292 23.248 -25.744 27.277 c 0.548 4.03 29.812 16.023 32.04 19.027 s 10.545 41.668 13.603 42.5 s 18.828 -31.274 21.548 -32.932 s 32.808 2.503 34.15 -1.01 c 1.343 -3.515 -18.174 -35.352 -18.721 -39.381 s 9.732 -40.12 7.502 -43.125 s -30.06 9.427 -33.118 8.594 s -26.793 -27.3 -29.514 -25.643 s -0.405 41.177 -1.747 44.693 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

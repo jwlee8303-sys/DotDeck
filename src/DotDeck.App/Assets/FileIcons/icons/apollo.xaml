@@ -1,0 +1,29 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.5,0,0,0.5,0,0">
+        <GeometryDrawing Brush="#FF7E57C2">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 31.93 14.457 a 0.51 0.51 0 0 0 -0.506 -0.457 h -2.01 a 0.497 0.497 0 0 0 -0.491 0.559 l 0.014 0.134 c 0.616 6.284 -4.097 12.817 -10.29 14.044 A 13.009 13.009 0 1 1 24.3 6 h 4.19 a 16.013 16.013 0 1 0 3.44 8.457" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF7E57C2">
+          <GeometryDrawing.Geometry>
+            <EllipseGeometry Center="24.533,4.267" RadiusX="4.267" RadiusY="4.267" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF7E57C2">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 17 8 h -3 L 8 24 h 3 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FF7E57C2">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 15 8 h 3 l 6 16 h -3 z m 2.88 13 H 12 v -3 h 4.75 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

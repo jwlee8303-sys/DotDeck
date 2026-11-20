@@ -1,0 +1,126 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.666667,0,0,0.666667,0,0">
+        <GeometryDrawing Brush="#FF4DD0E1">
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 10.575 1.695 c -2.634 0 -4.756 2.453 -4.756 5.502 v 4.6 l -0.027 -0.003 v 4.71 c 0 3.05 2.122 5.502 4.756 5.502 h 2.287 c 2.634 0 4.756 -2.453 4.756 -5.502 v -4.6 l 0.027 0.003 v -4.71 c 0 -3.049 -2.122 -5.502 -4.756 -5.502 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <DrawingGroup Transform="0.48489,-0.87457,0.85979,0.51065,0,0">
+          <GeometryDrawing Brush="#FF4DD0E1">
+            <GeometryDrawing.Geometry>
+              <RectangleGeometry Rect="-1.177,6.093,2.289,3.335" RadiusX="1.125" RadiusY="1.125" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+        <DrawingGroup Transform="0.44646,0.8948,-0.89204,0.45195,0,0">
+          <GeometryDrawing Brush="#FF4DD0E1">
+            <GeometryDrawing.Geometry>
+              <RectangleGeometry Rect="10.261,-15.076,2.297,3.39" RadiusX="1.143" RadiusY="1.143" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+        <DrawingGroup Transform="1,0,0,1,0.282,-0.134">
+          <GeometryDrawing Brush="#FFFAFAFA">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="9.267,5.13" RadiusX="2.054" RadiusY="2.054" />
+            </GeometryDrawing.Geometry>
+            <GeometryDrawing.Pen>
+              <Pen Thickness="0.1" Brush="#FF616161" MiterLimit="4" />
+            </GeometryDrawing.Pen>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FFFAFAFA">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="14.214,5.116" RadiusX="2.054" RadiusY="2.054" />
+            </GeometryDrawing.Geometry>
+            <GeometryDrawing.Pen>
+              <Pen Thickness="0.1" Brush="#FF616161" MiterLimit="4" />
+            </GeometryDrawing.Pen>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FF212121">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="8.039,5.051" RadiusX="0.792" RadiusY="0.901" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FFFAFAFA">
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="m 11.792 9.556 l 0.763 0.138 a 0.403 0.689 0 0 1 0.008 0.138 a 0.403 0.689 0 0 1 -0.403 0.69 a 0.403 0.689 0 0 1 -0.403 -0.69 a 0.403 0.689 0 0 1 0.035 -0.276 z" />
+            </GeometryDrawing.Geometry>
+            <GeometryDrawing.Pen>
+              <Pen Thickness="0.155" Brush="#FFFAFAFA" MiterLimit="4" />
+            </GeometryDrawing.Pen>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FFFAFAFA">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="8.51,5.365" RadiusX="0.138" RadiusY="0.166" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FF212121">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="12.945,5.189" RadiusX="0.792" RadiusY="0.901" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FFFAFAFA">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="13.414,5.446" RadiusX="0.138" RadiusY="0.166" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <DrawingGroup Transform="-0.634771,-0.7727,0.7727,-0.634771,0,0">
+            <GeometryDrawing Brush="#FFFFE0B2">
+              <GeometryDrawing.Geometry>
+                <EllipseGeometry Center="-12.982,-3.409" RadiusX="0.708" RadiusY="1.026" />
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+          <GeometryDrawing Brush="#FFFAFAFA">
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="m 11.772 9.553 l -0.757 0.135 a 0.4 0.672 0 0 0 -0.008 0.134 a 0.4 0.672 0 0 0 0.4 0.673 a 0.4 0.672 0 0 0 0.4 -0.672 a 0.4 0.672 0 0 0 -0.035 -0.27 z" />
+            </GeometryDrawing.Geometry>
+            <GeometryDrawing.Pen>
+              <Pen Thickness="0.153" Brush="#FFFAFAFA" MiterLimit="4" />
+            </GeometryDrawing.Pen>
+          </GeometryDrawing>
+          <DrawingGroup Transform="0.634771,-0.7727,-0.7727,-0.634771,0,0">
+            <GeometryDrawing Brush="#FFFFE0B2">
+              <GeometryDrawing.Geometry>
+                <EllipseGeometry Center="1.841,-21.563" RadiusX="0.707" RadiusY="1.026" />
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+          <DrawingGroup Transform="0.3054,-0.95222,-0.97065,-0.24051,0,0">
+            <GeometryDrawing Brush="#FFFFE0B2">
+              <GeometryDrawing.Geometry>
+                <EllipseGeometry Center="-17.281,-21.784" RadiusX="0.864" RadiusY="1.27" />
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+          <DrawingGroup Transform="0.22652,0.97401,0.95652,-0.29167,0,0">
+            <GeometryDrawing Brush="#FFFFE0B2">
+              <GeometryDrawing.Geometry>
+                <EllipseGeometry Center="22.885,2.587" RadiusX="0.864" RadiusY="1.27" />
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+          <GeometryDrawing Brush="#FFFFE0B2">
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="M 10.708 8.392 a 0.594 0.594 0 0 0 -0.594 0.597 v 0.115 c 0 0.331 0.265 0.598 0.594 0.598 h 0.386 a 0.973 0.772 0 0 1 0.697 -0.235 a 0.973 0.772 0 0 1 0.698 0.235 h 0.334 c 0.33 0 0.595 -0.267 0.595 -0.598 V 8.99 a 0.595 0.595 0 0 0 -0.595 -0.597 h -2.115 z" />
+            </GeometryDrawing.Geometry>
+            <GeometryDrawing.Pen>
+              <Pen Thickness="0.1" Brush="#FF546E7A" MiterLimit="4" />
+            </GeometryDrawing.Pen>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FF212121">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="11.734,8.203" RadiusX="1.208" RadiusY="0.68" />
+            </GeometryDrawing.Geometry>
+            <GeometryDrawing.Pen>
+              <Pen Thickness="0.162" Brush="#FFFAFAFA" MiterLimit="4" />
+            </GeometryDrawing.Pen>
+          </GeometryDrawing>
+        </DrawingGroup>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

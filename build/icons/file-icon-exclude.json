@@ -1,0 +1,153 @@
+{
+  "$comment": "Material icons not shipped because their artwork is a third-party logo (AI tool vendors and Microsoft/Visual Studio products). Each is replaced at generation time by a generic file/folder icon in the same color family, or by 'replaceWith' when set. Keys must exist in the pinned material-icon-theme version; build/icons/update-file-icons.ps1 fails otherwise.",
+  "icons": [
+    {
+      "key": "claude",
+      "reason": "Anthropic Claude logo"
+    },
+    {
+      "key": "folder-claude",
+      "reason": "Anthropic Claude logo"
+    },
+    {
+      "key": "folder-claude-open",
+      "reason": "Anthropic Claude logo"
+    },
+    {
+      "key": "gemini-ai",
+      "reason": "Google Gemini logo"
+    },
+    {
+      "key": "folder-gemini-ai",
+      "reason": "Google Gemini logo"
+    },
+    {
+      "key": "folder-gemini-ai-open",
+      "reason": "Google Gemini logo"
+    },
+    {
+      "key": "copilot",
+      "reason": "GitHub/Microsoft Copilot logo"
+    },
+    {
+      "key": "copilot_light",
+      "reason": "GitHub/Microsoft Copilot logo"
+    },
+    {
+      "key": "cursor",
+      "reason": "Cursor (Anysphere) logo"
+    },
+    {
+      "key": "cursor_light",
+      "reason": "Cursor (Anysphere) logo"
+    },
+    {
+      "key": "folder-cursor",
+      "reason": "Cursor (Anysphere) logo"
+    },
+    {
+      "key": "folder-cursor-open",
+      "reason": "Cursor (Anysphere) logo"
+    },
+    {
+      "key": "folder-cursor_light",
+      "reason": "Cursor (Anysphere) logo"
+    },
+    {
+      "key": "folder-cursor-open_light",
+      "reason": "Cursor (Anysphere) logo"
+    },
+    {
+      "key": "cline",
+      "reason": "Cline logo"
+    },
+    {
+      "key": "folder-cline",
+      "reason": "Cline logo"
+    },
+    {
+      "key": "folder-cline-open",
+      "reason": "Cline logo"
+    },
+    {
+      "key": "coderabbit-ai",
+      "reason": "CodeRabbit logo"
+    },
+    {
+      "key": "opencode",
+      "reason": "opencode logo"
+    },
+    {
+      "key": "opencode_light",
+      "reason": "opencode logo"
+    },
+    {
+      "key": "folder-opencode",
+      "reason": "opencode logo"
+    },
+    {
+      "key": "folder-opencode-open",
+      "reason": "opencode logo"
+    },
+    {
+      "key": "visualstudio",
+      "reason": "Microsoft Visual Studio logo"
+    },
+    {
+      "key": "vscode",
+      "reason": "Microsoft Visual Studio Code logo"
+    },
+    {
+      "key": "folder-vscode",
+      "reason": "Microsoft Visual Studio Code logo"
+    },
+    {
+      "key": "folder-vscode-open",
+      "reason": "Microsoft Visual Studio Code logo"
+    },
+    {
+      "key": "azure",
+      "reason": "Microsoft Azure logo"
+    },
+    {
+      "key": "azure-pipelines",
+      "reason": "Microsoft Azure Pipelines logo"
+    },
+    {
+      "key": "folder-azure-pipelines",
+      "reason": "Microsoft Azure Pipelines logo"
+    },
+    {
+      "key": "folder-azure-pipelines-open",
+      "reason": "Microsoft Azure Pipelines logo"
+    },
+    {
+      "key": "bicep",
+      "reason": "Microsoft Azure Bicep logo"
+    },
+    {
+      "key": "folder-bicep",
+      "reason": "Microsoft Azure Bicep logo"
+    },
+    {
+      "key": "folder-bicep-open",
+      "reason": "Microsoft Azure Bicep logo"
+    },
+    {
+      "key": "folder-windows",
+      "reason": "Microsoft Windows logo"
+    },
+    {
+      "key": "folder-windows-open",
+      "reason": "Microsoft Windows logo"
+    },
+    {
+      "key": "word",
+      "reason": "Microsoft Word logo"
+    },
+    {
+      "key": "powerpoint",
+      "reason": "Microsoft PowerPoint logo"
+    }
+  ]
+}

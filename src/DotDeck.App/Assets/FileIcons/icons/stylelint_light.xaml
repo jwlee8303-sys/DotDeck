@@ -1,0 +1,41 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.038835,0,0,0.038835,0,0.330097">
+        <DrawingGroup Transform="0.84775,0,0,0.84775,31.478,29.499">
+          <GeometryDrawing Brush="#FF546E7A">
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="M 208.8 393.05 c 45.057 -161.12 43.75 -161.85 76.32 -276.73 l 7.832 4.523 c 4.255 2.458 7.738 0.448 7.738 -4.455 V 61.602 c 8.643 -30.27 15.416 -53.66 17.4 -60.693 h 35.287 l 58.618 54.304 l -38.498 33.27 l 29.11 31.473 l -191.86 273.09 c -0.938 1.542 -2.244 1.19 -1.947 0 z m 20.96 -347.28 c 1.733 0 3.148 0.958 3.148 2.147 v 28.077 c 0 1.186 -1.415 2.15 -3.147 2.15 h -47.396 c -1.742 0 -3.153 -0.96 -3.153 -2.15 V 47.917 c 0 -1.185 1.41 -2.147 3.153 -2.147 h 47.396 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FF546E7A">
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="m 288.26 14.688 l -52.14 30.1 c 0.605 0.92 0.973 1.98 0.973 3.136 v 28.078 c 0 1.457 -0.565 2.77 -1.496 3.83 l 52.663 30.402 c 3.59 2.073 6.535 0.377 6.535 -3.764 V 18.456 c 0 -4.145 -2.944 -5.836 -6.535 -3.768 M 175.02 76 V 47.923 c 0 -1.15 0.368 -2.21 0.966 -3.13 l -52.14 -30.105 c -3.588 -2.068 -6.53 -0.376 -6.53 3.768 v 88.013 c 0 4.14 2.938 5.84 6.53 3.76 l 52.66 -30.405 c -0.926 -1.06 -1.487 -2.37 -1.487 -3.827 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FF546E7A">
+            <GeometryDrawing.Geometry>
+              <PathGeometry FillRule="Nonzero" Figures="M 201.25 393.05 h 1.947 c -45.05 -161.12 -43.753 -161.85 -76.32 -276.73 l -7.833 4.523 c -4.253 2.458 -7.737 0.448 -7.737 -4.455 V 61.602 C 102.662 31.332 95.892 7.942 93.902 0.909 H 58.619 L 0.002 55.213 l 38.494 33.27 l -29.11 31.473 z" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FF546E7A">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="204.57,122.54" RadiusX="14.231" RadiusY="14.231" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FF546E7A">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="204.57,207.16" RadiusX="14.231" RadiusY="14.231" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FF546E7A">
+            <GeometryDrawing.Geometry>
+              <EllipseGeometry Center="204.57,291.78" RadiusX="14.23" RadiusY="14.23" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

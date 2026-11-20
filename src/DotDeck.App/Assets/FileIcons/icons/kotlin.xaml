@@ -1,0 +1,21 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <DrawingGroup Transform="0.666667,0,0,0.666667,0,0">
+        <GeometryDrawing>
+          <GeometryDrawing.Brush>
+            <LinearGradientBrush StartPoint="1.725,22.67" EndPoint="22.185,1.982" MappingMode="Absolute" SpreadMethod="Pad" Transform="0.89324,0,0,0.89324,1.306,1.129">
+              <GradientStop Color="#FF7C4DFF" Offset="0" />
+              <GradientStop Color="#FFD500F9" Offset="0.5" />
+              <GradientStop Color="#FFEF5350" Offset="1" />
+            </LinearGradientBrush>
+          </GeometryDrawing.Brush>
+          <GeometryDrawing.Geometry>
+            <PathGeometry FillRule="Nonzero" Figures="M 2.975 2.976 v 18.048 h 18.05 v -0.03 l -4.478 -4.511 l -4.48 -4.515 l 4.48 -4.515 l 4.443 -4.477 z" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

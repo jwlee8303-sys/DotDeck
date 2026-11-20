@@ -1,0 +1,28 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup ClipGeometry="M0,0 H16 V16 H0 Z">
+      <GeometryDrawing Brush="#00FFFFFF" Geometry="M0,0 H16 V16 H0 Z" />
+      <GeometryDrawing Brush="#FF546E7A">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 14.483 6 H 4.721 a 1 1 0 0 0 -0.949 0.684 L 2 12 V 5 h 12 a 1 1 0 0 0 -1 -1 H 7.562 a 1 1 0 0 1 -0.64 -0.232 l -0.644 -0.536 A 1 1 0 0 0 5.638 3 H 2 a 1 1 0 0 0 -1 1 v 8 a 1 1 0 0 0 1 1 h 11 l 2.403 -5.606 A 1 1 0 0 0 14.483 6" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing Brush="#FFCFD8DC">
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 11.5 8 A 1.5 1.5 0 1 1 10 9.5 A 1.5 1.5 0 0 1 11.5 8 m 0 -1 A 2.5 2.5 0 1 0 14 9.5 A 2.5 2.5 0 0 0 11.5 7" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <GeometryDrawing>
+        <GeometryDrawing.Brush>
+          <LinearGradientBrush StartPoint="7.645,3.452" EndPoint="4.454,6.643" MappingMode="Absolute" SpreadMethod="Pad">
+            <GradientStop Color="#FF2196F3" Offset="0.15" />
+            <GradientStop Color="#FFF50057" Offset="0.85" />
+          </LinearGradientBrush>
+        </GeometryDrawing.Brush>
+        <GeometryDrawing.Geometry>
+          <PathGeometry FillRule="Nonzero" Figures="M 8 10 a 3.55 3.55 0 0 0 0.75 1.705 l -0.71 0.713 A 4.53 4.53 0 0 1 7 10 Z m 7.972 -1.001 A 4.51 4.51 0 0 0 12 5 v 1 a 3.543 3.543 0 0 1 0 7 v 1 a 4.515 4.515 0 0 0 3.972 -5.001 m -7.207 4.115 A 4.54 4.54 0 0 0 11 14 v -1 a 3.55 3.55 0 0 1 -1.515 -0.609 Z" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>

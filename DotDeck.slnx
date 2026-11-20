@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/build/">
+    <Project Path="build/icons/IconGen/DotDeck.IconGen.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/DotDeck.App/DotDeck.App.csproj" />
     <Project Path="src/DotDeck.Core/DotDeck.Core.csproj" />
@@ -7,5 +10,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/DotDeck.App.Tests/DotDeck.App.Tests.csproj" />
     <Project Path="tests/DotDeck.Core.Tests/DotDeck.Core.Tests.csproj" />
+    <Project Path="tests/DotDeck.IconGen.Tests/DotDeck.IconGen.Tests.csproj" />
   </Folder>
 </Solution>

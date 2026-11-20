@@ -142,7 +142,14 @@ public sealed class FileIconResolver
             return user;
         }
 
-        if ((scope is not null && DotDeck.MatchScoped(scope, isFolder: false) is { } scoped) || DotDeck.FileNames.TryGetValue(name, out scoped))
+        // Distinctive file names (AGENTS.md, SKILL.md) keep their icon even where a tool folder rule such as
+        // "rules/**/*.md" also matches.
+        if (DotDeck.FileNames.TryGetValue(name, out var distinctive))
+        {
+            return distinctive;
+        }
+
+        if (scope is not null && DotDeck.MatchScoped(scope, isFolder: false) is { } scoped)
         {
             return scoped;
         }

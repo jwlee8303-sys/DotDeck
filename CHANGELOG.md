@@ -7,7 +7,7 @@
 - 파일 아이콘 가져오기 도구(`build/icons/update-file-icons.ps1`, `build/icons/IconGen`). Material Icon Theme 5.40.0(MIT)을 무결성 검증 후 내려받아 SVG를 WPF XAML로 변환하고, 제3자 로고 아이콘(AI 도구·Microsoft 제품 37개)은 같은 색 계열의 일반 아이콘으로 바꿔 앱에 포함
 - 탐색기 트리와 문서 탭에 파일 종류별 컬러 아이콘(VS Code의 Material Icon Theme와 같은 그림). 폴더는 이름에 따라 다른 아이콘, 펼치면 열린 폴더 아이콘. 라이트 테마에서는 라이트용 아이콘. 환경 변수·PATH 같은 가상 항목과 메뉴·도구 모음 아이콘은 그대로
 - 탐색기에서 열려 있고 저장하지 않은 파일 옆에 ● 표시, 문서 탭 아이콘에 검증 결과(오류·경고)가 있으면 ⚠ 표시(검증 창이 보고 있는 활성 문서만). 표시만 하며 동작은 바뀌지 않음
-- Claude Code·Codex·agy·공유(AGENTS.md, SKILL.md) 설정 파일과 폴더에 DotDeck 전용 아이콘(Claude 주황 원, Codex 초록 사각형, agy 파랑 삼각형, 공유 회색 연결 노드). settings.json·config.toml·agents·hooks처럼 흔한 이름은 해당 도구 설정 폴더(.claude, .codex, .gemini, .agents) 안에서만 적용
+- Claude Code·Codex·agy·공유(AGENTS.md, SKILL.md) 설정 파일과 폴더에 DotDeck 전용 아이콘(Claude 주황 원, Codex 초록 사각형, agy 파랑 삼각형, 공유 회색 연결 노드). settings.json·config.toml·agents·hooks처럼 흔한 이름은 해당 도구 설정 폴더(.claude, .codex, .gemini, .agents) 안에서만 적용(Claude `rules` 아래 Markdown, Codex `hooks.json`, agy `keybindings.json`·`config/agents·rules·skills` 포함). AGENTS.md·SKILL.md 같은 고유 이름은 도구 폴더 안에서도 자기 아이콘 유지
 - 사용자 아이콘 매핑 `%APPDATA%\DotDeck\icons\associations.json`(파일 이름·확장자·폴더 이름 → 기존 아이콘 키). 저장하면 바로 다시 읽고, 잘못된 항목은 출력 창에 경고만 남기고 건너뜀
 - 도움말 → DotDeck 정보를 대화상자로 바꾸고 서드파티 고지(THIRD-PARTY-NOTICES.txt)를 읽기 전용으로 표시, "라이선스 폴더 열기" 버튼 추가
 - THIRD-PARTY-NOTICES.txt에 배포되는 모든 NuGet 패키지(AvalonDock·AvalonEdit·CommunityToolkit.Mvvm·DiffPlex·Markdig·Tomlyn·Velopack·WebView2)와 .NET 런타임의 라이선스 원문 추가. 자체 포함 배포물에는 .NET 런타임의 서드파티 고지(`licenses/THIRD-PARTY-NOTICES-dotnet-runtime.txt`)도 함께 넣음. 패키지 빌드는 고지·아이콘 라이선스 누락과 글꼴 파일 포함을 오류로 처리

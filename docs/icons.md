@@ -19,7 +19,7 @@
 ## 키 결정 순서
 
 1. 사용자 매핑 `%APPDATA%\DotDeck\icons\associations.json`
-2. DotDeck 매핑(`dotdeck-icons.json`): 도구 폴더 안 규칙(scoped) → 전역 파일·폴더 이름
+2. DotDeck 매핑(`dotdeck-icons.json`): 파일은 고유 파일 이름 → 도구 폴더 안 규칙(scoped), 폴더는 도구 폴더 안 규칙 → 고유 폴더 이름
 3. Material: 파일 이름 → 가장 긴 확장자 → 확장자로 정한 언어 ID → 기본 아이콘 / 폴더 이름(열림·닫힘) → 기본 폴더
 
 이름은 대소문자를 구분하지 않고, `.gitignore` 같은 점 파일은 이름으로 찾는다. 잘못된 항목은 로그에 경고를 남기고 다음 단계로 넘어간다.

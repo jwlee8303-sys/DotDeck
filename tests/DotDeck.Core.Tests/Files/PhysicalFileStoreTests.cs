@@ -25,6 +25,30 @@ public sealed class PhysicalFileStoreTests : IDisposable
     }
 
     [Fact]
+    public void GetChildren_lists_windows_hidden_and_system_entries_too()
+    {
+        // DotDeck shows everything: Windows hidden/system attributes never remove an entry (it is only dimmed).
+        var file = _temp.Combine("desktop.ini");
+        var folder = _temp.Combine("$hidden");
+        File.WriteAllText(file, "x");
+        Directory.CreateDirectory(folder);
+        File.SetAttributes(file, FileAttributes.Hidden | FileAttributes.System);
+        File.SetAttributes(folder, FileAttributes.Directory | FileAttributes.Hidden | FileAttributes.System);
+        try
+        {
+            var children = _store.GetChildren(_temp.Path).OrderBy(c => c.Name, StringComparer.Ordinal).ToList();
+
+            Assert.Equal(["$hidden", "desktop.ini"], children.Select(c => c.Name));
+            Assert.All(children, c => Assert.True(c.IsHidden));
+        }
+        finally
+        {
+            File.SetAttributes(file, FileAttributes.Normal);
+            File.SetAttributes(folder, FileAttributes.Directory);
+        }
+    }
+
+    [Fact]
     public void ReadHead_reads_at_most_requested_bytes()
     {
         File.WriteAllText(_temp.Combine("h.txt"), "abcdef");

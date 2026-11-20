@@ -183,6 +183,15 @@ public sealed class FileIconsTests
             Assert.Equal("folder-config", FileIcons.KeyFor("config", @"D:\work\config", true, false));
             // hooks: only directly below the Claude folder.
             Assert.Equal("folder-hook", FileIcons.KeyFor("hooks", @"D:\work\.claude\agents\hooks", true, false));
+
+            // Nested Claude rules, Codex hooks, agy keybindings and config folders.
+            Assert.Equal("dotdeck-claude", FileIcons.KeyFor("testing.md", @"D:\work\.claude\rules\frontend\testing.md", false, false));
+            Assert.Equal("dotdeck-claude", FileIcons.KeyFor("style.md", @"D:\work\.claude\rules\style.md", false, false));
+            Assert.Equal("markdown", FileIcons.KeyFor("notes.md", @"D:\work\.claude\agents\notes.md", false, false));
+            Assert.Equal("dotdeck-shared", FileIcons.KeyFor("AGENTS.md", @"D:\work\.claude\rules\AGENTS.md", false, false)); // distinctive name wins
+            Assert.Equal("dotdeck-codex", FileIcons.KeyFor("hooks.json", Path.Combine(home, ".codex", "hooks.json"), false, false));
+            Assert.Equal("dotdeck-agy", FileIcons.KeyFor("keybindings.json", Path.Combine(home, ".gemini", "antigravity-cli", "keybindings.json"), false, false));
+            Assert.Equal("dotdeck-folder-agy", FileIcons.KeyFor("rules", Path.Combine(home, ".gemini", "config", "rules"), true, false));
         }
         finally
         {

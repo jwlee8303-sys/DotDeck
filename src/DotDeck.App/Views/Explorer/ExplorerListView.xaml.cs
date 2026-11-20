@@ -313,7 +313,16 @@ public partial class ExplorerListView : UserControl
             Tree.SelectedItem = _pressedRow;
         }
 
-        // A single click only selects; files open on double-click or Enter.
+        // A plain single click on a file shows it in the reusable preview tab; double-click or Enter opens it
+        // as a normal tab (promoting the preview). Ctrl/Shift clicks only change the selection.
+        if (_pressedRow is NodeRowViewModel { IsFolder: false } file && Keyboard.Modifiers == ModifierKeys.None
+            && e.OriginalSource is DependencyObject source
+            && ItemsControl.ContainerFromElement(Tree, source) is ListBoxItem { DataContext: var released }
+            && ReferenceEquals(released, file))
+        {
+            _viewModel?.PreviewCommand.Execute(file);
+        }
+
         _deferredSelection = false;
         _dragStart = null;
         _pressedRow = null;

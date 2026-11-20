@@ -36,6 +36,9 @@ public sealed record AppPaths(string Home, HomeSource HomeSource, string Roaming
     /// <summary>"다음 형식으로 열기" choices per file.</summary>
     public string EditorOverridesFile => Path.Combine(RoamingDataDir, "editor-overrides.json");
 
+    /// <summary>User file icon associations (like VS Code's files.associations), reloaded when it changes.</summary>
+    public string IconAssociationsFile => Path.Combine(RoamingDataDir, "icons", "associations.json");
+
     /// <summary>User copies of the built-in catalogs (<c>&lt;product&gt;\&lt;name&gt;.json</c>) that replace them.</summary>
     public string CatalogsDir => Path.Combine(RoamingDataDir, "catalogs");
 

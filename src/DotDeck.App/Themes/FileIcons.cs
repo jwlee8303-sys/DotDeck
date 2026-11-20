@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Windows.Markup;
 using System.Windows.Media;
+using DotDeck.Core.Files;
 using DotDeck.Core.Icons;
 using DotDeck.Core.Logging;
 using DotDeck.Core.Paths;
@@ -20,6 +21,12 @@ public static class FileIcons
 {
     private const string IconPrefix = "FileIcons/icons/";
     private const string MaterialResource = "FileIcons/material-icons.json";
+    private const string DotDeckResource = "FileIcons/dotdeck-icons.json";
+
+    /// <summary>A hand-written mapping is a few KB; anything this large is not one.</summary>
+    private const int MaxUserFileBytes = 1024 * 1024;
+
+    private const int MaxRetries = 5;
 
     private static readonly Assembly s_assembly = typeof(FileIcons).Assembly;
     private static readonly ConcurrentDictionary<string, Lazy<ImageSource?>> s_images = new(StringComparer.Ordinal);
@@ -30,8 +37,16 @@ public static class FileIcons
             .Select(n => n[IconPrefix.Length..^".xaml".Length])
             .ToHashSet(StringComparer.Ordinal));
 
+    private static readonly Lazy<string?> s_material = new(() => ReadResource(MaterialResource));
+    private static readonly Lazy<string?> s_dotDeck = new(() => ReadResource(DotDeckResource));
+
     private static FileIconResolver? s_resolver;
     private static IconScopeResolver? s_scopes;
+    private static AppPaths? s_paths;
+    private static string? s_userJson;
+    private static IDisposable? s_watcher;
+    private static bool s_retryPending;
+    private static int s_retries;
     private static IAppLog? s_log;
     private static int s_version;
     private static int s_dirtyVersion;
@@ -50,15 +65,16 @@ public static class FileIcons
     /// <summary>Icon keys the app can draw (Material plus DotDeck's own).</summary>
     public static IReadOnlySet<string> AvailableKeys => s_available.Value;
 
-    /// <summary>Called once at startup: tool scopes from <paramref name="paths"/>, warnings to <paramref name="log"/>.</summary>
+    /// <summary>
+    /// Called once at startup: tool scopes and the user's associations.json from <paramref name="paths"/>, warnings to
+    /// <paramref name="log"/>. The icons follow theme switches and changes to associations.json.
+    /// </summary>
     public static void Initialize(AppPaths paths, IAppLog log)
     {
-        ArgumentNullException.ThrowIfNull(paths);
-        ArgumentNullException.ThrowIfNull(log);
-        s_log = log;
-        s_scopes = new IconScopeResolver(paths);
+        Configure(paths, log);
         s_theme = CurrentTheme();
-        Reload();
+        Bump();
+        WatchUserFile();
         if (!s_initialized)
         {
             s_initialized = true;
@@ -70,11 +86,40 @@ public static class FileIcons
         }
     }
 
-    /// <summary>Rebuilds the mapping (a new immutable resolver replaces the old one) and refreshes bound icons.</summary>
-    public static void Reload()
+    /// <summary>Paths and log without watching or theme tracking (tests).</summary>
+    internal static void Configure(AppPaths paths, IAppLog log)
     {
-        s_resolver = CreateResolver();
+        ArgumentNullException.ThrowIfNull(paths);
+        ArgumentNullException.ThrowIfNull(log);
+        s_paths = paths;
+        s_log = log;
+        s_scopes = new IconScopeResolver(paths);
+        s_userJson = null;
+        s_resolver = CreateResolver(ReadUserFile().Text);
+    }
+
+    /// <summary>
+    /// Re-reads associations.json; when it changed, a new immutable resolver replaces the old one and bound icons
+    /// refresh. Returns whether anything changed.
+    /// </summary>
+    public static bool Reload()
+    {
+        var file = ReadUserFile();
+        if (!file.IsRead)
+        {
+            ScheduleRetry(); // locked mid-save: keep the current mapping and try again shortly
+            return false;
+        }
+
+        s_retries = 0;
+        if (s_resolver is not null && file.Text == s_userJson)
+        {
+            return false;
+        }
+
+        s_resolver = CreateResolver(file.Text);
         Bump();
+        return true;
     }
 
     /// <summary>Icon key of a file or folder; <paramref name="fullPath"/> decides tool-specific icons.</summary>
@@ -140,19 +185,143 @@ public static class FileIcons
         StaticPropertyChanged?.Invoke(null, new PropertyChangedEventArgs(nameof(Version)));
     }
 
-    private static FileIconResolver CreateResolver()
+    private static FileIconResolver CreateResolver(string? userJson = null)
     {
-        string? material = null;
-        using (var stream = s_assembly.GetManifestResourceStream(MaterialResource))
+        s_userJson = userJson;
+        return FileIconResolver.Create(
+            new IconSources(s_material.Value, s_dotDeck.Value, userJson, AvailableKeys, s_paths?.IconAssociationsFile ?? "associations.json"),
+            s_log ?? NullLog.Instance);
+    }
+
+    private static string? ReadResource(string name)
+    {
+        using var stream = s_assembly.GetManifestResourceStream(name);
+        if (stream is null)
         {
-            if (stream is not null)
-            {
-                using var reader = new StreamReader(stream);
-                material = reader.ReadToEnd();
-            }
+            return null;
         }
 
-        return FileIconResolver.Create(new IconSources(material, null, null, AvailableKeys), s_log ?? NullLog.Instance);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
+    /// <summary>Result of reading associations.json: <see cref="IsRead"/> is false when it exists but could not be read now.</summary>
+    private readonly record struct UserFile(bool IsRead, string? Text);
+
+    /// <summary>
+    /// The user's associations.json (null text: no file, or too large). A locked or unreadable file is reported as not
+    /// read, so the caller keeps the mapping it has instead of dropping the user's icons.
+    /// </summary>
+    private static UserFile ReadUserFile()
+    {
+        if (s_paths?.IconAssociationsFile is not { } path)
+        {
+            return new UserFile(true, null);
+        }
+
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return new UserFile(true, null);
+            }
+
+            // At most the cap (plus one char to notice more), whatever the file grows to while it is read.
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true);
+            var buffer = new char[MaxUserFileBytes + 1];
+            var length = reader.ReadBlock(buffer, 0, buffer.Length);
+            if (length > MaxUserFileBytes)
+            {
+                s_log?.Warning($"파일 아이콘({path})이 너무 커서(1MB 초과) 무시합니다.");
+                return new UserFile(true, null);
+            }
+
+            return new UserFile(true, new string(buffer, 0, length));
+        }
+        catch (FileNotFoundException)
+        {
+            return new UserFile(true, null);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new UserFile(true, null);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            if (s_retries >= MaxRetries)
+            {
+                s_log?.Warning($"파일 아이콘({path})을 읽지 못해 이전 매핑을 유지합니다: {ex.Message}");
+            }
+
+            return new UserFile(false, null);
+        }
+    }
+
+    /// <summary>Tries a locked file again a few times (an editor may hold it while saving).</summary>
+    private static void ScheduleRetry()
+    {
+        if (s_retryPending || s_retries >= MaxRetries || System.Windows.Application.Current?.Dispatcher is not { } dispatcher)
+        {
+            return;
+        }
+
+        s_retryPending = true;
+        s_retries++;
+        var timer = new System.Windows.Threading.DispatcherTimer(TimeSpan.FromMilliseconds(500), System.Windows.Threading.DispatcherPriority.Background, (sender, _) =>
+        {
+            ((System.Windows.Threading.DispatcherTimer)sender!).Stop();
+            s_retryPending = false;
+            ReloadAndLog();
+        }, dispatcher);
+        timer.Start();
+    }
+
+    /// <summary>
+    /// Watches the folder of associations.json, or the app data folder (created at startup) until that folder exists.
+    /// Every change re-installs the watcher, so a recreated folder or a watcher error never leaves a stale one.
+    /// </summary>
+    private static void WatchUserFile()
+    {
+        s_watcher?.Dispose();
+        s_watcher = null;
+        if (s_paths is null)
+        {
+            return;
+        }
+
+        var folder = Path.GetDirectoryName(s_paths.IconAssociationsFile)!;
+        s_watcher = Directory.Exists(folder)
+            ? FolderWatcherFactory.WatchContent(folder, OnUserFolderChanged)
+            : new FolderWatcherFactory().Watch(s_paths.RoamingDataDir, OnUserFolderChanged);
+    }
+
+    /// <summary>Stops watching associations.json (app exit).</summary>
+    public static void Shutdown()
+    {
+        s_paths = null;
+        s_watcher?.Dispose();
+        s_watcher = null;
+    }
+
+    private static void OnUserFolderChanged() =>
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            if (s_paths is null)
+            {
+                return; // shut down meanwhile
+            }
+
+            WatchUserFile(); // the icons folder may just have been created, replaced or the watcher failed
+            ReloadAndLog();
+        });
+
+    private static void ReloadAndLog()
+    {
+        if (s_paths is not null && Reload())
+        {
+            s_log?.Info("파일 아이콘 매핑(associations.json)을 다시 읽었습니다.");
+        }
     }
 
     private static ImageSource? Load(string key)

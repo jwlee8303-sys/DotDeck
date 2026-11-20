@@ -48,6 +48,7 @@
     <Page Remove="Assets\FileIcons\**\*.xaml" />
     <EmbeddedResource Include="Assets\FileIcons\icons\*.xaml" LogicalName="FileIcons/icons/%(Filename)%(Extension)" />
     <EmbeddedResource Include="Assets\FileIcons\material-icons.json" LogicalName="FileIcons/material-icons.json" />
+    <EmbeddedResource Include="Assets\FileIcons\dotdeck-icons.json" LogicalName="FileIcons/dotdeck-icons.json" />
   </ItemGroup>
 
   <ItemGroup>

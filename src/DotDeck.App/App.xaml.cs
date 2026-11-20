@@ -180,6 +180,7 @@ public partial class App : Application
         // Running CLI trees end with their jobs (also if this never runs: the OS closes the job handles).
         _shell?.CloseAllTerminals();
         _aiSessions?.Dispose();
+        Themes.FileIcons.Shutdown();
         _log?.Info("DotDeck 종료");
         base.OnExit(e);
     }

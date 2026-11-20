@@ -1,0 +1,56 @@
+{
+  "$comment": "DotDeck's own icon mapping (between the user's associations.json and Material). fileNames/folderNames apply everywhere, so only distinctive names belong there; common names (settings.json, agents, config) go in 'scoped', which applies only below that tool's configuration folder (.claude, .codex, .gemini, .agents or the built-in homes). 'match' is a glob over the path relative to that folder. See docs/icons.md.",
+  "fileNames": {
+    "CLAUDE.md": "dotdeck-claude",
+    "CLAUDE.local.md": "dotdeck-claude",
+    ".claude.json": "dotdeck-claude",
+    "GEMINI.md": "dotdeck-agy",
+    "AGENTS.md": "dotdeck-shared",
+    "AGENTS.override.md": "dotdeck-shared",
+    "SKILL.md": "dotdeck-shared"
+  },
+  "folderNames": {
+    ".claude": "dotdeck-folder-claude",
+    ".codex": "dotdeck-folder-codex",
+    ".gemini": "dotdeck-folder-agy",
+    ".agents": "dotdeck-folder-shared"
+  },
+  "scoped": [
+    { "tool": "claude", "match": "settings.json", "icon": "dotdeck-claude" },
+    { "tool": "claude", "match": "settings.local.json", "icon": "dotdeck-claude" },
+    { "tool": "claude", "match": "keybindings.json", "icon": "dotdeck-claude" },
+    { "tool": "claude", "match": "agents", "folder": true, "icon": "dotdeck-folder-claude" },
+    { "tool": "claude", "match": "skills", "folder": true, "icon": "dotdeck-folder-claude" },
+    { "tool": "claude", "match": "commands", "folder": true, "icon": "dotdeck-folder-claude" },
+    { "tool": "claude", "match": "rules", "folder": true, "icon": "dotdeck-folder-claude" },
+    { "tool": "claude", "match": "output-styles", "folder": true, "icon": "dotdeck-folder-claude" },
+    { "tool": "claude", "match": "agent-memory", "folder": true, "icon": "dotdeck-folder-claude" },
+    { "tool": "claude", "match": "workflows", "folder": true, "icon": "dotdeck-folder-claude" },
+    { "tool": "claude", "match": "themes", "folder": true, "icon": "dotdeck-folder-claude" },
+    { "tool": "claude", "match": "hooks", "folder": true, "icon": "dotdeck-folder-claude" },
+
+    { "tool": "codex", "match": "config.toml", "icon": "dotdeck-codex" },
+    { "tool": "codex", "match": "prompts", "folder": true, "icon": "dotdeck-folder-codex" },
+    { "tool": "codex", "match": "skills", "folder": true, "icon": "dotdeck-folder-codex" },
+    { "tool": "codex", "match": "rules", "folder": true, "icon": "dotdeck-folder-codex" },
+
+    { "tool": "antigravity", "match": "settings.json", "icon": "dotdeck-agy" },
+    { "tool": "antigravity", "match": "antigravity-cli/settings.json", "icon": "dotdeck-agy" },
+    { "tool": "antigravity", "match": "mcp_config.json", "icon": "dotdeck-agy" },
+    { "tool": "antigravity", "match": "antigravity/mcp_config.json", "icon": "dotdeck-agy" },
+    { "tool": "antigravity", "match": "antigravity-cli/mcp_config.json", "icon": "dotdeck-agy" },
+    { "tool": "antigravity", "match": "hooks.json", "icon": "dotdeck-agy" },
+    { "tool": "antigravity", "match": "antigravity-cli/hooks.json", "icon": "dotdeck-agy" },
+    { "tool": "antigravity", "match": "antigravity-cli", "folder": true, "icon": "dotdeck-folder-agy" },
+    { "tool": "antigravity", "match": "antigravity", "folder": true, "icon": "dotdeck-folder-agy" },
+    { "tool": "antigravity", "match": "config", "folder": true, "icon": "dotdeck-folder-agy" },
+    { "tool": "antigravity", "match": "rules", "folder": true, "icon": "dotdeck-folder-agy" },
+    { "tool": "antigravity", "match": "skills", "folder": true, "icon": "dotdeck-folder-agy" },
+
+    { "tool": "shared", "match": "hooks.json", "icon": "dotdeck-shared" },
+    { "tool": "shared", "match": "mcp_config.json", "icon": "dotdeck-shared" },
+    { "tool": "shared", "match": "skills", "folder": true, "icon": "dotdeck-folder-shared" },
+    { "tool": "shared", "match": "rules", "folder": true, "icon": "dotdeck-folder-shared" },
+    { "tool": "shared", "match": "workflows", "folder": true, "icon": "dotdeck-folder-shared" }
+  ]
+}

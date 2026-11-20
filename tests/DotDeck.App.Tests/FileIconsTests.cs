@@ -7,6 +7,8 @@ using DotDeck.App.ViewModels.Editor;
 using DotDeck.Core.Documents;
 using DotDeck.Core.Explorer;
 using DotDeck.Core.Files;
+using DotDeck.Core.Logging;
+using DotDeck.Core.Paths;
 
 namespace DotDeck.App.Tests;
 
@@ -130,6 +132,107 @@ public sealed class FileIconsTests
         finally
         {
             Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    private sealed class Log : IAppLog
+    {
+        public List<string> Warnings { get; } = [];
+
+        public event EventHandler<AppLogEntry>? EntryWritten
+        {
+            add { }
+            remove { }
+        }
+
+        public void Write(AppLogLevel level, string message, Exception? exception = null)
+        {
+            if (level == AppLogLevel.Warning)
+            {
+                Warnings.Add(message);
+            }
+        }
+    }
+
+    [Fact]
+    public void Dotdeck_mapping_loads_cleanly_and_gives_tool_icons_only_inside_tool_folders()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "dotdeck-icons-" + Guid.NewGuid().ToString("N"));
+        var log = new Log();
+        try
+        {
+            var home = Path.Combine(root, "home");
+            FileIcons.Configure(new AppPaths(home, HomeSource.CommandLine, Path.Combine(root, "roaming"), Path.Combine(root, "local")), log);
+            Assert.Empty(log.Warnings); // every key in dotdeck-icons.json exists and every rule is valid
+
+            // Distinctive names: everywhere.
+            Assert.Equal("dotdeck-claude", FileIcons.KeyFor("CLAUDE.md", @"D:\work\CLAUDE.md", false, false));
+            Assert.Equal("dotdeck-shared", FileIcons.KeyFor("AGENTS.md", @"D:\work\AGENTS.md", false, false));
+            Assert.Equal("dotdeck-agy", FileIcons.KeyFor("GEMINI.md", @"D:\work\GEMINI.md", false, false));
+            Assert.Equal("dotdeck-folder-codex-open", FileIcons.KeyFor(".codex", @"D:\work\.codex", true, true));
+
+            // Common names: only inside the tool's folder (workspace or built-in home).
+            Assert.Equal("dotdeck-folder-claude", FileIcons.KeyFor("agents", @"D:\work\.claude\agents", true, false));
+            Assert.Equal("folder-robot", FileIcons.KeyFor("agents", @"D:\work\agents", true, false));
+            Assert.Equal("dotdeck-claude", FileIcons.KeyFor("settings.json", Path.Combine(home, ".claude", "settings.json"), false, false));
+            Assert.Equal("json", FileIcons.KeyFor("settings.json", @"D:\work\.vscode\settings.json", false, false));
+            Assert.Equal("dotdeck-codex", FileIcons.KeyFor("config.toml", Path.Combine(home, ".codex", "config.toml"), false, false));
+            Assert.Equal("toml", FileIcons.KeyFor("config.toml", @"D:\work\config.toml", false, false));
+            Assert.Equal("dotdeck-agy", FileIcons.KeyFor("mcp_config.json", Path.Combine(home, ".gemini", "antigravity", "mcp_config.json"), false, false));
+            Assert.Equal("dotdeck-folder-agy", FileIcons.KeyFor("config", Path.Combine(home, ".gemini", "config"), true, false));
+            Assert.Equal("folder-config", FileIcons.KeyFor("config", @"D:\work\config", true, false));
+            // hooks: only directly below the Claude folder.
+            Assert.Equal("folder-hook", FileIcons.KeyFor("hooks", @"D:\work\.claude\agents\hooks", true, false));
+        }
+        finally
+        {
+            FileIcons.Configure(new AppPaths(Path.Combine(root, "none"), HomeSource.CommandLine, Path.Combine(root, "none"), Path.Combine(root, "none")), new Log());
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void User_associations_override_and_reload_and_bad_entries_only_warn()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "dotdeck-icons-" + Guid.NewGuid().ToString("N"));
+        var log = new Log();
+        try
+        {
+            var paths = new AppPaths(Path.Combine(root, "home"), HomeSource.CommandLine, Path.Combine(root, "roaming"), Path.Combine(root, "local"));
+            Directory.CreateDirectory(Path.GetDirectoryName(paths.IconAssociationsFile)!);
+            File.WriteAllText(paths.IconAssociationsFile, """
+                { "fileExtensions": { "zzq": "markdown" }, "fileNames": { "CLAUDE.md": "toml", "x.zzq": "custom:mine", "y.zzq": "nope" } }
+                """);
+            FileIcons.Configure(paths, log);
+
+            Assert.Equal("markdown", FileIcons.KeyFor("a.zzq", null, false, false));
+            Assert.Equal("toml", FileIcons.KeyFor("CLAUDE.md", null, false, false)); // user layer wins over DotDeck's
+            Assert.Equal("markdown", FileIcons.KeyFor("x.zzq", null, false, false)); // custom: is reserved, falls through
+            Assert.Equal(2, log.Warnings.Count);
+
+            var version = FileIcons.Version;
+            Assert.False(FileIcons.Reload()); // unchanged file: nothing to do
+
+            // Locked while an editor saves: the current mapping stays.
+            using (new FileStream(paths.IconAssociationsFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                Assert.False(FileIcons.Reload());
+                Assert.Equal("toml", FileIcons.KeyFor("CLAUDE.md", null, false, false));
+            }
+
+            File.WriteAllText(paths.IconAssociationsFile, "{ not json");
+            Assert.True(FileIcons.Reload());
+            Assert.True(FileIcons.Version > version);
+            Assert.Equal("dotdeck-claude", FileIcons.KeyFor("CLAUDE.md", null, false, false)); // broken file: ignored
+            Assert.Contains(log.Warnings, w => w.Contains("읽지 못해", StringComparison.Ordinal));
+        }
+        finally
+        {
+            FileIcons.Configure(new AppPaths(Path.Combine(root, "none"), HomeSource.CommandLine, Path.Combine(root, "none"), Path.Combine(root, "none")), new Log());
+            Directory.Delete(root, recursive: true);
         }
     }
 }

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Text;
+using DotDeck.App.Infrastructure.Windows;
 using DotDeck.App.ViewModels.Tools;
 using DotDeck.Core.AiCli.Launch;
 using DotDeck.Core.AiCli.Sessions;
@@ -310,15 +311,91 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Codex_ends_when_its_server_is_still_running_and_Claude_starts()
+    {
+        var executable = Path.Combine(_temp, "codex.exe");
+        File.Copy(Path.Combine(Environment.SystemDirectory, "cmd.exe"), executable);
+        var start = new ProcessStartInfo(executable)
+        {
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true,
+        };
+        start.ArgumentList.Add("app-server");
+        using var server = System.Diagnostics.Process.Start(start)!;
+        try
+        {
+            var process = new TerminalProcess { Ids = [server.Id] };
+            using var connection = new TerminalConnection(process, TerminalSize.Default);
+            var terminal = new TerminalPaneViewModel("t1", "PS", connection, _ => { }, ui: null);
+            var pane = Pane();
+            var started = _time.GetUtcNow();
+            pane.AttachTerminals(() => [terminal], id => id switch
+            {
+                2 => ("codex", started),
+                3 => ("claude", started),
+                _ => ProcessInspector.Inspect(id),
+            }, _ => { });
+            Assert.Empty(pane.Sessions);
+
+            process.Ids = [2, server.Id];
+            pane.Tick();
+            var codex = Assert.Single(pane.Sessions);
+            Assert.True(codex.IsRunning);
+
+            process.Ids = [3, server.Id];
+            pane.Tick();
+
+            Assert.False(server.HasExited);
+            Assert.False(codex.IsRunning);
+            Assert.Equal(CliKind.Claude, Assert.Single(pane.Sessions, item => item.IsRunning).Cli);
+        }
+        finally
+        {
+            server.StandardInput.Close();
+            if (!server.WaitForExit(3000))
+            {
+                server.Kill();
+                server.WaitForExit();
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(2)] // PID reused
+    [InlineData(3)] // different PID
+    public void A_cli_restarted_between_scans_gets_a_new_row(int nextId)
+    {
+        var process = new TerminalProcess { Ids = [2] };
+        using var connection = new TerminalConnection(process, TerminalSize.Default);
+        var terminal = new TerminalPaneViewModel("t1", "PS", connection, _ => { }, ui: null);
+        var pane = Pane();
+        var started = _time.GetUtcNow();
+        pane.AttachTerminals(() => [terminal], _ => ("codex", started), _ => { });
+        var previous = Assert.Single(pane.Sessions);
+
+        _time.Advance(TimeSpan.FromMilliseconds(200));
+        started = _time.GetUtcNow();
+        process.Ids = [nextId];
+        pane.Tick();
+
+        Assert.False(previous.IsRunning);
+        var current = Assert.Single(pane.Sessions, item => item.IsRunning);
+        Assert.NotSame(previous, current);
+        Assert.Equal(started, current.StartedAt);
+    }
+
+    [Fact]
     public void Process_inspector_reads_the_own_process()
     {
         using var self = System.Diagnostics.Process.GetCurrentProcess();
-        var info = DotDeck.App.Infrastructure.Windows.ProcessInspector.Inspect(self.Id);
+        var info = ProcessInspector.Inspect(self.Id);
 
         Assert.NotNull(info);
         Assert.Equal(self.ProcessName, info.Value.Name, ignoreCase: true);
         Assert.NotNull(info.Value.StartedAt);
-        Assert.Null(DotDeck.App.Infrastructure.Windows.ProcessInspector.Inspect(0));
+        Assert.Null(ProcessInspector.Inspect(0));
     }
 
     [Fact]

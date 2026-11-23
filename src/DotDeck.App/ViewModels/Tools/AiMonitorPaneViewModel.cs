@@ -276,7 +276,7 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
         }
 
         var now = _time.GetUtcNow();
-        var found = new Dictionary<(TerminalPaneViewModel Pane, CliKind Cli), DateTimeOffset>();
+        var found = new Dictionary<(TerminalPaneViewModel Pane, CliKind Cli), HashSet<(int Id, DateTimeOffset? StartedAt)>>();
         foreach (var pane in _terminals())
         {
             if (pane.IsAiSession || !pane.IsRunning)
@@ -291,22 +291,39 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
                     continue;
                 }
 
-                var started = info.StartedAt ?? now;
-                found[(pane, cli)] = found.TryGetValue((pane, cli), out var earlier) && earlier < started ? earlier : started;
+                if (!found.TryGetValue((pane, cli), out var processes))
+                {
+                    processes = [];
+                    found.Add((pane, cli), processes);
+                }
+
+                processes.Add((id, info.StartedAt));
             }
         }
 
         foreach (var item in Sessions)
         {
-            if (item.TerminalPane is { } pane && item.IsRunning && !found.Remove((pane, item.Cli)))
+            if (item.TerminalPane is not { } pane || !item.IsRunning)
+            {
+                continue;
+            }
+
+            var key = (pane, item.Cli);
+            if (found.TryGetValue(key, out var processes) && item.TerminalProcesses is { } previous && previous.Overlaps(processes))
+            {
+                item.TerminalProcesses = processes;
+                found.Remove(key);
+            }
+            else
             {
                 item.MarkEnded();
             }
         }
 
-        foreach (var ((pane, cli), started) in found)
+        foreach (var ((pane, cli), processes) in found)
         {
-            Sessions.Insert(0, new AiMonitorItemViewModel(pane, cli, started, _time));
+            var started = processes.Min(process => process.StartedAt ?? now);
+            Sessions.Insert(0, new AiMonitorItemViewModel(pane, cli, started, _time) { TerminalProcesses = processes });
         }
     }
 
@@ -377,6 +394,8 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
 
     /// <summary>The plain terminal tab the CLI runs in, or null for a DotDeck session.</summary>
     public TerminalPaneViewModel? TerminalPane { get; }
+
+    internal HashSet<(int Id, DateTimeOffset? StartedAt)>? TerminalProcesses { get; set; }
 
     public CliKind Cli { get; }
 
@@ -465,6 +484,7 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
         if (Session is null)
         {
             _processEnded = true;
+            TerminalProcesses = null;
         }
     }
 

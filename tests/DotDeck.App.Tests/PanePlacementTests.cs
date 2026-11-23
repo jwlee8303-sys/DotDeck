@@ -20,6 +20,7 @@ using DotDeck.Core.SystemConfig;
 namespace DotDeck.App.Tests;
 
 /// <summary>Where new panes open (same kind, project area), terminal "+" and in-place rename, extension window ids.</summary>
+[Collection(nameof(WpfApplicationCollection))]
 public sealed class PanePlacementTests : IDisposable
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "DotDeck-placement-" + Guid.NewGuid().ToString("N"));

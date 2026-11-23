@@ -10,6 +10,15 @@ using DotDeck.App.ViewModels.Documents;
 
 namespace DotDeck.App.Tests;
 
+/// <summary>
+/// The test that creates the process-wide WPF <see cref="Application"/> and the tests that show DockingManager windows
+/// must not overlap: while that Application exists without a running dispatcher, another thread's
+/// <c>Window.Show()</c> can wait on it forever. Non-parallel collections run after all parallel tests finish.
+/// </summary>
+[CollectionDefinition(nameof(WpfApplicationCollection), DisableParallelization = true)]
+public sealed class WpfApplicationCollection;
+
+[Collection(nameof(WpfApplicationCollection))]
 public sealed class FormXamlTests
 {
     [Fact]

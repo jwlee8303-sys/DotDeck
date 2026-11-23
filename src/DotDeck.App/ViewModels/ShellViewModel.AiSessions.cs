@@ -48,6 +48,37 @@ public sealed partial class ShellViewModel
         registry.Changed += (_, _) => manager.OnProjectsChanged();
     }
 
+    /// <summary>
+    /// Connects the AI 모니터 "사용량" section (once, from App startup) to the CLIs' logs under <see cref="Paths"/>.
+    /// With <paramref name="statusLine"/> the Claude status line can be connected from the section.
+    /// </summary>
+    public void AttachUsage(DotDeck.Core.Usage.ClaudeStatusLineInstaller? statusLine)
+    {
+        var claude = new DotDeck.Core.Usage.ClaudeUsageReader(Paths.ClaudeHome, Paths.ClaudeUsageFile);
+        var codex = new DotDeck.Core.Usage.CodexUsageReader(Paths.CodexHome);
+        var agy = new DotDeck.Core.Usage.AgyActivityReader(Paths.AntigravityHome);
+        AiMonitor.AttachUsage(new Tools.UsageDashboardViewModel(
+            new Tools.UsageSources(claude.Read, codex.Read, agy.Read, statusLine),
+            UsageProjectName, dialogs: _dialogs, log: _log));
+    }
+
+    /// <summary>The DotDeck project whose root holds <paramref name="folder"/> (deepest root), else the folder's name.</summary>
+    private string UsageProjectName(string? folder)
+    {
+        if (string.IsNullOrEmpty(folder))
+        {
+            return "(알 수 없음)";
+        }
+
+        var full = Path.TrimEndingDirectorySeparator(folder);
+        var owner = Projects.Explorers
+            .Where(e => e.Source.RootPath is { } root
+                        && (full.Equals(Path.TrimEndingDirectorySeparator(root), StringComparison.OrdinalIgnoreCase)
+                            || full.StartsWith(Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+            .MaxBy(e => e.Source.RootPath!.Length);
+        return owner?.Project.Name ?? (Path.GetFileName(full) is { Length: > 0 } name ? name : full);
+    }
+
     /// <summary>Tools menu "Claude 세션 시작…": the dialog preselects the project selected in the project area.</summary>
     [RelayCommand]
     private Task StartAiSessionAsync() => LaunchAiSessionAsync(DefaultAiProjectId());

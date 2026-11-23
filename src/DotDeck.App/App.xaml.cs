@@ -93,6 +93,7 @@ public partial class App : Application
             backups.IsAutomaticBackupExcluded = path => shell.Exclusions.BackupPolicy.IsExcluded(path);
             shell.AttachAiSessions(CreateAiSessionManager(paths, store, registry), registry);
             shell.AttachTerminals(new JobProcessLauncher(), () => DotDeck.Core.AiCli.Launch.ShellTerminal.Locate(SystemProcessEnvironment.Instance, store), paths, ProcessInspector.Inspect);
+            shell.AttachUsage(new DotDeck.Core.Usage.ClaudeStatusLineInstaller(paths, services.Reader, services.Writer));
             shell.AttachUpdater(new VelopackAppUpdater(Environment.GetEnvironmentVariable(VelopackAppUpdater.FeedVariable)));
             _shell = shell;
 

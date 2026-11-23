@@ -259,12 +259,37 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
     [InlineData("Claude.exe", CliKind.Claude)]
     [InlineData("codex", CliKind.Codex)]
     [InlineData("codex.exe", CliKind.Codex)]
+    [InlineData("agy", CliKind.Antigravity)]
+    [InlineData("AGY.exe", CliKind.Antigravity)]
     [InlineData("codex-command-runner", null)]
     [InlineData("node", null)]
     [InlineData("powershell", null)]
     [InlineData(null, null)]
     public void Process_names_map_to_their_cli(string? name, CliKind? expected) =>
         Assert.Equal(expected, AiMonitorPaneViewModel.ClassifyProcess(name));
+
+    [Fact]
+    public void Agy_started_in_a_terminal_is_listed()
+    {
+        var process = new TerminalProcess();
+        using var connection = new TerminalConnection(process, TerminalSize.Default, @"D:\work");
+        var terminal = new TerminalPaneViewModel("t1", "PowerShell", connection, _ => { }, ui: null);
+        var names = new Dictionary<int, string> { [1] = "pwsh", [2] = "agy" };
+        var pane = Pane();
+        pane.AttachTerminals(() => [terminal], id => names.TryGetValue(id, out var n) ? (n, _time.GetUtcNow()) : null, _ => { });
+
+        process.Ids = [1, 2];
+        pane.Tick();
+        var item = Assert.Single(pane.Sessions);
+        Assert.Equal(CliKind.Antigravity, item.Cli);
+        Assert.Equal("agy · PowerShell", item.Title);
+        Assert.Equal("agy · 터미널", item.KindText);
+        Assert.True(item.IsRunning);
+
+        process.Ids = [1];
+        pane.Tick();
+        Assert.False(item.IsRunning);
+    }
 
     [Fact]
     public void Cli_started_in_a_terminal_is_listed_until_it_ends()

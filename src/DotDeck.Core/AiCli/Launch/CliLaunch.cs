@@ -6,6 +6,9 @@ public enum CliKind
 {
     Claude,
     Codex,
+
+    /// <summary>Antigravity CLI (<c>agy</c>): only seen run by hand in a terminal tab (AI 모니터); DotDeck sessions are Claude or Codex.</summary>
+    Antigravity,
 }
 
 public enum LaunchMode

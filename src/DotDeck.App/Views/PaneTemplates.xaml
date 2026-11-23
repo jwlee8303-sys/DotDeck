@@ -259,6 +259,60 @@
         <toolViews:TerminalView />
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type tools:UsageCardViewModel}">
+        <Border BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="0,1,0,0" Padding="2,4">
+            <StackPanel>
+                <DockPanel>
+                    <TextBlock x:Name="Percent" DockPanel.Dock="Right" FontWeight="SemiBold" Text="{Binding PercentText}" />
+                    <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                </DockPanel>
+                <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="데이터 없음"
+                           Visibility="{Binding HasData, Converter={StaticResource SysFalseToVisible}}" />
+                <StackPanel Visibility="{Binding HasData, Converter={StaticResource SysBoolToVisible}}">
+                    <TextBlock Text="{Binding TodayText}" TextWrapping="Wrap" />
+                    <TextBlock x:Name="Limit" Text="{Binding LimitText}" TextWrapping="Wrap" />
+                    <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="{Binding DetailText}" TextWrapping="Wrap" />
+                    <StackPanel Margin="0,3,0,0" Visibility="{Binding HasBars, Converter={StaticResource SysBoolToVisible}}"
+                                ToolTip="오늘 시간대별 토큰 (캐시 읽기 제외)">
+                        <ItemsControl Height="24" ItemsSource="{Binding Bars}" Focusable="False" AutomationProperties.Name="오늘 시간대별 사용량">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Rows="1" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Background="Transparent" ToolTip="{Binding ToolTip}">
+                                        <Border Height="{Binding Height}" Margin="0.5,0" VerticalAlignment="Bottom" Background="{DynamicResource DD.Brush.Accent}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource DD.Text.Secondary}" FontSize="10" Text="23시" />
+                            <TextBlock Style="{StaticResource DD.Text.Secondary}" FontSize="10" Text="0시" />
+                        </DockPanel>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="{Binding Note}" TextWrapping="Wrap"
+                               Visibility="{Binding Note, Converter={StaticResource SysNullToCollapsed}}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding LimitText}" Value="">
+                <Setter TargetName="Limit" Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Level}" Value="Warning">
+                <Setter TargetName="Percent" Property="Foreground" Value="{DynamicResource DD.Brush.Warning}" />
+                <Setter TargetName="Limit" Property="Foreground" Value="{DynamicResource DD.Brush.Warning}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Level}" Value="Critical">
+                <Setter TargetName="Percent" Property="Foreground" Value="{DynamicResource DD.Brush.Error}" />
+                <Setter TargetName="Limit" Property="Foreground" Value="{DynamicResource DD.Brush.Error}" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type tools:AiMonitorPaneViewModel}">
         <DockPanel Background="{DynamicResource DD.Brush.Panel.Background}">
             <ToolBar DockPanel.Dock="Top" ToolBarTray.IsLocked="True" Background="{DynamicResource DD.Brush.Panel.Background}">
@@ -272,9 +326,31 @@
                 </Button>
                 <CheckBox Content="끝난 세션 표시" IsChecked="{Binding ShowFinished}" VerticalAlignment="Center" />
             </ToolBar>
+            <Expander DockPanel.Dock="Top" Margin="6,4,6,0" IsExpanded="True" DataContext="{Binding Usage}"
+                      Visibility="{Binding Converter={StaticResource SysNullToCollapsed}}" AutomationProperties.Name="사용량 대시보드">
+                <Expander.Header>
+                    <TextBlock>
+                        <Run Text="사용량" FontWeight="SemiBold" /> <Run Text="{Binding RefreshedText, Mode=OneWay}" Foreground="{DynamicResource DD.Brush.Text.Secondary}" />
+                    </TextBlock>
+                </Expander.Header>
+                <StackPanel Margin="0,2,0,0">
+                    <ContentControl Content="{Binding Claude}" Focusable="False" />
+                    <WrapPanel Margin="0,0,0,4">
+                        <Button Content="Claude 사용률 연결…" Margin="0,0,6,0" Command="{Binding InstallStatusLineCommand}"
+                                ToolTip="Claude Code 상태 표시줄에 DotDeck 스크립트를 연결해 5시간 사용률을 받습니다"
+                                Visibility="{Binding CanInstallStatusLine, Converter={StaticResource SysBoolToVisible}}" />
+                        <Button Content="연결 해제…" Margin="0,0,6,0" Command="{Binding UninstallStatusLineCommand}"
+                                ToolTip="Claude Code 상태 표시줄을 연결 전 설정으로 되돌립니다"
+                                Visibility="{Binding CanUninstallStatusLine, Converter={StaticResource SysBoolToVisible}}" />
+                        <Button Content="지금 갱신" Command="{Binding RefreshCommand}" ToolTip="사용량을 다시 읽기 (1분마다 자동 갱신)" />
+                    </WrapPanel>
+                    <ContentControl Content="{Binding Codex}" Focusable="False" />
+                    <ContentControl Content="{Binding Agy}" Focusable="False" />
+                </StackPanel>
+            </Expander>
             <TextBlock DockPanel.Dock="Top" Margin="8,4" Style="{StaticResource DD.Text.Secondary}" Text="{Binding Summary}" />
             <TextBlock DockPanel.Dock="Top" Style="{StaticResource PlaceholderText}"
-                       Text="표시할 AI 세션이 없습니다. 도구 메뉴의 &quot;Claude 세션 시작…&quot;(Ctrl+Alt+C)으로 시작하거나 터미널 탭에서 claude·codex를 실행하세요."
+                       Text="표시할 AI 세션이 없습니다. 도구 메뉴의 &quot;Claude 세션 시작…&quot;(Ctrl+Alt+C)으로 시작하거나 터미널 탭에서 claude·codex·agy를 실행하세요."
                        Visibility="{Binding HasVisibleSessions, Converter={StaticResource SysFalseToVisible}}" />
             <ListBox ItemsSource="{Binding Sessions}" SelectedItem="{Binding SelectedSession}" BorderThickness="0"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="AI 세션 모니터"

@@ -22,7 +22,7 @@ public sealed record AiMonitorActions(
 /// <summary>
 /// "AI 모니터" panel: the AI sessions of this run (state, guard, scope, elapsed time and whether the session is producing
 /// output right now) with their actions: terminal tab, output window, change review, stop and clearing finished rows.
-/// Double click opens the session's terminal tab or its output. Claude or Codex started by hand in a plain terminal tab
+/// Double click opens the session's terminal tab or its output. Claude, Codex or agy started by hand in a plain terminal tab
 /// is listed too: the terminals' processes are checked while the panel is visible. Time-based texts are refreshed once
 /// a second while the panel is visible.
 /// </summary>
@@ -83,6 +83,17 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
         }
     }
 
+    /// <summary>The "사용량" section above the sessions, or null when not attached (tests).</summary>
+    public UsageDashboardViewModel? Usage { get; private set; }
+
+    /// <summary>Shows the usage dashboard; it refreshes every minute while the panel is visible.</summary>
+    public void AttachUsage(UsageDashboardViewModel usage)
+    {
+        Usage = usage ?? throw new ArgumentNullException(nameof(usage));
+        OnPropertyChanged(nameof(Usage));
+        UpdateTimer();
+    }
+
     /// <summary>Follows the manager: new sessions appear as they start.</summary>
     public void Attach(AiSessionManager manager)
     {
@@ -94,7 +105,7 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
     }
 
     /// <summary>
-    /// Follows plain terminal tabs: a <c>claude</c> or <c>codex</c> process inside a terminal's job is listed as a row
+    /// Follows plain terminal tabs: a <c>claude</c>, <c>codex</c> or <c>agy</c> process inside a terminal's job is listed as a row
     /// of that terminal until it ends. <paramref name="inspect"/> reads a process's executable name and start time.
     /// </summary>
     public void AttachTerminals(
@@ -109,12 +120,13 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
         UpdateTimer();
     }
 
-    /// <summary>The AI CLI an executable name stands for ("claude", "codex.exe"), or null for anything else.</summary>
+    /// <summary>The AI CLI an executable name stands for ("claude", "codex.exe", "agy"), or null for anything else.</summary>
     public static CliKind? ClassifyProcess(string? name)
     {
         var stem = Path.GetFileNameWithoutExtension(name ?? string.Empty);
         return stem.Equals("claude", StringComparison.OrdinalIgnoreCase) ? CliKind.Claude
             : stem.Equals("codex", StringComparison.OrdinalIgnoreCase) ? CliKind.Codex
+            : stem.Equals("agy", StringComparison.OrdinalIgnoreCase) ? CliKind.Antigravity
             : null;
     }
 
@@ -123,6 +135,7 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
     {
         ScanTerminals();
         Refresh();
+        Usage?.Tick();
     }
 
     /// <summary>Re-reads every row's state and time-based texts (UI thread).</summary>
@@ -330,7 +343,7 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
     // The timer runs only while the panel is shown: a hidden panel costs nothing.
     private void UpdateTimer()
     {
-        if (IsVisible && (_manager is not null || _terminals is not null))
+        if (IsVisible && (_manager is not null || _terminals is not null || Usage is not null))
         {
             _timer ??= _time.CreateTimer(_ => Post(Tick), null, RefreshInterval, RefreshInterval);
         }
@@ -354,7 +367,7 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
     }
 }
 
-/// <summary>One row of the "AI 모니터" panel: a DotDeck AI session, or Claude/Codex run by hand in a terminal tab.</summary>
+/// <summary>One row of the "AI 모니터" panel: a DotDeck AI session, or Claude/Codex/agy run by hand in a terminal tab.</summary>
 public sealed partial class AiMonitorItemViewModel : ObservableObject
 {
     /// <summary>Output within this window counts as "작업 중".</summary>
@@ -401,7 +414,12 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
 
     public DateTimeOffset StartedAt { get; }
 
-    private string CliName => Cli == CliKind.Claude ? "Claude" : "Codex";
+    private string CliName => Cli switch
+    {
+        CliKind.Claude => "Claude",
+        CliKind.Codex => "Codex",
+        _ => "agy",
+    };
 
     /// <summary>The session's terminal tab name (tabs can be renamed), else the session title; "Claude · 탭 이름" for a hand run.</summary>
     public string Title => Session is { } session ? _terminalName ?? session.Title : CliName + " · " + TerminalPane!.DisplayName;

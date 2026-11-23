@@ -25,6 +25,14 @@ public sealed record AppPaths(string Home, HomeSource HomeSource, string Roaming
     /// <summary>Antigravity CLI (agy) home. agy keeps its files under ~/.gemini (antigravity-cli/, config/, …).</summary>
     public string AntigravityHome => Path.Combine(Home, ".gemini");
 
+    /// <summary>
+    /// <c>~/.dotdeck</c>: files DotDeck shares with the CLIs (Claude Code's status line script and the rate limits it saves).
+    /// </summary>
+    public string DotDeckHomeDir => Path.Combine(Home, ".dotdeck");
+
+    /// <summary>Claude rate limits saved by DotDeck's status line script.</summary>
+    public string ClaudeUsageFile => Path.Combine(DotDeckHomeDir, "claude-usage.json");
+
     public string ProjectsFile => Path.Combine(RoamingDataDir, "projects.json");
 
     public string SettingsFile => Path.Combine(RoamingDataDir, "settings.json");

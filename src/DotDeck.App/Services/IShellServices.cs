@@ -20,17 +20,11 @@ public interface IClipboardService
     void ClearCutFiles(IReadOnlyList<string> paths);
 }
 
-/// <summary>Launches external programs (Windows Explorer, VS Code, terminals — decision Q13).</summary>
+/// <summary>Launches external programs (Windows Explorer, elevated terminals — decision Q13).</summary>
 public interface IShellLauncher
 {
     /// <summary>Opens Explorer at <paramref name="path"/>: a folder is opened, a file is selected in its folder.</summary>
     void RevealInExplorer(string path);
-
-    /// <summary>Opens a file or folder in VS Code. Returns false when VS Code was not found.</summary>
-    bool OpenInVsCode(string path);
-
-    /// <summary>Opens Windows Terminal (or PowerShell when it is missing) in <paramref name="directory"/>.</summary>
-    void OpenTerminal(string directory);
 
     /// <summary>
     /// Opens <paramref name="shellExecutable"/> (PowerShell) elevated in its own console window in

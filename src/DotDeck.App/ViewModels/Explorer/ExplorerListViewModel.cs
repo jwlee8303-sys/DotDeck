@@ -282,7 +282,7 @@ public sealed partial class ExplorerListViewModel : ObservableObject
                  {
                      OpenSelectedCommand, NewFileCommand, NewFolderCommand, RenameCommand, DeleteCommand, CutCommand, CopyCommand,
                      PasteCommand, DuplicateCommand, UndoCommand, RedoCommand, CopyFullPathsCommand, CopyRelativePathsCommand,
-                     RevealSelectedCommand, OpenInVsCodeCommand, OpenTerminalCommand, OpenAsCommand, TogglePinCommand, RevealInTreeCommand,
+                     RevealSelectedCommand, OpenTerminalCommand, OpenAsCommand, TogglePinCommand, RevealInTreeCommand,
                  })
         {
             command.NotifyCanExecuteChanged();
@@ -707,48 +707,13 @@ public sealed partial class ExplorerListViewModel : ObservableObject
         }
     }
 
-    [RelayCommand(CanExecute = nameof(HasTargetFolder))]
-    private void OpenInVsCode()
-    {
-        // Secret files are never opened (SPEC 2.3), not even in another editor.
-
-        // A selected file opens itself; otherwise the folder.
-        var path = TargetNodes() is [{ IsFolder: false } file] ? file.Node.FullPath : TargetFolderOf(SelectedRow);
-        if (path is null)
-        {
-            return;
-        }
-
-        try
-        {
-            if (!_context.Shell.OpenInVsCode(path))
-            {
-                _context.SetStatus("VS Code를 찾지 못했습니다.");
-            }
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            _context.Log.Error($"VS Code를 열지 못했습니다: {path}", ex);
-            _context.SetStatus($"VS Code를 열지 못했습니다: {ex.Message}");
-        }
-    }
-
+    /// <summary>"여기서 터미널 열기": a DotDeck terminal tab in the target folder.</summary>
     [RelayCommand(CanExecute = nameof(HasTargetFolder))]
     private void OpenTerminal()
     {
-        if (TargetFolderOf(SelectedRow) is not { } folder)
+        if (TargetFolderOf(SelectedRow) is { } folder)
         {
-            return;
-        }
-
-        try
-        {
-            _context.Shell.OpenTerminal(folder);
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            _context.Log.Error($"터미널을 열지 못했습니다: {folder}", ex);
-            _context.SetStatus($"터미널을 열지 못했습니다: {ex.Message}");
+            _context.OpenTerminal?.Invoke(folder);
         }
     }
 

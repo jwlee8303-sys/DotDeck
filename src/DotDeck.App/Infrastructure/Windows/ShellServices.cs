@@ -117,40 +117,6 @@ public sealed class ShellLauncher : IShellLauncher
         using var _ = Process.Start(start);
     }
 
-    public bool OpenInVsCode(string path)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(path);
-        if (FindVsCode() is not { } code)
-        {
-            return false;
-        }
-
-        // Code.exe directly (not code.cmd through cmd.exe), so the path is never parsed by a shell.
-        var start = new ProcessStartInfo { FileName = code, UseShellExecute = false };
-        start.ArgumentList.Add(path);
-        using var _ = Process.Start(start);
-        return true;
-    }
-
-    public void OpenTerminal(string directory)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(directory);
-        try
-        {
-            // wt treats ';' as a command separator; escape it so the path stays one argument.
-            var start = new ProcessStartInfo { FileName = "wt.exe", UseShellExecute = false };
-            start.ArgumentList.Add("-d");
-            start.ArgumentList.Add(directory.Replace(";", "\\;", StringComparison.Ordinal));
-            using var _ = Process.Start(start);
-        }
-        catch (Win32Exception)
-        {
-            // Windows Terminal is not installed: a PowerShell console in that folder.
-            var start = new ProcessStartInfo { FileName = "powershell.exe", UseShellExecute = true, WorkingDirectory = directory };
-            using var _ = Process.Start(start);
-        }
-    }
-
     public bool OpenElevatedTerminal(string shellExecutable, string directory)
     {
         ArgumentException.ThrowIfNullOrEmpty(shellExecutable);
@@ -181,33 +147,4 @@ public sealed class ShellLauncher : IShellLauncher
     internal static string ElevatedStartCommand(string directory) =>
         Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(
             "Set-Location -LiteralPath '" + directory.Replace("'", "''", StringComparison.Ordinal) + "'"));
-
-    /// <summary>Finds Code.exe: per-user and machine installs, then a "...\Microsoft VS Code\bin" PATH entry.</summary>
-    private static string? FindVsCode()
-    {
-        var candidates = new List<string>();
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-        if (localAppData.Length > 0)
-        {
-            candidates.Add(Path.Combine(localAppData, "Programs", "Microsoft VS Code", "Code.exe"));
-        }
-
-        if (programFiles.Length > 0)
-        {
-            candidates.Add(Path.Combine(programFiles, "Microsoft VS Code", "Code.exe"));
-        }
-
-        foreach (var entry in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator))
-        {
-            var trimmed = entry.Trim().Trim('"');
-            if (trimmed.Length > 0 && Path.IsPathFullyQualified(trimmed) && File.Exists(Path.Combine(trimmed, "code.cmd"))
-                && Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(trimmed)) is { } installDir)
-            {
-                candidates.Add(Path.Combine(installDir, "Code.exe"));
-            }
-        }
-
-        return candidates.FirstOrDefault(File.Exists);
-    }
 }

@@ -70,8 +70,9 @@ public static class ShellTerminal
     /// <summary>
     /// The launch plan of a plain terminal in <paramref name="workingDirectory"/>. In sandbox mode (<c>--home</c>)
     /// the CLIs started from it use the sandbox homes too (DESIGN A4); otherwise the environment is inherited as is.
+    /// <paramref name="startupCommand"/> (e.g. <c>agy</c>) runs after initialization; the shell stays open after it.
     /// </summary>
-    public static CliLaunchPlan Plan(ShellLocation shell, string workingDirectory, AppPaths paths)
+    public static CliLaunchPlan Plan(ShellLocation shell, string workingDirectory, AppPaths paths, string? startupCommand = null)
     {
         ArgumentNullException.ThrowIfNull(shell);
         ArgumentNullException.ThrowIfNull(paths);
@@ -85,7 +86,8 @@ public static class ShellTerminal
         return new CliLaunchPlan
         {
             Executable = shell.Executable,
-            Arguments = ["-NoLogo", "-NoExit", "-Command", Utf8Initialization + "; " + PromptInitialization],
+            Arguments = ["-NoLogo", "-NoExit", "-Command", Utf8Initialization + "; " + PromptInitialization
+                + (string.IsNullOrWhiteSpace(startupCommand) ? string.Empty : "; " + startupCommand)],
             WorkingDirectory = workingDirectory,
             Environment = environment,
         };

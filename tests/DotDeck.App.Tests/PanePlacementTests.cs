@@ -465,8 +465,6 @@ public sealed class PanePlacementTests : IDisposable
     {
         public List<(string Shell, string Directory)> Elevated { get; } = [];
         public void RevealInExplorer(string path) { }
-        public bool OpenInVsCode(string path) => false;
-        public void OpenTerminal(string directory) { }
         public bool OpenElevatedTerminal(string shellExecutable, string directory)
         {
             Elevated.Add((shellExecutable, directory));

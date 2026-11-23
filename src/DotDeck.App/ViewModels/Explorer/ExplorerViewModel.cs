@@ -32,7 +32,9 @@ public sealed record ExplorerContext(
     Func<ProjectDefinition?, string, Task>? UnregisterCustomFile = null,
     Func<string, DotDeck.Core.Editors.EditorKind?, Task>? OpenAs = null,
     Func<string, Task>? StartAiSession = null,
-    Func<string, Task>? StartCodexSession = null);
+    Func<string, Task>? StartCodexSession = null,
+    Action<string>? OpenTerminal = null,
+    Action<string>? StartAgy = null);
 
 /// <summary>
 /// One project's explorer. Its rows live in a list (<see cref="List"/>: the project area, or its own detached
@@ -644,6 +646,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
     private Task StartCodexSessionAsync() => _context.StartCodexSession?.Invoke(Project.Id) ?? Task.CompletedTask;
 
     public bool CanStartCodexSession => _context.StartCodexSession is not null;
+
+    /// <summary>"이 프로젝트에서 agy 시작": a DotDeck terminal tab in the project root running the Antigravity CLI.</summary>
+    [RelayCommand]
+    private void StartAgy() => _context.StartAgy?.Invoke(Project.Id);
+
+    public bool CanStartAgy => _context.StartAgy is not null;
 
     [RelayCommand]
     private void CopyRootPath()

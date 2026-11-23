@@ -234,6 +234,18 @@ public sealed class TerminalConnectionTests : IDisposable
         ForbiddenOptions.Validate(plan);
     }
 
+    [Fact]
+    public void Plan_runs_startup_command_after_initialization()
+    {
+        var shell = new ShellLocation(@"C:\tools\pwsh.exe", false);
+        var paths = new AppPaths(@"C:\Users\tester", HomeSource.UserProfile, @"D:\r", @"D:\l");
+
+        var plan = ShellTerminal.Plan(shell, @"D:\proj", paths, "agy");
+
+        Assert.Equal(["-NoLogo", "-NoExit", "-Command", ShellTerminal.Utf8Initialization + "; " + ShellTerminal.PromptInitialization + "; agy"], plan.Arguments);
+        Assert.Equal(@"D:\proj", plan.WorkingDirectory);
+    }
+
     private sealed class FakeTerminal : ITerminalProcess
     {
         private readonly AnonymousPipeServerStream _output = new(PipeDirection.Out);

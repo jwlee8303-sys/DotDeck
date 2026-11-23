@@ -68,18 +68,36 @@ public sealed partial class ShellViewModel
     /// selected in the project area, else the (sandbox) home folder.
     /// </summary>
     [RelayCommand]
-    private void OpenTerminal()
+    private void OpenTerminal() => OpenTerminalIn(folder: null);
+
+    /// <summary>Explorer "여기서 터미널 열기": a terminal tab in <paramref name="folder"/>.</summary>
+    internal void OpenTerminalAt(string folder) => OpenTerminalIn(folder);
+
+    /// <summary>"이 프로젝트에서 agy 시작": a terminal tab in the project root that runs the Antigravity CLI.</summary>
+    internal void StartAgyIn(string projectId)
+    {
+        if (Projects.Explorers.FirstOrDefault(e => e.Project.Id == projectId)?.Source.RootPath is not { } root || !Directory.Exists(root))
+        {
+            _dialogs.ShowError("agy 시작", "프로젝트 폴더를 찾을 수 없습니다.");
+            return;
+        }
+
+        OpenTerminalIn(root, startupCommand: "agy");
+    }
+
+    /// <summary>Opens a plain terminal tab in <paramref name="folder"/> (null: <see cref="TerminalFolder"/>).</summary>
+    private void OpenTerminalIn(string? folder, string? startupCommand = null)
     {
         if (TerminalTarget() is not var (launcher, shell, paths))
         {
             return;
         }
 
-        var folder = TerminalFolder(paths);
+        folder ??= TerminalFolder(paths);
         ITerminalProcess process;
         try
         {
-            process = launcher.Start(ShellTerminal.Plan(shell, folder, paths), TerminalSize.Default);
+            process = launcher.Start(ShellTerminal.Plan(shell, folder, paths, startupCommand), TerminalSize.Default);
         }
         catch (Exception ex) when (ex is Win32Exception or IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -91,7 +109,7 @@ public sealed partial class ShellViewModel
         var number = ++_terminalNumber;
         var title = number == 1 ? shell.DisplayName : string.Create(CultureInfo.InvariantCulture, $"{shell.DisplayName} {number}");
         AddTerminal(new TerminalPaneViewModel(Guid.NewGuid().ToString("N"), WithPrivilege(title, IsAdministrator), new TerminalConnection(process, TerminalSize.Default, folder), CopyFromTerminal, _uiContext));
-        _log.Info($"터미널 시작: {shell.Executable} ({folder}){(IsAdministrator ? " [관리자]" : string.Empty)}");
+        _log.Info($"터미널 시작: {shell.Executable} ({folder}){(startupCommand is null ? string.Empty : $" [{startupCommand}]")}{(IsAdministrator ? " [관리자]" : string.Empty)}");
     }
 
     /// <summary>Prefix of the default title of a terminal that runs elevated.</summary>

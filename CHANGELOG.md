@@ -3,6 +3,8 @@
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-11-23
+
 ### Added
 - 프로젝트 우클릭 메뉴에 "이 프로젝트에서 agy 시작". DotDeck 터미널 탭을 프로젝트 루트에서 열고 `agy`(Antigravity CLI)를 실행. agy를 종료해도 탭의 PowerShell은 남음.
 

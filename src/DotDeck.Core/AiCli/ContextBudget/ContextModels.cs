@@ -48,10 +48,14 @@ public sealed record ContextItem(
     int Tokens,
     ContextItemState State = ContextItemState.Measured,
     string? Detail = null,
-    string? ServerKey = null)
+    string? ServerKey = null,
+    bool BuiltIn = false)
 {
     /// <summary>The item adds to the total.</summary>
     public bool Counts => State == ContextItemState.Measured;
+
+    // BuiltIn: shipped with the CLI ("기본 제공", e.g. agy's builtin skills, Codex's .system skills). It counts, but
+    // the user cannot change it: never suggested, shown grey.
 }
 
 public enum McpTransport

@@ -184,7 +184,7 @@ public sealed partial class ContextCollector(string home, string? codexHome = nu
         AddRules(run, Path.Combine(config, "rules"), "전역 규칙", claudeRules: false);
         AddSkillFolder(run, Path.Combine(GeminiHome, "skills"), "전역");
         AddSkillFolder(run, Path.Combine(config, "skills"), "전역");
-        AddSkillFolder(run, Path.Combine(GeminiHome, "antigravity-cli", "builtin", "skills"), "기본 제공");
+        AddSkillFolder(run, Path.Combine(GeminiHome, "antigravity-cli", "builtin", "skills"), "기본 제공", builtIn: true);
         run.WatchDirectory(config, recursive: true);
         run.WatchDirectory(GeminiHome);
         run.WatchDirectory(Path.Combine(GeminiHome, "skills"), recursive: true);
@@ -344,7 +344,7 @@ public sealed partial class ContextCollector(string home, string? codexHome = nu
     // ---------------------------------------------------------------- skills and agents
 
     /// <summary><c>&lt;dir&gt;/&lt;skill&gt;/SKILL.md</c>: name and description are listed to the model.</summary>
-    private void AddSkillFolder(Run run, string directory, string label, bool recursive = false)
+    private void AddSkillFolder(Run run, string directory, string label, bool recursive = false, bool builtIn = false)
     {
         IEnumerable<string> files = recursive
             ? SafeFiles(directory, "SKILL.md", recursive: true)
@@ -364,9 +364,16 @@ public sealed partial class ContextCollector(string home, string? codexHome = nu
 
             var name = front.Get("name") ?? Path.GetFileName(Path.GetDirectoryName(file)) ?? "skill";
             var description = front.Get("description") ?? string.Empty;
-            run.Items.Add(new ContextItem(ContextCategory.Skills, name, file, TokenEstimator.Estimate(name + ": " + description), Detail: label));
+            // Codex ships its own skills in skills/.system (recreated by Codex): built in, not the user's.
+            var shipped = builtIn || IsCodexSystemSkill(directory, file);
+            run.Items.Add(new ContextItem(ContextCategory.Skills, name, file, TokenEstimator.Estimate(name + ": " + description),
+                Detail: shipped ? "기본 제공" : label, BuiltIn: shipped));
         }
     }
+
+    private bool IsCodexSystemSkill(string directory, string file) =>
+        string.Equals(Path.TrimEndingDirectorySeparator(directory), Path.TrimEndingDirectorySeparator(Path.Combine(CodexHome, "skills")), StringComparison.OrdinalIgnoreCase)
+        && Path.GetRelativePath(directory, file).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)[0].Equals(".system", StringComparison.OrdinalIgnoreCase);
 
     /// <summary><c>&lt;dir&gt;/*.md</c> sub-agents: name and description are listed to the model.</summary>
     private void AddAgentFolder(Run run, string directory, string label)

@@ -102,7 +102,7 @@ public sealed partial class ShellViewModel
         AiMonitor.AttachContextUsage(new Tools.ContextUsageTracker(
             new DotDeck.Core.AiCli.ContextBudget.ContextUsageReader(logs, statusLines),
             () => settings.Load().ContextBudget,
-            statusLines.Directory));
+            statusLines.Directory, log: _log));
         AiMonitor.AttachContext(new Tools.ContextBudgetViewModel(new Tools.ContextBudgetServices(
             new DotDeck.Core.AiCli.ContextBudget.ContextCollector(Paths.Home, codexHome),
             logs,

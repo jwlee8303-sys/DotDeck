@@ -35,7 +35,8 @@ public sealed partial class ShellViewModel
         ITerminalLauncher launcher,
         Func<ShellLocation?> locateShell,
         AppPaths paths,
-        Func<int, (string Name, DateTimeOffset? StartedAt)?>? inspectProcess = null)
+        Func<int, (string Name, DateTimeOffset? StartedAt)?>? inspectProcess = null,
+        Func<int, int?>? parentOf = null)
     {
         ArgumentNullException.ThrowIfNull(launcher);
         ArgumentNullException.ThrowIfNull(locateShell);
@@ -46,7 +47,7 @@ public sealed partial class ShellViewModel
         _uiContext ??= SynchronizationContext.Current;
         if (inspectProcess is not null)
         {
-            AiMonitor.AttachTerminals(() => [.. Terminals], inspectProcess, ShowTerminal);
+            AiMonitor.AttachTerminals(() => [.. Terminals], inspectProcess, ShowTerminal, parentOf);
         }
     }
 

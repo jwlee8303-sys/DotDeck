@@ -11,6 +11,7 @@ namespace DotDeck.App.Infrastructure.Windows;
 public static partial class ProcessInspector
 {
     private const uint ProcessQueryLimitedInformation = 0x1000;
+    private const int ProcessBasicInformation = 0;
     private const int ProcessCommandLineInformation = 60;
     private const int MaxCommandLineBytes = 32768 * sizeof(char);
 
@@ -68,6 +69,24 @@ public static partial class ProcessInspector
         return (name, started);
     }
 
+    /// <summary>Parent process id at creation, or null when it cannot be read.</summary>
+    public static unsafe int? ParentId(int processId)
+    {
+        if (processId <= 0)
+        {
+            return null;
+        }
+
+        using var process = OpenProcess(ProcessQueryLimitedInformation, false, (uint)processId);
+        BasicInformation info;
+        if (process.IsInvalid || NtQueryInformationProcess(process, ProcessBasicInformation, &info, sizeof(BasicInformation), out _) < 0)
+        {
+            return null;
+        }
+
+        return info.ParentId is > 0 and <= int.MaxValue ? (int)info.ParentId : null;
+    }
+
     // The Codex CLI and its app-server use the same executable. A server can outlive the interactive CLI.
     // Read arguments only for Codex and keep them local. If the native query fails, retain name-based detection.
     private static unsafe bool IsCodexServer(SafeProcessHandle process)
@@ -111,6 +130,17 @@ public static partial class ProcessInspector
                 _ = LocalFree((nint)argv);
             }
         }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BasicInformation
+    {
+        public nint ExitStatus;
+        public nint PebBaseAddress;
+        public nint AffinityMask;
+        public nint BasePriority;
+        public nint ProcessId;
+        public nint ParentId;
     }
 
     [StructLayout(LayoutKind.Sequential)]

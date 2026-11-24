@@ -99,7 +99,8 @@ public partial class App : Application
             var shell = new ShellViewModel(services, version, IsAdministrator());
             backups.IsAutomaticBackupExcluded = path => shell.Exclusions.BackupPolicy.IsExcluded(path);
             shell.AttachAiSessions(CreateAiSessionManager(paths, store, registry), registry);
-            shell.AttachTerminals(new JobProcessLauncher(), () => DotDeck.Core.AiCli.Launch.ShellTerminal.Locate(SystemProcessEnvironment.Instance, store), paths, ProcessInspector.Inspect);
+            shell.AttachTerminals(new JobProcessLauncher(), () => DotDeck.Core.AiCli.Launch.ShellTerminal.Locate(SystemProcessEnvironment.Instance, store),
+                paths, ProcessInspector.Inspect, ProcessInspector.ParentId);
             shell.AttachUsage(
                 new DotDeck.Core.Usage.ClaudeStatusLineInstaller(paths, services.Reader, services.Writer),
                 new DotDeck.Core.Usage.AgyStatusLineInstaller(paths, services.Reader, services.Writer));

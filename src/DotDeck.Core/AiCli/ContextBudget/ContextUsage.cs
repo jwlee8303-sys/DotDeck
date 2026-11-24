@@ -47,13 +47,18 @@ public sealed record ContextUsage(
     string? Model = null,
     string? Reason = null)
 {
-    /// <summary>"38%", "38% (추정)", "4.2만 토큰", "첫 응답 후 측정" or "측정 불가".</summary>
+    /// <summary>
+    /// "38%", "38% (추정)", "4.2만 토큰"; "첫 응답 후 측정" (matched, no answer recorded yet), "매칭 불가" (no log or
+    /// status line file connected to the session), "agy 연동 필요" (agy status line not connected) or "측정 불가".
+    /// </summary>
     public string Text => State switch
     {
         SessionLogState.Measured when Percent is { } percent =>
             string.Create(CultureInfo.InvariantCulture, $"{Shown(percent):0}%") + (Estimated ? " (추정)" : string.Empty),
         SessionLogState.Measured when Tokens is { } tokens => TokenEstimator.Format(tokens) + " 토큰",
         SessionLogState.WaitingFirstAnswer => "첫 응답 후 측정",
+        SessionLogState.NotMatched => "매칭 불가",
+        SessionLogState.NotConnected => "agy 연동 필요",
         _ => "측정 불가",
     };
 
@@ -156,12 +161,15 @@ public sealed partial class StatusLineContextStore(string dotDeckHome)
         All(Claude).FirstOrDefault(c => c.TranscriptPath is { } path && SessionLogReader.SamePath(path, transcriptPath));
 
     /// <summary>
-    /// The session in <paramref name="cwd"/> whose status line first reported within <see cref="SessionLogReader.MatchWindow"/>
-    /// after <paramref name="startedAt"/> (a session started elsewhere earlier, or resumed, is never taken), not one of
-    /// <paramref name="claimed"/> (sessions other rows already use). Two candidates: ambiguous. Values without a first
-    /// report time (older scripts) are not matched by folder.
+    /// The session in <paramref name="cwd"/> (compared without case, slash or trailing separator differences) whose
+    /// status line first reported after <paramref name="startedAt"/> (a session started elsewhere earlier, or resumed,
+    /// is never taken), not one of <paramref name="claimed"/> (sessions other rows already use). Values without a first
+    /// report time (older scripts) are not matched by folder. With <paramref name="earliest"/> the earliest first report
+    /// wins (first reported before <paramref name="before"/> when given); otherwise only a report within
+    /// <see cref="SessionLogReader.MatchWindow"/> counts and two are ambiguous.
     /// </summary>
-    public (StatusLineContext? Found, bool Ambiguous) Find(string prefix, string? cwd, DateTimeOffset startedAt, IReadOnlySet<string>? claimed)
+    public (StatusLineContext? Found, bool Ambiguous) Find(
+        string prefix, string? cwd, DateTimeOffset startedAt, IReadOnlySet<string>? claimed, bool earliest = false, DateTimeOffset? before = null)
     {
         if (cwd is null)
         {
@@ -170,9 +178,17 @@ public sealed partial class StatusLineContextStore(string dotDeckHome)
 
         var candidates = All(prefix)
             .Where(c => c.Cwd is { } folder && SessionLogReader.SamePath(folder, cwd)
-                        && c.FirstSeen is { } first && first >= startedAt - s_earlyTolerance && first <= startedAt + SessionLogReader.MatchWindow
+                        && c.FirstSeen is { } first && first >= startedAt - s_earlyTolerance
+                        && (earliest || first <= startedAt + SessionLogReader.MatchWindow)
+                        && (before is not { } limit || first < limit)
                         && claimed?.Contains(c.SessionId) != true)
+            .OrderBy(c => c.FirstSeen)
             .ToList();
+        if (earliest)
+        {
+            return (candidates.FirstOrDefault(), false);
+        }
+
         return candidates.Count switch
         {
             1 => (candidates[0], false),
@@ -311,7 +327,7 @@ public sealed class ContextUsageReader(SessionLogReader logs, StatusLineContextS
         var (log, path) = ReadLog(query, query.LogPath, []);
         if (log.State != SessionLogState.Measured)
         {
-            return new ContextUsageResult(Unmeasured(log.State, "Codex 로그"), path, null);
+            return new ContextUsageResult(Unmeasured(log.State, "Codex 로그", matched: path is not null), path, null);
         }
 
         var percent = log.CurrentInput is { } input && log.ContextWindow is > 0 and { } window ? input * 100.0 / window : (double?)null;
@@ -321,32 +337,38 @@ public sealed class ContextUsageReader(SessionLogReader logs, StatusLineContextS
 
     private ContextUsageResult ReadClaude(ContextUsageQuery query, ContextBudgetSettings settings, DateTimeOffset now)
     {
-        var id = query.StatusLineId ?? query.Log.ConversationId;
+        // 1. The status line: by session id, else the earliest unclaimed session of this folder that first reported
+        //    after the start. It knows the transcript path before Claude Code writes the file (first message). A session
+        //    whose conversation id is known (DotDeck's own) only ever uses that id's status line and transcript.
+        var knownId = query.Log.ConversationId is not null;
+        var id = query.Log.ConversationId ?? query.StatusLineId;
         var line = statusLines.Read(StatusLineContextStore.Claude, id);
-        var known = query.LogPath ?? (line?.TranscriptPath is { } transcript && File.Exists(transcript) ? transcript : null);
+        if (line is null && id is null && query.LogPath is null)
+        {
+            line = statusLines.Find(StatusLineContextStore.Claude, query.Log.WorkingDirectory, query.Log.StartedAt, query.Claimed,
+                earliest: true, before: query.Log.FirstBefore).Found;
+        }
+
+        // 2. A bound status line supplies the transcript path or its exact id. Only unbound rows match by folder.
+        var known = knownId ? line?.TranscriptPath : line?.TranscriptPath ?? query.LogPath;
+        var boundId = id ?? line?.SessionId;
+        if (boundId is not null)
+        {
+            query = query with { Log = query.Log with { WorkingDirectory = null, ConversationId = boundId } };
+            known = known is not null && Path.IsPathFullyQualified(known) && File.Exists(known) ? known : null;
+        }
+
         var (log, path) = ReadLog(query, known, settings.EffectiveClaudeContextWindows);
 
-        if (line is null && path is not null)
+        if (line is null && path is not null && !knownId
+            && statusLines.FindByTranscript(path) is { } byTranscript && query.Claimed?.Contains(byTranscript.SessionId) != true)
         {
-            line = statusLines.FindByTranscript(path);
+            line = byTranscript;
         }
 
-        if (line is null && path is null && log.State is SessionLogState.NotMatched or SessionLogState.WaitingFirstAnswer)
-        {
-            // Two candidate logs in the folder: the status line knows which conversation this terminal runs.
-            var (found, ambiguous) = statusLines.Find(StatusLineContextStore.Claude, query.Log.WorkingDirectory, query.Log.StartedAt, query.Claimed);
-            line = found;
-            if (found?.TranscriptPath is { } foundTranscript && File.Exists(foundTranscript))
-            {
-                (log, path) = ReadLog(query, foundTranscript, settings.EffectiveClaudeContextWindows);
-            }
-            else if (ambiguous)
-            {
-                log = new SessionLogMeasurement(SessionLogState.NotMatched);
-            }
-        }
+        var matched = boundId is not null || line is not null || path is not null;
 
-        var lineId = line?.SessionId;
+        var lineId = line?.SessionId ?? (knownId ? null : id);
         string? reason = null;
         // Right after /compact Claude Code reports 0 with no usage until the next call: not a value.
         if (line is { Percent: { } percent, Window: { } window } && !(percent == 0 && line.InputTokens is null or 0))
@@ -367,7 +389,7 @@ public sealed class ContextUsageReader(SessionLogReader logs, StatusLineContextS
 
         if (log.State != SessionLogState.Measured)
         {
-            return new ContextUsageResult(Unmeasured(log.State, "Claude 로그"), path, lineId);
+            return new ContextUsageResult(Unmeasured(log.State, "Claude 로그", matched), path, lineId);
         }
 
         if (log.ContextWindow is null && SessionLogReader.WindowFor(log.Model, settings.EffectiveClaudeContextWindows) is { } tableWindow)
@@ -396,10 +418,10 @@ public sealed class ContextUsageReader(SessionLogReader logs, StatusLineContextS
         if (line is null)
         {
             var usage = !statusLines.AgyConnected
-                ? new ContextUsage(SessionLogState.Unreadable, Reason: "agy 사용률 연결 안 됨 (사용량 → \"agy 사용률 연결…\")")
+                ? new ContextUsage(SessionLogState.NotConnected, Reason: "agy 사용률 연결이 설치되지 않음 (사용량 → \"agy 사용률 연결…\")")
                 : ambiguous
                     ? new ContextUsage(SessionLogState.NotMatched, Reason: "같은 폴더의 agy 대화가 여러 개라 매칭 불가")
-                    : new ContextUsage(SessionLogState.WaitingFirstAnswer, Reason: "agy 상태 표시줄 값을 기다리는 중");
+                    : new ContextUsage(SessionLogState.NotMatched, Reason: "이 세션의 agy 상태 표시줄 값을 아직 찾지 못함");
             return new ContextUsageResult(usage, null, query.StatusLineId);
         }
 
@@ -425,6 +447,17 @@ public sealed class ContextUsageReader(SessionLogReader logs, StatusLineContextS
         return match is { State: SessionLogState.Measured, Path: { } path }
             ? (logs.ReadFile(query.Log.Cli, path, windows), path)
             : (new SessionLogMeasurement(match.State), null);
+    }
+
+    /// <summary>No answer yet counts as "첫 응답 후 측정" only once a file is connected; before that it is "매칭 불가".</summary>
+    private static ContextUsage Unmeasured(SessionLogState state, string what, bool matched)
+    {
+        if (state == SessionLogState.WaitingFirstAnswer && !matched)
+        {
+            return new ContextUsage(SessionLogState.NotMatched, Reason: what + "·상태 표시줄 파일을 아직 이 세션과 연결하지 못함");
+        }
+
+        return Unmeasured(state, what);
     }
 
     private static ContextUsage Unmeasured(SessionLogState state, string what) => new(state, Reason: state switch

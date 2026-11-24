@@ -1,5 +1,51 @@
 # 인수인계 — DotDeck
 
+## 현재 상태 (2026-11-24 21:38 KST, 자동 인계 — 요청 c4e32cd51a32871f1cad8cbb)
+
+### 1. 작업 요약
+- 경로 `D:\project\DotDeck`, `main@d051c21`(feat(ai-monitor): 컨텍스트 분석·사용률 표시…). 로컬 main은 upstream보다 2커밋 앞섬(푸시 안 함, fetch 없이 로컬 추적 정보 기준).
+- 목표: AI 모니터 버그 3건 수정 → Codex verify 지적 8건 수정("모두 수정해").
+  - 버그1 Claude 컨텍스트 미표시: 원인 = transcript 미생성(2분 가설 아님) + 30분 상한. 상한 제거, 시작 후 가장 이른·미선점 파일 매칭, 매칭 디버그 로그.
+  - 버그2 agy "종료됨": 원인 = agy 자동 업데이트로 PID 교체. Job 안 같은 CLI 존재 시 실행 중 + 3초 유예(`ProcessGrace`).
+  - 버그3 표시 정리: "첫 응답 후 측정"/"매칭 불가"/"agy 연동 필요", 기본 제공 스킬 회색·제안 제외, 요약 문구, 꺼진 MCP 접기.
+- 완료: 버그 3건 구현 + 테스트(Release 빌드 경고·오류 0, 테스트 1738 중 실패 0 — Codex 지적 수정 **이전** 시점).
+- 진행 중(Codex 지적 수정, 코드 편집 일부 적용·**미빌드**):
+  - 적용됨: P1(대화 ID 알면 폴더 매칭 안 함: `SessionLogBaseline.MatchClaude`, `ContextUsage.ReadClaude` knownId), P2 추적기 경쟁(`ContextUsageTracker`: Held 보류·`FirstBefore`·`TakenByOther` 충돌 재읽기·매칭 후 보류 행 재읽기), P2 상태표시줄만 측정 시 transcript 재시도(Tick 조건), P2 컨텍스트 탭 일치(`AiMonitorItemViewModel.ContextLogPath` + 탭 query LogPath·claimed, 변경 시 재분석), P3 꺼진 MCP 링크(`HasPath` + XAML 트리거), P3 사용자 설정분 소계(`ContextBudgetViewModel.UserTokens`, 기타 = Baseline − 소계).
+  - 미적용: P2 `AiMonitorPaneViewModel.ScanTerminals` 재실행 흡수(:423)와 같은 터미널 동일 CLI 2개(:388).
+- 중단 지점: fix_cx3 적용 직후(빌드 전).
+- 다음 첫 행동: `dotnet build DotDeck.slnx -c Release`로 컴파일 오류 수정(특히 `row.ContextLogPath` 설정, `SamePath` public 변경, `field` 키워드 속성) → ScanTerminals 수정.
+
+### 2. 변경·검증 상태
+- 미커밋 변경 14파일(git status 기준): CHANGELOG.md, docs/FEATURES.md, ShellViewModel.AiSessions.cs, AiMonitorPaneViewModel.cs, ContextBudgetViewModel.cs, ContextUsageTracker.cs, PaneTemplates.xaml, ContextAnalyzer.cs, ContextCollector.cs, ContextModels.cs, ContextUsage.cs, SessionLogBaseline.cs, AiMonitorPaneViewModelTests.cs, ContextUsageTests.cs. 스태시 없음.
+- 검증: Codex verify 보고(P1 1, P2 5, P3 2) 수령. 지적 수정 후 빌드·테스트 **미실행**(자동 인계로 생략).
+- 실제 앱 수동 확인: 미실행.
+
+### 3. 다음 할 일
+1. 빌드 통과 / 위 변경 파일 / 경고·오류 0.
+2. ScanTerminals 재설계 / `AiMonitorPaneViewModel.cs` ScanTerminals, `ProcessInspector.cs`, `ShellViewModel.Terminals.cs`, `App.xaml.cs` / 계획:
+   - `ProcessInspector.ParentId(int)` 추가(NtQueryInformationProcess class 0, InheritedFromUniqueProcessId). AttachTerminals에 선택 인자 `Func<int,int?>? parentOf` 추가(없으면 기존처럼 (터미널,CLI)당 한 그룹).
+   - 같은 CLI 프로세스를 부모 체인으로 루트별 그룹화(부모가 같은 CLI 집합에 있고 시작 시각이 더 이르면 같은 그룹).
+   - 1차: 이전 TerminalProcesses와 겹치는 그룹 → 같은 행. 2차: 못 찾은 행은 `now - LastSeenAlive < ProcessGrace`이고 남은 그룹이 있으면 연결(교체), 유예 지나면 MarkEnded. 남은 그룹 → 새 행.
+   - 완료 기준: 유예 뒤 재실행은 새 행, self-update는 같은 행, 동시 2개는 2행.
+3. 테스트 추가/수정 / ContextUsageTests(대화 ID 있을 때 다른 세션 미선택, FirstBefore, Find before), AiMonitorPaneViewModelTests(재실행 새 행, 동시 2개, 꺼진 MCP 행 HasPath, UserTokens) / 전체 테스트 통과.
+4. CHANGELOG [Unreleased]·docs/FEATURES.md에 Codex 지적 수정 반영.
+5. 사용자 수동 확인 안내: Claude(시작→5분 대기→첫 메시지→% 표시), agy(1분 사용 "실행 중" 유지→/quit 후 3초 내 "종료됨"), Codex % 회귀.
+
+### 4. 결정·주의사항
+- 같은 폴더 Claude 다중 세션은 순서로만 구별: 더 이른 미매칭 행이 있으면 보류(cwd null로 조회), 가장 이른 행은 더 늦은 경쟁 행 시작 전 기록만 매칭(`FirstBefore`). 상태 표시줄 first_seen이 있으면 바로 풀린다.
+- 3초 유예 안의 교체는 같은 행(사용자 요구). `A_cli_restarted_between_scans_gets_a_new_row` 테스트는 `A_launcher_or_self_update_…keeps_the_same_row`로 교체됨.
+- Bash heredoc 안 python에서 `\n`·따옴표가 깨짐 → Write 도구로 스크립트 파일을 만든 뒤 실행.
+- 커밋·푸시는 사용자 요청 시에만. 버전 변경은 release 스킬로만.
+
+### 5. 실행·참고
+- 빌드 `dotnet build DotDeck.slnx -c Release`, 테스트 `dotnet test DotDeck.slnx -c Release --no-build` (필터 예: `--filter "FullyQualifiedName~ContextUsageTests"`).
+- 설계 문서: `docs/FEATURES.md`의 "세션 목록의 컨텍스트 사용률" 절.
+
+### 6. 재개 프롬프트
+> 적용되는 CLAUDE.md와 이 인수인계 문서를 읽어라. 작업 경로·브랜치·HEAD·미커밋 변경을 다시 확인하고, 기록과 다른 부분을 반영한 뒤 ‘다음 첫 행동’(Release 빌드 → 오류 수정 → ScanTerminals 재설계)부터 이어가라. 기존 변경을 보존하고, Codex 지적 8건 수정이라는 승인된 범위에서 진행하라.
+
+---
+
 ## 현재 상태 (2026-11-12 00:38 KST, 자동 인계 — 요청 bc7f448b)
 
 ### 1. 작업 요약

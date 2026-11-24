@@ -537,7 +537,7 @@
                         <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="컨텍스트 항목">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type tools:ContextRowViewModel}">
-                                    <Grid Margin="0,1" ToolTip="{Binding ToolTip}">
+                                    <Grid x:Name="Row" Margin="0,1" ToolTip="{Binding ToolTip}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="46" />
                                             <ColumnDefinition Width="*" />
@@ -546,9 +546,13 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="{Binding CategoryText}" />
-                                        <TextBlock Grid.Column="1" TextTrimming="CharacterEllipsis">
+                                        <TextBlock x:Name="LinkedName" Grid.Column="1" TextTrimming="CharacterEllipsis">
                                             <Hyperlink Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                        CommandParameter="{Binding Path}"><Run Text="{Binding Name, Mode=OneWay}" /></Hyperlink>
+                                            <Run Text="{Binding Detail, Mode=OneWay}" Foreground="{DynamicResource DD.Brush.Text.Secondary}" />
+                                        </TextBlock>
+                                        <TextBlock x:Name="PlainName" Grid.Column="1" TextTrimming="CharacterEllipsis" Visibility="Collapsed">
+                                            <Run Text="{Binding Name, Mode=OneWay}" />
                                             <Run Text="{Binding Detail, Mode=OneWay}" Foreground="{DynamicResource DD.Brush.Text.Secondary}" />
                                         </TextBlock>
                                         <Border Grid.Column="2" Height="8" Margin="4,0" HorizontalAlignment="Left" VerticalAlignment="Center"
@@ -562,6 +566,13 @@
                                     <DataTemplate.Triggers>
                                         <DataTrigger Binding="{Binding Counts}" Value="False">
                                             <Setter TargetName="Tokens" Property="Foreground" Value="{DynamicResource DD.Brush.Text.Secondary}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasPath}" Value="False">
+                                            <Setter TargetName="LinkedName" Property="Visibility" Value="Collapsed" />
+                                            <Setter TargetName="PlainName" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsBuiltIn}" Value="True">
+                                            <Setter TargetName="Row" Property="Opacity" Value="0.55" />
                                         </DataTrigger>
                                     </DataTemplate.Triggers>
                                 </DataTemplate>

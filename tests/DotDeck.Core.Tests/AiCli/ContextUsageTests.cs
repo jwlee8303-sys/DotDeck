@@ -109,8 +109,9 @@ public sealed class ContextUsageTests : IDisposable
         Assert.Equal(ContextUsageLevel.Normal, tokensOnly.Level(s_settings with { UsageWarningPercent = 1 }));
 
         Assert.Equal("첫 응답 후 측정", new ContextUsage(SessionLogState.WaitingFirstAnswer).Text);
-        Assert.Equal("측정 불가", new ContextUsage(SessionLogState.NotMatched).Text);
+        Assert.Equal("매칭 불가", new ContextUsage(SessionLogState.NotMatched).Text);
         Assert.Equal("측정 불가", new ContextUsage(SessionLogState.Unreadable).Text);
+        Assert.Equal("agy 연동 필요", new ContextUsage(SessionLogState.NotConnected).Text);
         Assert.Equal("1M", ContextUsage.WindowText(1_000_000));
 
         // The shown number decides the color; halves round up.
@@ -197,6 +198,50 @@ public sealed class ContextUsageTests : IDisposable
     // ---------------------------------------------------------------- Claude
 
     [Fact]
+    public void Claude_with_a_conversation_id_ignores_another_sessions_status_line_and_transcript()
+    {
+        var started = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var id = Guid.NewGuid().ToString();
+        var other = Guid.NewGuid().ToString();
+        var otherLog = ClaudeLog(other, started.AddSeconds(1), Assistant("other", 80_000));
+        StatusLine("claude", other, otherLog, 40, 200_000, started.AddSeconds(1));
+        var query = new ContextUsageQuery(new SessionLogQuery(CliKind.Claude, @"D:\w", started, id), otherLog, other);
+        var reader = Reader();
+
+        var waiting = reader.Read(query, s_settings, started.AddSeconds(2));
+        Assert.Equal(SessionLogState.WaitingFirstAnswer, waiting.Usage.State);
+        Assert.Null(waiting.LogPath);
+        Assert.Null(waiting.StatusLineId);
+
+        var ownLog = ClaudeLog(id, started.AddSeconds(3), Assistant("own", 20_000));
+        var measured = reader.Read(query, s_settings, started.AddSeconds(4));
+        Assert.Equal(ownLog, measured.LogPath);
+        Assert.Equal("10% (추정)", measured.Usage.Text);
+    }
+
+    [Fact]
+    public void Claude_folder_matching_requires_first_records_strictly_before_the_next_start()
+    {
+        var started = DateTimeOffset.FromUnixTimeMilliseconds(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).AddMinutes(-1);
+        var before = started.AddSeconds(2);
+        var late = Guid.NewGuid().ToString();
+        var lateLog = ClaudeLog(late, before, Assistant("late", 80_000));
+        StatusLine("claude", late, lateLog, 40, 200_000, before);
+        var query = new SessionLogQuery(CliKind.Claude, @"D:\w", started, FirstBefore: before);
+        var logs = new SessionLogReader(Claude, Codex);
+        var store = new StatusLineContextStore(DotDeckHome);
+
+        Assert.Null(logs.Match(query).Path);
+        Assert.Null(store.Find("claude", query.WorkingDirectory, started, null, earliest: true, before: before).Found);
+
+        var early = Guid.NewGuid().ToString();
+        var earlyLog = ClaudeLog(early, before.AddMilliseconds(-1), Assistant("early", 20_000));
+        StatusLine("claude", early, earlyLog, 10, 200_000, before.AddMilliseconds(-1));
+        Assert.Equal(earlyLog, logs.Match(query).Path);
+        Assert.Equal(early, store.Find("claude", query.WorkingDirectory, started, null, earliest: true, before: before).Found?.SessionId);
+    }
+
+    [Fact]
     public void Claude_prefers_the_status_line_value_found_through_the_transcript()
     {
         var started = DateTimeOffset.UtcNow;
@@ -270,11 +315,15 @@ public sealed class ContextUsageTests : IDisposable
         var query = new ContextUsageQuery(new SessionLogQuery(CliKind.Antigravity, @"D:\w", started));
 
         var off = Reader().Read(query, s_settings, DateTimeOffset.UtcNow);
-        Assert.Equal("측정 불가", off.Usage.Text);
-        Assert.Contains("연결 안 됨", off.Usage.ToolTip, StringComparison.Ordinal);
+        Assert.Equal("agy 연동 필요", off.Usage.Text);
+        Assert.Contains("설치되지 않음", off.Usage.ToolTip, StringComparison.Ordinal);
 
         Write(Path.Combine(DotDeckHome, Core.Usage.AgyStatusLineInstaller.FileName), "# script");
-        Assert.Equal("첫 응답 후 측정", Reader().Read(query, s_settings, DateTimeOffset.UtcNow).Usage.Text);
+        Assert.Equal("매칭 불가", Reader().Read(query, s_settings, DateTimeOffset.UtcNow).Usage.Text); // connected, no value for this session yet
+
+        StatusLine("agy", "conv-0", null, null, null, DateTimeOffset.UtcNow);
+        Assert.Equal("첫 응답 후 측정", Reader().Read(query, s_settings, DateTimeOffset.UtcNow).Usage.Text); // matched, no percentage yet
+        File.Delete(Path.Combine(DotDeckHome, "context", "agy-conv-0.json"));
 
         StatusLine("agy", "conv-1", null, 72.4, null, DateTimeOffset.UtcNow);
         var measured = Reader().Read(query, s_settings, DateTimeOffset.UtcNow);
@@ -284,7 +333,7 @@ public sealed class ContextUsageTests : IDisposable
 
         // A second conversation in the same folder: ambiguous unless the other is claimed by another row.
         StatusLine("agy", "conv-2", null, 10, null, DateTimeOffset.UtcNow);
-        Assert.Equal("측정 불가", Reader().Read(query, s_settings, DateTimeOffset.UtcNow).Usage.Text);
+        Assert.Equal("매칭 불가", Reader().Read(query, s_settings, DateTimeOffset.UtcNow).Usage.Text);
         Assert.Equal("10%", Reader().Read(query with { Claimed = new HashSet<string> { "conv-1" } }, s_settings, DateTimeOffset.UtcNow).Usage.Text);
         Assert.Equal("72%", Reader().Read(query with { StatusLineId = "conv-1" }, s_settings, DateTimeOffset.UtcNow).Usage.Text);
     }
@@ -299,13 +348,79 @@ public sealed class ContextUsageTests : IDisposable
         // Another agy in the same folder (outside the monitor) still updating, but it started an hour ago.
         StatusLine("agy", "elsewhere", null, 90, null, DateTimeOffset.UtcNow, firstSeen: started.AddHours(-1));
         var result = Reader().Read(query, s_settings, DateTimeOffset.UtcNow);
-        Assert.Equal("첫 응답 후 측정", result.Usage.Text);
+        Assert.Equal("매칭 불가", result.Usage.Text);
         Assert.Null(result.StatusLineId);
 
         // Same for Claude: no log matched, and the only status line value belongs to an older session.
         var claudeQuery = new ContextUsageQuery(new SessionLogQuery(CliKind.Claude, @"D:\w", started));
         StatusLine("claude", "older", null, 90, 200_000, DateTimeOffset.UtcNow, firstSeen: started.AddHours(-1));
         Assert.Null(Reader().Read(claudeQuery, s_settings, DateTimeOffset.UtcNow).StatusLineId);
+    }
+
+    [Fact]
+    public void Claude_first_message_long_after_the_start_is_matched_through_the_status_line_and_the_folder()
+    {
+        var started = DateTimeOffset.UtcNow.AddHours(-2);
+        var id = Guid.NewGuid().ToString();
+        var transcript = Path.Combine(Claude, "projects", "D--w", id + ".jsonl");
+
+        // Started two hours ago, the status line reported at once; the transcript is not written until the first message.
+        StatusLine("claude", id, transcript, null, 200_000, started.AddSeconds(5), cwd: "d:/W/");
+        var query = new ContextUsageQuery(new SessionLogQuery(CliKind.Claude, @"D:\w", started));
+        var waiting = Reader().Read(query, s_settings, DateTimeOffset.UtcNow);
+        Assert.Equal("첫 응답 후 측정", waiting.Usage.Text);
+        Assert.Equal(id, waiting.StatusLineId);
+        Assert.Null(waiting.LogPath);
+
+        // Another session's transcript in the same folder is not taken while the status line names this one.
+        ClaudeLog(Guid.NewGuid().ToString(), started.AddMinutes(30), Assistant("x", 10_000));
+        Assert.Equal("첫 응답 후 측정", Reader().Read(query with { StatusLineId = id }, s_settings, DateTimeOffset.UtcNow).Usage.Text);
+
+        ClaudeLog(id, DateTimeOffset.UtcNow, Assistant("m1", 50_000));
+        var answered = Reader().Read(query with { StatusLineId = id }, s_settings, DateTimeOffset.UtcNow);
+        Assert.Equal(transcript, answered.LogPath);
+        Assert.Equal("25% (추정)", answered.Usage.Text); // the status line has no percentage yet: log + table
+    }
+
+    [Fact]
+    public void Claude_without_a_status_line_takes_the_earliest_unclaimed_transcript_after_the_start()
+    {
+        var started = DateTimeOffset.UtcNow.AddHours(-2);
+        var query = new ContextUsageQuery(new SessionLogQuery(CliKind.Claude, @"D:\w", started));
+        Assert.Equal("매칭 불가", Reader().Read(query, s_settings, DateTimeOffset.UtcNow).Usage.Text); // nothing written yet
+
+        ClaudeLog(Guid.NewGuid().ToString(), started.AddMinutes(-10), Assistant("old", 90_000)); // before the start
+        var first = ClaudeLog(Guid.NewGuid().ToString(), started.AddMinutes(45), Assistant("a", 20_000));
+        var second = ClaudeLog(Guid.NewGuid().ToString(), started.AddMinutes(50), Assistant("b", 40_000));
+
+        Assert.Equal(first, Reader().Read(query, s_settings, DateTimeOffset.UtcNow).LogPath);
+
+        var other = query with { Log = query.Log with { ClaimedLogs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { first.ToUpperInvariant() } } };
+        var result = Reader().Read(other, s_settings, DateTimeOffset.UtcNow);
+        Assert.Equal(second, result.LogPath);
+        Assert.Equal("20% (추정)", result.Usage.Text);
+    }
+
+    [Fact]
+    public void Built_in_skills_are_listed_but_never_suggested()
+    {
+        var home = _temp.Combine("home");
+        var codex = Path.Combine(home, ".codex");
+        Write(Path.Combine(codex, "skills", ".system", "shipped", "SKILL.md"), "---\nname: shipped\ndescription: " + new string('a', 2000) + "\n---\n");
+        Write(Path.Combine(codex, "skills", "mine", "SKILL.md"), "---\nname: mine\ndescription: " + new string('b', 2000) + "\n---\n");
+
+        var collection = new ContextCollector(home, codex).Collect(CliKind.Codex, null);
+        var shipped = Assert.Single(collection.Items, i => i.Name == "shipped");
+        var mine = Assert.Single(collection.Items, i => i.Name == "mine");
+        Assert.True(shipped.BuiltIn);
+        Assert.Equal("기본 제공", shipped.Detail);
+        Assert.False(mine.BuiltIn);
+
+        var report = ContextAnalyzer.Build(CliKind.Codex, null, collection, null, null, s_settings, DateTimeOffset.UtcNow);
+        Assert.Contains(report.Items, i => i.Name == "shipped"); // listed (and counted)
+        Assert.Contains(report.Suggestions, s => s.Path == mine.Path);
+        Assert.DoesNotContain(report.Suggestions, s => s.Path == shipped.Path);
+        Assert.Contains(report.Suggestions, s => s.Text.Contains("긴 항목 1개", StringComparison.Ordinal));
     }
 
     [Fact]

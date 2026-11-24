@@ -21,6 +21,9 @@ public enum SessionLogState
 
     /// <summary>The CLI has no supported log (agy).</summary>
     Unsupported,
+
+    /// <summary>The source needs a connection that is not installed (agy status line: "agy 연동 필요").</summary>
+    NotConnected,
 }
 
 /// <summary>
@@ -49,9 +52,18 @@ public sealed record ModelWindowRule(string Match, int Tokens);
 
 /// <summary>
 /// Which session to look for: CLI, working folder, start time, the session id when known (DotDeck Claude sessions,
-/// Claude's status line) and the log path when the status line reported it.
+/// Claude's status line) and the log path when the status line reported it. <paramref name="ClaimedLogs"/> are log
+/// files other sessions already use (never matched by folder again). <paramref name="FirstBefore"/>: a later session
+/// in the same folder is still unmatched, so only files first written before it started can be this one's.
 /// </summary>
-public sealed record SessionLogQuery(CliKind Cli, string? WorkingDirectory, DateTimeOffset StartedAt, string? ConversationId = null, string? LogPath = null);
+public sealed record SessionLogQuery(
+    CliKind Cli,
+    string? WorkingDirectory,
+    DateTimeOffset StartedAt,
+    string? ConversationId = null,
+    string? LogPath = null,
+    IReadOnlySet<string>? ClaimedLogs = null,
+    DateTimeOffset? FirstBefore = null);
 
 /// <summary>A matched log file, or why there is none.</summary>
 public sealed record SessionLogMatch(SessionLogState State, string? Path = null);
@@ -100,7 +112,9 @@ public sealed class SessionLogReader(string claudeHome, string codexHome)
         ArgumentNullException.ThrowIfNull(query);
         try
         {
-            if (query.LogPath is { } known && Path.IsPathFullyQualified(known) && File.Exists(known))
+            if (query.LogPath is { } known && Path.IsPathFullyQualified(known) && File.Exists(known)
+                && (query.Cli != CliKind.Claude || query.ConversationId is null
+                    || string.Equals(Path.GetFileNameWithoutExtension(known), query.ConversationId, StringComparison.OrdinalIgnoreCase)))
             {
                 return new SessionLogMatch(SessionLogState.Measured, known);
             }
@@ -274,11 +288,19 @@ public sealed class SessionLogReader(string claudeHome, string codexHome)
             return new SessionLogMatch(SessionLogState.WaitingFirstAnswer); // no log written yet
         }
 
-        if (query.ConversationId is { } id && Guid.TryParse(id, out _)
-            && Directory.EnumerateFiles(projects, id + ".jsonl", new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = 1 })
-                .FirstOrDefault() is { } byId)
+        if (query.ConversationId is { } id)
         {
-            return new SessionLogMatch(SessionLogState.Measured, byId);
+            if (!Guid.TryParse(id, out var conversation))
+            {
+                return new SessionLogMatch(SessionLogState.NotMatched);
+            }
+
+            // The session is known: its own transcript or nothing yet (never another one of the folder).
+            return Directory.EnumerateFiles(projects, conversation.ToString("D") + ".jsonl",
+                    new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = 1 })
+                .FirstOrDefault() is { } byId
+                ? new SessionLogMatch(SessionLogState.Measured, byId)
+                : new SessionLogMatch(SessionLogState.WaitingFirstAnswer);
         }
 
         if (query.WorkingDirectory is not { } cwd)
@@ -292,27 +314,29 @@ public sealed class SessionLogReader(string claudeHome, string codexHome)
             return new SessionLogMatch(SessionLogState.WaitingFirstAnswer);
         }
 
-        var candidates = new List<string>();
+        // Claude Code writes the transcript only with the first message, which may come long after the start: no upper
+        // bound. Of the transcripts first written after the start that no other session uses, the earliest is this one.
+        string? best = null;
+        var bestFirst = DateTimeOffset.MaxValue;
         foreach (var path in Directory.EnumerateFiles(dir, "*.jsonl"))
         {
-            if (File.GetLastWriteTimeUtc(path) < query.StartedAt.UtcDateTime - s_earlyTolerance)
+            if (File.GetLastWriteTimeUtc(path) < query.StartedAt.UtcDateTime - s_earlyTolerance
+                || query.ClaimedLogs?.Any(claimed => SamePath(claimed, path)) == true)
             {
                 continue;
             }
 
-            if (ClaudeFirstTimestamp(path) is { } first
-                && first >= query.StartedAt - s_earlyTolerance && first <= query.StartedAt + MatchWindow)
+            if (ClaudeFirstTimestamp(path) is { } first && first >= query.StartedAt - s_earlyTolerance && first < bestFirst
+                && (query.FirstBefore is not { } before || first < before))
             {
-                candidates.Add(path);
+                best = path;
+                bestFirst = first;
             }
         }
 
-        return candidates.Count switch
-        {
-            1 => new SessionLogMatch(SessionLogState.Measured, candidates[0]),
-            0 => new SessionLogMatch(SessionLogState.WaitingFirstAnswer),
-            _ => new SessionLogMatch(SessionLogState.NotMatched),
-        };
+        return best is not null
+            ? new SessionLogMatch(SessionLogState.Measured, best)
+            : new SessionLogMatch(SessionLogState.WaitingFirstAnswer);
     }
 
     /// <summary>Claude Code's folder name for a working directory: every character other than a letter or digit becomes '-'.</summary>
@@ -693,6 +717,7 @@ public sealed class SessionLogReader(string claudeHome, string codexHome)
         return text.ToString();
     }
 
-    internal static bool SamePath(string a, string b) =>
+    /// <summary>Same file or folder, ignoring case, slash direction and a trailing separator.</summary>
+    public static bool SamePath(string a, string b) =>
         string.Equals(Path.TrimEndingDirectorySeparator(a.Replace('/', '\\')), Path.TrimEndingDirectorySeparator(b.Replace('/', '\\')), StringComparison.OrdinalIgnoreCase);
 }

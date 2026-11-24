@@ -2,6 +2,7 @@ using System.IO;
 using DotDeck.Core.AiCli.ContextBudget;
 using DotDeck.Core.AiCli.Launch;
 using DotDeck.Core.Files;
+using DotDeck.Core.Logging;
 
 namespace DotDeck.App.ViewModels.Tools;
 
@@ -23,13 +24,16 @@ public sealed class ContextUsageTracker : IDisposable
     private readonly string? _statusLineDir;
     private readonly TimeProvider _time;
     private readonly SynchronizationContext? _ui;
+    private readonly IAppLog? _log;
     private readonly Dictionary<AiMonitorItemViewModel, Entry> _entries = [];
     private FileSystemWatcher? _statusLines;
     private bool _disposed;
 
     /// <param name="statusLineDir">Folder of the status line values (<see cref="StatusLineContextStore.Directory"/>), watched when it exists.</param>
-    public ContextUsageTracker(ContextUsageReader reader, Func<ContextBudgetSettings> loadSettings, string? statusLineDir, TimeProvider? time = null)
+    /// <param name="log">Debug lines whenever a row's match or state changes (which step matched, or why not).</param>
+    public ContextUsageTracker(ContextUsageReader reader, Func<ContextBudgetSettings> loadSettings, string? statusLineDir, TimeProvider? time = null, IAppLog? log = null)
     {
+        _log = log;
         _reader = reader ?? throw new ArgumentNullException(nameof(reader));
         _loadSettings = loadSettings ?? throw new ArgumentNullException(nameof(loadSettings));
         _statusLineDir = statusLineDir;
@@ -55,9 +59,15 @@ public sealed class ContextUsageTracker : IDisposable
 
         public bool ReadAgain { get; set; }
 
+        /// <summary>Waiting for an older session of the same folder to be matched first (Claude, by folder).</summary>
+        public bool Held { get; set; }
+
         public bool Finished { get; set; }
 
         public DateTimeOffset LastRead { get; set; }
+
+        /// <summary>What was last logged (state, source, log, status line): logged again only when it changes.</summary>
+        public string? Logged { get; set; }
 
         public bool Matched => LogPath is not null || StatusLineId is not null;
 
@@ -81,12 +91,14 @@ public sealed class ContextUsageTracker : IDisposable
             return;
         }
 
+        var toRead = new List<Entry>();
         foreach (var row in rows)
         {
             if (!_entries.TryGetValue(row, out var entry))
             {
                 entry = new Entry(row);
                 _entries[row] = entry;
+                row.ContextTracked = true;
                 if (row.IsRunning)
                 {
                     entry.Debouncer = new Debouncer(Debounce, Debounce + Debounce, () => Post(() => Read(entry)));
@@ -96,14 +108,19 @@ public sealed class ContextUsageTracker : IDisposable
                     entry.Finished = true; // listed after it ended: read once, never watched
                 }
 
-                Read(entry);
+                toRead.Add(entry);
             }
             else if (!row.IsRunning && !entry.Finished)
             {
                 entry.Finished = true;
                 entry.StopWatching();
-                Read(entry); // the last answer may have been written within the debounce
+                toRead.Add(entry); // the last answer may have been written within the debounce
             }
+        }
+
+        foreach (var entry in toRead)
+        {
+            Read(entry);
         }
 
         WatchStatusLines();
@@ -115,8 +132,11 @@ public sealed class ContextUsageTracker : IDisposable
         var now = _time.GetUtcNow();
         foreach (var entry in _entries.Values)
         {
+            // Claude measured from its status line alone keeps looking for the transcript (the fallback when the
+            // status line stops updating).
             if (!entry.Finished && !entry.Reading && now - entry.LastRead >= RetryInterval
-                && (!entry.Matched || entry.Row.ContextUsage?.State != SessionLogState.Measured))
+                && (!entry.Matched || entry.Row.ContextUsage?.State != SessionLogState.Measured
+                    || (entry.Row.Cli == CliKind.Claude && entry.LogPath is null)))
             {
                 Read(entry);
             }
@@ -150,9 +170,18 @@ public sealed class ContextUsageTracker : IDisposable
         entry.Reading = true;
         entry.LastRead = _time.GetUtcNow();
         var row = entry.Row;
-        var claimed = _entries.Values.Where(e => e != entry && e.StatusLineId is not null).Select(e => e.StatusLineId!).ToHashSet(StringComparer.Ordinal);
+        var others = _entries.Values.Where(e => e != entry).ToList();
+        var claimed = others.Where(e => e.Row.Cli == row.Cli)
+            .SelectMany(e => new[] { e.StatusLineId, e.Row.Cli == CliKind.Claude ? e.Row.Session?.ConversationId : null })
+            .OfType<string>().ToHashSet(StringComparer.Ordinal);
+        var claimedLogs = others.Select(e => e.LogPath).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var folder = ContextBudgetViewModel.WorkingDirectory(row);
+        var matchWindow = FolderMatchWindow(entry, folder);
+        entry.Held = matchWindow.Held;
+
         var query = new ContextUsageQuery(
-            new SessionLogQuery(row.Cli, ContextBudgetViewModel.WorkingDirectory(row), row.StartedAt, row.Session?.ConversationId),
+            new SessionLogQuery(row.Cli, entry.Held || (row.Cli == CliKind.Claude && entry.Finished) ? null : folder, row.StartedAt, row.Session?.ConversationId,
+                ClaimedLogs: claimedLogs, FirstBefore: matchWindow.Before),
             entry.LogPath, entry.StatusLineId, claimed);
         var now = _time.GetUtcNow();
         _ = Task.Run(() =>
@@ -167,15 +196,26 @@ public sealed class ContextUsageTracker : IDisposable
                 return;
             }
 
+            var wasMatched = entry.Matched;
             if (task.IsCompletedSuccessfully)
             {
                 var (result, settings) = task.Result;
-                entry.LogPath = result.LogPath;
-                entry.StatusLineId = result.StatusLineId ?? entry.StatusLineId;
-                row.ShowContext(result.Usage, settings);
-                if (!entry.Finished)
+                if (matchWindow != FolderMatchWindow(entry, folder))
                 {
-                    WatchLog(entry);
+                    // The set of rivals changed while the read ran. Recompute before accepting a folder match.
+                    entry.ReadAgain = true;
+                }
+                else if (!TakenByOther(entry, result))
+                {
+                    entry.LogPath = result.LogPath;
+                    entry.StatusLineId = result.StatusLineId;
+                    row.ShowContext(entry.Held ? Held(result.Usage) : result.Usage, settings);
+                    row.ContextLogPath = entry.LogPath;
+                    LogChange(entry, query, result);
+                    if (!entry.Finished)
+                    {
+                        WatchLog(entry);
+                    }
                 }
             }
 
@@ -183,6 +223,15 @@ public sealed class ContextUsageTracker : IDisposable
             {
                 entry.ReadAgain = false;
                 Read(entry);
+            }
+
+            if (!wasMatched && entry.Matched)
+            {
+                // A younger session of the same folder may have been waiting for this one.
+                foreach (var held in _entries.Values.Where(e => e.Held && !e.Reading && !e.Finished).ToList())
+                {
+                    Read(held);
+                }
             }
         }), TaskScheduler.Default);
     }
@@ -282,6 +331,62 @@ public sealed class ContextUsageTracker : IDisposable
                 }
             }
         });
+    }
+
+    private (bool Held, DateTimeOffset? Before) FolderMatchWindow(Entry entry, string? folder)
+    {
+        var row = entry.Row;
+        if (entry.Matched || entry.Finished || row.Cli != CliKind.Claude || row.Session?.ConversationId is not null || folder is null)
+        {
+            return default;
+        }
+
+        // First records after a younger rival started could belong to either terminal.
+        var rivals = _entries.Values.Where(e => e != entry && !e.Matched && !e.Finished && e.Row.Cli == CliKind.Claude
+                                                && e.Row.Session?.ConversationId is null
+                                                && ContextBudgetViewModel.WorkingDirectory(e.Row) is { } other && SessionLogReader.SamePath(other, folder)).ToList();
+        return (rivals.Any(e => e.Row.StartedAt <= row.StartedAt),
+            rivals.Where(e => e.Row.StartedAt > row.StartedAt).Min(e => (DateTimeOffset?)e.Row.StartedAt));
+    }
+
+    private bool TakenByOther(Entry entry, ContextUsageResult result)
+    {
+        // A resumed DotDeck session is entitled to reuse the preceding row's exact transcript and status line.
+        if (entry.Row.Cli != CliKind.Claude)
+        {
+            return result.StatusLineId is { } id && _entries.Values.Any(e => e != entry && e.Row.Cli == entry.Row.Cli && e.StatusLineId == id);
+        }
+
+        if (entry.Row.Session?.ConversationId is not null)
+        {
+            return false;
+        }
+
+        var logId = Path.GetFileNameWithoutExtension(result.LogPath);
+        return _entries.Values.Any(e => e != entry && e.Row.Cli == CliKind.Claude
+            && ((result.LogPath is not null && e.LogPath is not null && SessionLogReader.SamePath(e.LogPath, result.LogPath))
+                || (result.StatusLineId is not null && result.StatusLineId == e.StatusLineId)
+                || (logId is not null && string.Equals(logId, e.Row.Session?.ConversationId, StringComparison.OrdinalIgnoreCase))));
+    }
+
+    private static ContextUsage Held(ContextUsage usage) => usage.State == SessionLogState.Measured
+        ? usage
+        : usage with { Reason = "같은 폴더에서 먼저 시작한 Claude 세션이 매칭될 때까지 보류 (순서로만 구별 가능)" };
+
+    private void LogChange(Entry entry, ContextUsageQuery query, ContextUsageResult result)
+    {
+        var usage = result.Usage;
+        var summary = $"{usage.State}|{usage.Source}|{result.LogPath}|{result.StatusLineId}";
+        if (_log is null || summary == entry.Logged)
+        {
+            return;
+        }
+
+        entry.Logged = summary;
+        var reason = usage.Reason?.Replace('\n', ' ');
+        _log.Debug($"컨텍스트 매칭: {entry.Row.Title} ({query.Log.Cli}, 시작 {query.Log.StartedAt.ToLocalTime():HH:mm:ss}, 폴더 {query.Log.WorkingDirectory ?? "(모름)"}, 세션 ID {query.Log.ConversationId ?? "-"}) → "
+                   + $"{usage.State}/{usage.Source} \"{usage.Text}\" · 로그 {result.LogPath ?? "없음"} · 상태 표시줄 {result.StatusLineId ?? "없음"}"
+                   + (reason is { Length: > 0 } ? " · " + reason : string.Empty));
     }
 
     private void Post(Action action)

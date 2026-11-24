@@ -118,14 +118,14 @@ public static class ContextAnalyzer
             }
         }
 
-        foreach (var file in report.Items.Where(i => i.Category == ContextCategory.Instructions && i.Counts && i.Tokens > settings.InstructionFileTokens))
+        foreach (var file in report.Items.Where(i => i.Category == ContextCategory.Instructions && i.Counts && !i.BuiltIn && i.Tokens > settings.InstructionFileTokens))
         {
             result.Add(new ContextSuggestion(
                 $"{file.Name} {file.Tokens:N0} 토큰 → {settings.InstructionFileTokens:N0} 이하 권장, 세부 내용은 별도 문서로 분리", file.Path));
         }
 
         var longDescriptions = report.Items
-            .Where(i => i.Category is ContextCategory.Skills or ContextCategory.Agents && i.Counts && i.Tokens > settings.DescriptionTokens)
+            .Where(i => i.Category is ContextCategory.Skills or ContextCategory.Agents && i.Counts && !i.BuiltIn && i.Tokens > settings.DescriptionTokens)
             .OrderByDescending(i => i.Tokens)
             .ToList();
         if (longDescriptions.Count > 0)

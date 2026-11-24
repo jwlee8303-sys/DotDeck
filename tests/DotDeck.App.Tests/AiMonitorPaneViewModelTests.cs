@@ -4,6 +4,7 @@ using System.IO.Pipes;
 using System.Text;
 using DotDeck.App.Infrastructure.Windows;
 using DotDeck.App.ViewModels.Tools;
+using DotDeck.Core.AiCli.ContextBudget;
 using DotDeck.Core.AiCli.Launch;
 using DotDeck.Core.AiCli.Sessions;
 using DotDeck.Core.Files;
@@ -288,6 +289,9 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
 
         process.Ids = [1];
         pane.Tick();
+        Assert.True(item.IsRunning); // within the grace period
+        _time.Advance(AiMonitorPaneViewModel.ProcessGrace);
+        pane.Tick();
         Assert.False(item.IsRunning);
     }
 
@@ -322,6 +326,7 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
         Assert.Empty(_opened);
 
         process.Ids = [1];
+        _time.Advance(AiMonitorPaneViewModel.ProcessGrace);
         pane.Tick();
         Assert.False(item.IsRunning);
         Assert.Equal("종료됨", item.ActivityText);
@@ -351,6 +356,7 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
         using var server = System.Diagnostics.Process.Start(start)!;
         try
         {
+            Assert.Equal(Environment.ProcessId, ProcessInspector.ParentId(server.Id));
             var process = new TerminalProcess { Ids = [server.Id] };
             using var connection = new TerminalConnection(process, TerminalSize.Default);
             var terminal = new TerminalPaneViewModel("t1", "PS", connection, _ => { }, ui: null);
@@ -370,6 +376,7 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
             Assert.True(codex.IsRunning);
 
             process.Ids = [3, server.Id];
+            _time.Advance(AiMonitorPaneViewModel.ProcessGrace);
             pane.Tick();
 
             Assert.False(server.HasExited);
@@ -387,28 +394,103 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
         }
     }
 
-    [Theory]
-    [InlineData(2)] // PID reused
-    [InlineData(3)] // different PID
-    public void A_cli_restarted_between_scans_gets_a_new_row(int nextId)
+    [Fact]
+    public void A_launcher_or_self_update_that_replaces_the_process_keeps_the_same_row()
     {
-        var process = new TerminalProcess { Ids = [2] };
+        // agy updating itself: the first agy.exe starts the new one and exits; a gap between scans is bridged too.
+        var process = new TerminalProcess { Ids = [1, 2] };
+        using var connection = new TerminalConnection(process, TerminalSize.Default);
+        var terminal = new TerminalPaneViewModel("t1", "PS", connection, _ => { }, ui: null);
+        var names = new Dictionary<int, string> { [1] = "powershell", [2] = "agy", [3] = "agy" };
+        var pane = Pane();
+        var initial = _time.GetUtcNow();
+        pane.AttachTerminals(() => [terminal], id => names.TryGetValue(id, out var n) ? (n, id == 3 ? initial.AddSeconds(16) : initial) : null,
+            _ => { }, parentOf: id => id == 1 ? null : 1);
+        var item = Assert.Single(pane.Sessions);
+
+        for (var second = 0; second < 14; second++) // scanned every second while in use
+        {
+            _time.Advance(TimeSpan.FromSeconds(1));
+            pane.Tick();
+        }
+
+        process.Ids = [1]; // the old one ended, the new one not started yet
+        _time.Advance(TimeSpan.FromSeconds(1));
+        pane.Tick();
+        _time.Advance(TimeSpan.FromSeconds(1));
+        process.Ids = [1, 3];
+        pane.Tick();
+
+        Assert.Same(item, Assert.Single(pane.Sessions));
+        Assert.True(item.IsRunning);
+        Assert.Equal([3], item.TerminalProcesses!.Select(p => p.Id));
+
+        for (var second = 0; second < 60; second++)
+        {
+            _time.Advance(TimeSpan.FromSeconds(1));
+            pane.Tick();
+        }
+
+        Assert.True(item.IsRunning); // still in use
+
+        process.Ids = [1]; // /quit
+        pane.Tick();
+        _time.Advance(AiMonitorPaneViewModel.ProcessGrace);
+        pane.Tick();
+        Assert.False(item.IsRunning);
+        Assert.Equal("종료됨", item.ActivityText);
+    }
+
+    [Theory]
+    [InlineData("claude")]
+    [InlineData("codex")]
+    [InlineData("agy")]
+    public void The_same_cli_relaunched_at_the_grace_boundary_gets_a_new_row(string cli)
+    {
+        var process = new TerminalProcess { Ids = [1, 2] };
         using var connection = new TerminalConnection(process, TerminalSize.Default);
         var terminal = new TerminalPaneViewModel("t1", "PS", connection, _ => { }, ui: null);
         var pane = Pane();
         var started = _time.GetUtcNow();
-        pane.AttachTerminals(() => [terminal], _ => ("codex", started), _ => { });
-        var previous = Assert.Single(pane.Sessions);
+        var restarted = started + AiMonitorPaneViewModel.ProcessGrace;
+        pane.AttachTerminals(() => [terminal], id => id == 1 ? null : (cli, id == 2 ? started : restarted),
+            _ => { }, parentOf: id => id == 1 ? null : 1);
+        var old = Assert.Single(pane.Sessions);
 
-        _time.Advance(TimeSpan.FromMilliseconds(200));
-        started = _time.GetUtcNow();
-        process.Ids = [nextId];
+        process.Ids = [1];
+        _time.Advance(TimeSpan.FromSeconds(2));
         pane.Tick();
+        Assert.True(old.IsRunning);
 
-        Assert.False(previous.IsRunning);
-        var current = Assert.Single(pane.Sessions, item => item.IsRunning);
-        Assert.NotSame(previous, current);
-        Assert.Equal(started, current.StartedAt);
+        process.Ids = [1, 3];
+        _time.Advance(TimeSpan.FromSeconds(1));
+        pane.Tick();
+        Assert.False(old.IsRunning);
+        var fresh = Assert.Single(pane.Sessions, row => row.IsRunning);
+        Assert.NotSame(old, fresh);
+        Assert.Equal(restarted, fresh.StartedAt);
+    }
+
+    [Fact]
+    public void Two_identical_clis_in_one_terminal_have_independent_rows_and_helpers()
+    {
+        var process = new TerminalProcess { Ids = [1, 2, 3, 4, 5] };
+        using var connection = new TerminalConnection(process, TerminalSize.Default);
+        var terminal = new TerminalPaneViewModel("t1", "PS", connection, _ => { }, ui: null);
+        var pane = Pane();
+        var started = _time.GetUtcNow().AddSeconds(-10);
+        pane.AttachTerminals(() => [terminal], id => id is 2 or 4 or 5 ? ("claude", started.AddSeconds(id)) : null,
+            _ => { }, parentOf: id => id switch { 1 => null, 4 => 3, 3 => 2, _ => 1 });
+        Assert.Equal(2, pane.Sessions.Count);
+        var first = Assert.Single(pane.Sessions, row => row.TerminalProcesses!.Any(p => p.Id == 2));
+        var second = Assert.Single(pane.Sessions, row => row.TerminalProcesses!.Any(p => p.Id == 5));
+        Assert.Equal([2, 4], first.TerminalProcesses!.Select(p => p.Id).Order());
+
+        process.Ids = [1, 5];
+        _time.Advance(AiMonitorPaneViewModel.ProcessGrace);
+        pane.Tick();
+        Assert.False(first.IsRunning);
+        Assert.Same(second, Assert.Single(pane.Sessions, row => row.IsRunning));
     }
 
     [Fact]
@@ -501,7 +583,9 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
         Assert.Contains(context.Rows, r => r.Name == "proj/CLAUDE.md" && r.TokensText == "500");
         Assert.Contains(context.Suggestions, s => s.Text.Contains("100 이하 권장", StringComparison.Ordinal));
         Assert.Contains("파일 추정", context.SummaryText, StringComparison.Ordinal);
-        Assert.Contains("첫 응답 후 측정", context.BreakdownText, StringComparison.Ordinal);
+        Assert.StartsWith("사용자 설정분 약 ", context.SummaryText, StringComparison.Ordinal);
+        Assert.Contains("전체 기본 소모는 첫 응답 후 측정", context.SummaryText, StringComparison.Ordinal);
+        Assert.Empty(context.BreakdownText);
         var docs = Assert.Single(context.Rows, r => r.Name == "docs MCP");
         Assert.True(docs.CanMeasure);
 
@@ -530,6 +614,132 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Disabled_mcp_servers_share_a_row_with_no_open_or_measure_action()
+    {
+        var home = Path.Combine(_temp, "home");
+        Directory.CreateDirectory(home);
+        var root = Path.Combine(_temp, "proj").Replace('\\', '/');
+        File.WriteAllText(Path.Combine(home, ".claude.json"), $$"""
+            {
+              "mcpServers": { "first": { "command": "node" }, "second": { "command": "node" } },
+              "projects": { "{{root}}": { "disabledMcpServers": ["first", "second"] } }
+            }
+            """);
+        var (pane, _, confirms) = ContextPane(directMeasure: true);
+
+        Start();
+        pane.SelectedSession = pane.Sessions[0];
+        await Eventually(() => pane.Context!.Report is not null && !pane.Context.IsBusy);
+
+        var row = Assert.Single(pane.Context!.Rows, r => r.Item.Category == ContextCategory.Mcp);
+        Assert.Equal("꺼진 MCP 2개", row.Name);
+        Assert.Null(row.Path);
+        Assert.False(row.HasPath);
+        Assert.False(row.CanMeasure);
+        await pane.Context.MeasureAllCommand.ExecuteAsync(null);
+        Assert.Empty(confirms);
+    }
+
+    [Fact]
+    public void User_tokens_exclude_builtin_skills_and_measured_mcp()
+    {
+        var report = new ContextReport(CliKind.Claude, null,
+            [
+                new(ContextCategory.Instructions, "Instructions", null, 100),
+                new(ContextCategory.Skills, "Skill", null, 200),
+                new(ContextCategory.Agents, "Agent", null, 300),
+                new(ContextCategory.Skills, "Built-in skill", null, 400, BuiltIn: true),
+                new(ContextCategory.Mcp, "Measured MCP", null, 500),
+                new(ContextCategory.Mcp, "Disabled MCP", null, 0, ContextItemState.Disabled),
+            ], [], [], _time.GetUtcNow());
+
+        Assert.Equal(1_500, report.Total);
+        Assert.Equal(600, ContextBudgetViewModel.UserTokens(report));
+    }
+
+    [Fact]
+    public async Task A_status_line_only_row_retries_and_the_context_tab_uses_the_new_transcript()
+    {
+        var home = Path.Combine(_temp, "home");
+        var (pane, _, _) = ContextPane(directMeasure: false);
+        var logs = new SessionLogReader(Path.Combine(home, ".claude"), Path.Combine(home, ".codex"));
+        var statusLines = new StatusLineContextStore(Path.Combine(home, ".dotdeck"));
+        using var tracker = new ContextUsageTracker(new ContextUsageReader(logs, statusLines), () => new ContextBudgetSettings(),
+            statusLines.Directory, _time);
+        pane.AttachContextUsage(tracker);
+
+        var session = Start();
+        var row = Assert.Single(pane.Sessions);
+        pane.SelectedSession = row;
+        await Eventually(() => row.ContextUsage?.State == SessionLogState.WaitingFirstAnswer);
+        var folder = Path.Combine(home, ".claude", "projects", SessionLogReader.ClaudeProjectFolder(session.Scope.Primary.Root));
+        var logPath = Path.Combine(folder, session.ConversationId + ".jsonl");
+        Directory.CreateDirectory(statusLines.Directory);
+        File.WriteAllText(Path.Combine(statusLines.Directory, $"claude-{session.ConversationId}.json"),
+            System.Text.Json.JsonSerializer.Serialize(new
+            {
+                session_id = session.ConversationId,
+                transcript_path = logPath,
+                measured_at = _time.GetUtcNow().AddMinutes(-6).ToUnixTimeMilliseconds(),
+                context_window_size = 200_000,
+                used_percentage = 10,
+            }));
+        _time.Advance(ContextUsageTracker.RetryInterval);
+        pane.Tick();
+        await Eventually(() => row.ContextUsage?.Source == ContextUsageSource.ClaudeStatusLine);
+        Assert.Null(row.ContextLogPath);
+
+        Directory.CreateDirectory(folder);
+        File.WriteAllLines(logPath,
+        [
+            """{"type":"user","message":{"content":"hi"}}""",
+            """{"type":"assistant","message":{"id":"m1","model":"claude-opus-5-5","usage":{"input_tokens":40000}}}""",
+        ]);
+        _time.Advance(ContextUsageTracker.RetryInterval);
+        pane.Tick();
+        await Eventually(() => row.ContextUsage?.Source == ContextUsageSource.ClaudeLog
+            && pane.Context?.Report?.Log?.LogPath == logPath);
+        Assert.Equal("컨텍스트 20% (추정)", row.ContextText);
+        Assert.Equal(logPath, row.ContextLogPath);
+    }
+
+    [Fact]
+    public async Task Same_folder_terminal_rows_wait_when_the_only_transcript_could_belong_to_either()
+    {
+        var home = Path.Combine(_temp, "home");
+        var root = Path.Combine(_temp, "proj");
+        var process = new TerminalProcess { Ids = [1, 2, 3] };
+        using var connection = new TerminalConnection(process, TerminalSize.Default, root);
+        var terminal = new TerminalPaneViewModel("t1", "PS", connection, _ => { }, ui: null);
+        var pane = Pane();
+        var started = _time.GetUtcNow().AddMinutes(-1);
+        pane.AttachTerminals(() => [terminal], id => id == 1 ? null : ("claude", started.AddSeconds(id)),
+            _ => { }, parentOf: id => id == 1 ? null : 1);
+        Assert.Equal(2, pane.Sessions.Count);
+
+        var folder = Path.Combine(home, ".claude", "projects", SessionLogReader.ClaudeProjectFolder(root));
+        Directory.CreateDirectory(folder);
+        var timestamp = started.AddSeconds(4);
+        File.WriteAllLines(Path.Combine(folder, Guid.NewGuid() + ".jsonl"),
+        [
+            $$$"""{"type":"user","timestamp":"{{{timestamp:O}}}","message":{"content":"hi"}}""",
+            """{"type":"assistant","message":{"id":"m1","model":"claude-opus-5-5","usage":{"input_tokens":40000}}}""",
+        ]);
+        var logs = new SessionLogReader(Path.Combine(home, ".claude"), Path.Combine(home, ".codex"));
+        var statusLines = new StatusLineContextStore(Path.Combine(home, ".dotdeck"));
+        using var tracker = new ContextUsageTracker(new ContextUsageReader(logs, statusLines), () => new ContextBudgetSettings(),
+            statusLines.Directory, _time);
+        pane.AttachContextUsage(tracker);
+
+        await Eventually(() => pane.Sessions.All(row => row.ContextUsage is not null));
+        Assert.All(pane.Sessions, row =>
+        {
+            Assert.Equal(SessionLogState.NotMatched, row.ContextUsage!.State);
+            Assert.Null(row.ContextLogPath);
+        });
+    }
+
+    [Fact]
     public async Task Every_row_shows_its_context_usage_updated_from_the_watched_log_and_kept_after_the_end()
     {
         var home = Path.Combine(_temp, "home");
@@ -542,14 +752,14 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
 
         var session = Start();
         var item = Assert.Single(pane.Sessions);
-        await Eventually(() => item.ContextText == "컨텍스트 첫 응답 후 측정");
+        await Eventually(() => item.ContextText == "컨텍스트 첫 응답 후 측정"); // session id is known before its transcript is written
 
         static string Answer(string id, int read) =>
             "{\"type\":\"assistant\",\"message\":{\"id\":\"" + id + "\",\"model\":\"claude-opus-5-5\",\"usage\":{\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":" + read.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}}}\n";
         var folder = Path.Combine(home, ".claude", "projects",
             DotDeck.Core.AiCli.ContextBudget.SessionLogReader.ClaudeProjectFolder(session.Scope.Primary.Root));
         Directory.CreateDirectory(folder);
-        var log = Path.Combine(folder, Guid.NewGuid() + ".jsonl");
+        var log = Path.Combine(folder, session.ConversationId + ".jsonl");
         File.WriteAllText(log, $$$"""{"type":"user","timestamp":"{{{session.StartedAt.UtcDateTime:O}}}","message":{"content":"hi"}}""" + "\n" + Answer("m1", 40_000));
 
         // Not matched yet: retried by the monitor's tick.

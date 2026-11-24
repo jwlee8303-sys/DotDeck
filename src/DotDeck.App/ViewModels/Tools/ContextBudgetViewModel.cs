@@ -72,15 +72,11 @@ public sealed partial class ContextBudgetViewModel : ObservableObject, IDisposab
     /// <summary>"고급 → MCP 직접 측정" is on: [측정] buttons are shown.</summary>
     public bool CanMeasureMcp { get; private set; }
 
-    /// <summary>"기본 소모 약 1.8만 토큰 (실측)" or "(추정)" without a log measurement.</summary>
-    public string SummaryText => Report is not { } report
-        ? string.Empty
-        : report.Log is { State: SessionLogState.Measured }
-            ? $"기본 소모 약 {TokenEstimator.Format(report.Baseline)} 토큰 (실측)"
-            : $"기본 소모 약 {TokenEstimator.Format(report.Total)} 토큰 (파일 추정)";
-
-    /// <summary>"DotDeck이 잰 항목 2,307 (추정) · 시스템·MCP 등 기타 4.2만", or the log state.</summary>
-    public string BreakdownText
+    /// <summary>
+    /// Measured: "기본 소모 약 1.8만 토큰 (실측)". Before that only DotDeck's file estimate is known, which leaves out the
+    /// system prompt and tools: "사용자 설정분 약 N 토큰 (파일 추정) · 전체 기본 소모는 첫 응답 후 측정".
+    /// </summary>
+    public string SummaryText
     {
         get
         {
@@ -89,18 +85,38 @@ public sealed partial class ContextBudgetViewModel : ObservableObject, IDisposab
                 return string.Empty;
             }
 
-            var files = $"지침·스킬 {TokenEstimator.Format(report.Total)} (추정)";
-            return report.Log?.State switch
+            if (report.Log is { State: SessionLogState.Measured })
             {
-                SessionLogState.Measured when report.Other is { } other => other >= 0
-                    ? $"{files} · 시스템·MCP 등 기타 {TokenEstimator.Format(other)}"
-                    : $"{files} · 파일 추정이 실측보다 큼 (추정 오차)",
-                SessionLogState.WaitingFirstAnswer => files + " · 실측은 첫 응답 후 측정",
-                SessionLogState.NotMatched => files + " · 세션 로그 매칭 불가",
-                SessionLogState.Unreadable => files + " · 세션 로그 측정 불가",
-                SessionLogState.Unsupported => files + " · agy는 파일 분석만 지원",
-                _ => files,
+                return $"기본 소모 약 {TokenEstimator.Format(report.Baseline)} 토큰 (실측)";
+            }
+
+            var whole = report.Log?.State switch
+            {
+                SessionLogState.NotMatched => "전체 기본 소모는 세션 로그 매칭 불가",
+                SessionLogState.Unreadable => "전체 기본 소모는 측정 불가",
+                SessionLogState.Unsupported => "agy는 전체 기본 소모를 측정하지 않음",
+                _ => "전체 기본 소모는 첫 응답 후 측정",
             };
+            return $"사용자 설정분 약 {TokenEstimator.Format(UserTokens(report))} 토큰 (파일 추정) · {whole}";
+        }
+    }
+
+    /// <summary>Measured only: "사용자 설정분 N (지침·스킬)" and "시스템·MCP 등 기타 M" on two lines.</summary>
+    public string BreakdownText
+    {
+        get
+        {
+            if (Report is not { Log.State: SessionLogState.Measured } report)
+            {
+                return string.Empty;
+            }
+
+            var user = UserTokens(report);
+            var other = report.Baseline - user;
+            var files = $"사용자 설정분 {TokenEstimator.Format(user)} (지침·스킬)";
+            return other >= 0
+                ? files + "\n시스템·MCP 등 기타 " + TokenEstimator.Format(other)
+                : files + "\n파일 추정이 실측보다 큼 (추정 오차)";
         }
     }
 
@@ -132,6 +148,13 @@ public sealed partial class ContextBudgetViewModel : ObservableObject, IDisposab
             return $"현재 입력 {TokenEstimator.Format(current)} 토큰 (창 크기 모름)";
         }
     }
+
+    /// <summary>
+    /// What the user set up and can change: counted instruction files, skills and agents, without the CLI's built-in
+    /// ones and without MCP tools (those are part of "시스템·MCP 등 기타").
+    /// </summary>
+    internal static int UserTokens(ContextReport report) =>
+        report.Items.Where(i => i.Counts && !i.BuiltIn && i.Category != ContextCategory.Mcp).Sum(i => i.Tokens);
 
     /// <summary>Log details for the tooltip: file, first request, first prompt estimate.</summary>
     public string LogDetailText => Report?.Log is { State: SessionLogState.Measured } log
@@ -169,7 +192,8 @@ public sealed partial class ContextBudgetViewModel : ObservableObject, IDisposab
         _watcher?.Dispose();
         _watcher = null;
         OnPropertyChanged(nameof(HasTarget));
-        if (row is not null && _analyses.TryGetValue(row, out var known))
+        if (row is not null && _analyses.TryGetValue(row, out var known)
+            && (!UsesTrackedLog(row) || known.Report.Log?.LogPath == row.ContextLogPath))
         {
             Present(known);
             Watch(known.Collection);
@@ -195,6 +219,14 @@ public sealed partial class ContextBudgetViewModel : ObservableObject, IDisposab
         {
             OnPropertyChanged(nameof(UsageText));
         }
+
+        if (sender is AiMonitorItemViewModel row && UsesTrackedLog(row)
+            && (e.PropertyName == nameof(AiMonitorItemViewModel.ContextLogPath)
+                || (e.PropertyName == nameof(AiMonitorItemViewModel.ContextUsage) && row.ContextLogPath is null
+                    && Report?.Log?.State != PendingLogState(row))))
+        {
+            Analyze(row);
+        }
     }
 
     /// <summary>Analyzes running rows that have never been analyzed ("세션 시작 시 1회").</summary>
@@ -213,6 +245,7 @@ public sealed partial class ContextBudgetViewModel : ObservableObject, IDisposab
     public void Forget(AiMonitorItemViewModel row)
     {
         _analyses.Remove(row);
+        _pending.Remove(row);
         if (row == _target)
         {
             Show(null);
@@ -293,26 +326,45 @@ public sealed partial class ContextBudgetViewModel : ObservableObject, IDisposab
 
     private void Analyze(AiMonitorItemViewModel row)
     {
-        _pending.Add(row);
+        if (!_pending.Add(row))
+        {
+            return;
+        }
+
         if (row == _target)
         {
             IsBusy = true;
             _lastRefresh = _time.GetUtcNow();
         }
 
-        var query = new SessionLogQuery(row.Cli, WorkingDirectory(row), row.StartedAt, row.Session?.ConversationId);
+        var tracked = UsesTrackedLog(row);
+        var query = new SessionLogQuery(row.Cli, WorkingDirectory(row), row.StartedAt, row.Session?.ConversationId, row.ContextLogPath);
+        var pendingState = PendingLogState(row);
         var failures = new Dictionary<string, (string, McpProbeResult)>(_failures, StringComparer.Ordinal);
         var now = _time.GetUtcNow();
         _ = Task.Run(() =>
         {
             var settings = _services.LoadSettings().Normalize();
             var collection = _services.Collector.Collect(query.Cli, query.WorkingDirectory);
-            var log = _services.Logs.Read(query, settings.EffectiveClaudeContextWindows);
+            var log = !tracked ? _services.Logs.Read(query, settings.EffectiveClaudeContextWindows)
+                : query.LogPath is { } path ? _services.Logs.ReadFile(query.Cli, path, settings.EffectiveClaudeContextWindows)
+                : new SessionLogMeasurement(pendingState);
             var report = ContextAnalyzer.Build(query.Cli, query.WorkingDirectory, collection, _services.Measurements, failures, settings, now, log);
             return (new Analysis(collection, report), settings.McpDirectMeasure);
         }).ContinueWith(task => Post(() =>
         {
-            _pending.Remove(row);
+            if (!_pending.Remove(row))
+            {
+                return;
+            }
+
+            if (tracked != UsesTrackedLog(row) || (tracked && (query.LogPath != row.ContextLogPath
+                || (query.LogPath is null && pendingState != PendingLogState(row)))))
+            {
+                Analyze(row);
+                return;
+            }
+
             if (task.IsCompletedSuccessfully)
             {
                 var (analysis, canMeasure) = task.Result;
@@ -335,6 +387,12 @@ public sealed partial class ContextBudgetViewModel : ObservableObject, IDisposab
             }
         }), TaskScheduler.Default);
     }
+
+    private static bool UsesTrackedLog(AiMonitorItemViewModel row) => row.Cli == CliKind.Claude && row.ContextTracked;
+
+    private static SessionLogState PendingLogState(AiMonitorItemViewModel row) =>
+        row.ContextUsage?.State is SessionLogState.WaitingFirstAnswer or SessionLogState.Measured
+            ? SessionLogState.WaitingFirstAnswer : row.ContextUsage?.State ?? SessionLogState.NotMatched;
 
     internal static string? WorkingDirectory(AiMonitorItemViewModel row) =>
         row.Session is { } session ? session.Scope.Primary.Root : row.TerminalPane?.Connection.WorkingDirectory;
@@ -360,9 +418,17 @@ public sealed partial class ContextBudgetViewModel : ObservableObject, IDisposab
         if (analysis?.Report is { } report)
         {
             var max = Math.Max(1, report.Items.Max(i => (int?)i.Tokens) ?? 1);
-            foreach (var item in report.Items)
+            var disabled = report.Items.Where(i => i.Category == ContextCategory.Mcp && i.State == ContextItemState.Disabled).ToList();
+            foreach (var item in report.Items.Where(i => i.Category != ContextCategory.Mcp || i.State != ContextItemState.Disabled))
             {
                 Rows.Add(new ContextRowViewModel(item, max, CanMeasureMcp));
+            }
+
+            // Turned-off MCP servers take nothing: one folded line ("꺼진 MCP 3개", names in the tooltip).
+            if (disabled.Count > 0)
+            {
+                var names = string.Join(", ", disabled.Select(d => d.Name));
+                Rows.Add(new ContextRowViewModel(new ContextItem(ContextCategory.Mcp, $"꺼진 MCP {disabled.Count}개", null, 0, ContextItemState.Disabled, names), max, CanMeasureMcp));
             }
 
             foreach (var suggestion in report.Suggestions)
@@ -416,9 +482,15 @@ public sealed class ContextRowViewModel(ContextItem item, int max, bool directMe
 
     public string? Path => Item.Path;
 
+    /// <summary>The name opens a file (the folded "꺼진 MCP N개" line has none and shows plain text).</summary>
+    public bool HasPath => !string.IsNullOrEmpty(Item.Path);
+
     public string? ServerKey => Item.ServerKey;
 
     public bool Counts => Item.Counts;
+
+    /// <summary>Shipped with the CLI ("기본 제공"): counted, never suggested, shown grey.</summary>
+    public bool IsBuiltIn => Item.BuiltIn;
 
     public string TokensText => Item.State switch
     {

@@ -32,6 +32,12 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
 {
     public const string PaneContentId = "tool.aimonitor";
 
+    /// <summary>
+    /// A terminal run counts as ended only after no process of its CLI has been seen in the terminal's job for this
+    /// long: launchers, wrappers and self-updates (agy replaces its own executable and starts again) change the PID.
+    /// </summary>
+    public static readonly TimeSpan ProcessGrace = TimeSpan.FromSeconds(3);
+
     /// <summary>How often terminals, elapsed and activity texts are refreshed while the panel is visible.</summary>
     public static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(1);
 
@@ -43,6 +49,7 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
     private AiSessionManager? _manager;
     private Func<IEnumerable<TerminalPaneViewModel>>? _terminals;
     private Func<int, (string Name, DateTimeOffset? StartedAt)?>? _inspect;
+    private Func<int, int?>? _parentOf;
     private Action<TerminalPaneViewModel>? _openTerminal;
     private ApprovalCoordinator? _approvals;
     private ITimer? _timer;
@@ -185,14 +192,17 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
     /// <summary>
     /// Follows plain terminal tabs: a <c>claude</c>, <c>codex</c> or <c>agy</c> process inside a terminal's job is listed as a row
     /// of that terminal until it ends. <paramref name="inspect"/> reads a process's executable name and start time.
+    /// <paramref name="parentOf"/> allows independent runs of the same CLI to be listed separately.
     /// </summary>
     public void AttachTerminals(
         Func<IEnumerable<TerminalPaneViewModel>> terminals,
         Func<int, (string Name, DateTimeOffset? StartedAt)?> inspect,
-        Action<TerminalPaneViewModel> open)
+        Action<TerminalPaneViewModel> open,
+        Func<int, int?>? parentOf = null)
     {
         _terminals = terminals ?? throw new ArgumentNullException(nameof(terminals));
         _inspect = inspect ?? throw new ArgumentNullException(nameof(inspect));
+        _parentOf = parentOf;
         _openTerminal = open ?? throw new ArgumentNullException(nameof(open));
         Tick();
         UpdateTimer();
@@ -240,8 +250,8 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
         }
 
         UpdateApprovalOrder();
-        Context?.Track(Sessions);
         ContextUsageTracker?.Track(Sessions);
+        Context?.Track(Sessions);
         OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(HasVisibleSessions));
         OpenTerminalCommand.NotifyCanExecuteChanged();
@@ -369,8 +379,7 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
         Refresh();
     }
 
-    // One row per terminal and CLI while it runs (the CLI's own helper processes add no rows); a row whose CLI is gone,
-    // or whose terminal ended or was closed, is marked ended. A CLI started again later gets a new row.
+    // Match surviving processes before using the grace period to bridge a launcher or self-update replacement.
     private void ScanTerminals()
     {
         if (_terminals is null || _inspect is null)
@@ -379,7 +388,7 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
         }
 
         var now = _time.GetUtcNow();
-        var found = new Dictionary<(TerminalPaneViewModel Pane, CliKind Cli), HashSet<(int Id, DateTimeOffset? StartedAt)>>();
+        var found = new Dictionary<(TerminalPaneViewModel Pane, CliKind Cli), List<HashSet<(int Id, DateTimeOffset? StartedAt)>>>();
         foreach (var pane in _terminals())
         {
             if (pane.IsAiSession || !pane.IsRunning)
@@ -387,47 +396,126 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
                 continue; // an AI session tab is listed through its session
             }
 
-            foreach (var id in pane.Connection.JobProcessIds())
+            var jobIds = pane.Connection.JobProcessIds().ToHashSet();
+            var byCli = new Dictionary<CliKind, Dictionary<int, DateTimeOffset?>>();
+            foreach (var id in jobIds)
             {
                 if (_inspect(id) is not { } info || ClassifyProcess(info.Name) is not { } cli)
                 {
                     continue;
                 }
 
-                if (!found.TryGetValue((pane, cli), out var processes))
+                if (!byCli.TryGetValue(cli, out var processes))
                 {
                     processes = [];
-                    found.Add((pane, cli), processes);
+                    byCli.Add(cli, processes);
                 }
 
-                processes.Add((id, info.StartedAt));
+                processes.Add(id, info.StartedAt);
+            }
+
+            foreach (var (cli, processes) in byCli)
+            {
+                found.Add((pane, cli), GroupProcesses(processes, jobIds));
             }
         }
 
+        var unmatched = new List<AiMonitorItemViewModel>();
         foreach (var item in Sessions)
         {
-            if (item.TerminalPane is not { } pane || !item.IsRunning)
+            if (item.TerminalPane is null || !item.IsRunning)
             {
                 continue;
             }
 
-            var key = (pane, item.Cli);
-            if (found.TryGetValue(key, out var processes) && item.TerminalProcesses is { } previous && previous.Overlaps(processes))
+            if (!Match(item, requireOverlap: true))
             {
-                item.TerminalProcesses = processes;
-                found.Remove(key);
-            }
-            else
-            {
-                item.MarkEnded();
+                unmatched.Add(item);
             }
         }
 
-        foreach (var ((pane, cli), processes) in found)
+        foreach (var item in unmatched)
         {
-            var started = processes.Min(process => process.StartedAt ?? now);
-            Sessions.Insert(0, new AiMonitorItemViewModel(pane, cli, started, _time) { TerminalProcesses = processes });
+            if (now - (item.LastSeenAlive ?? item.StartedAt) >= ProcessGrace)
+            {
+                item.MarkEnded();
+            }
+            else
+            {
+                Match(item, requireOverlap: false);
+            }
         }
+
+        foreach (var ((pane, cli), groups) in found)
+        {
+            foreach (var processes in groups)
+            {
+                var started = processes.Min(process => process.StartedAt ?? now);
+                Sessions.Insert(0, new AiMonitorItemViewModel(pane, cli, started, _time) { TerminalProcesses = processes, LastSeenAlive = now });
+            }
+        }
+
+        bool Match(AiMonitorItemViewModel item, bool requireOverlap)
+        {
+            if (!found.TryGetValue((item.TerminalPane!, item.Cli), out var groups))
+            {
+                return false;
+            }
+
+            var index = requireOverlap
+                ? groups.FindIndex(group => item.TerminalProcesses?.Overlaps(group) == true)
+                : groups.Count > 0 ? 0 : -1;
+            if (index < 0)
+            {
+                return false;
+            }
+
+            item.TerminalProcesses = groups[index];
+            item.LastSeenAlive = now;
+            groups.RemoveAt(index);
+            return true;
+        }
+    }
+
+    private List<HashSet<(int Id, DateTimeOffset? StartedAt)>> GroupProcesses(
+        Dictionary<int, DateTimeOffset?> processes, HashSet<int> jobIds)
+    {
+        if (_parentOf is not { } parentOf || processes.Count == 1)
+        {
+            return [processes.Select(p => (p.Key, p.Value)).ToHashSet()];
+        }
+
+        var groups = new Dictionary<int, HashSet<(int Id, DateTimeOffset? StartedAt)>>();
+        foreach (var (id, started) in processes)
+        {
+            var root = id;
+            var rootStarted = started;
+            var visited = new HashSet<int> { id };
+            for (var child = id; parentOf(child) is { } parent && jobIds.Contains(parent) && visited.Add(parent); child = parent)
+            {
+                if (processes.TryGetValue(parent, out var parentStarted))
+                {
+                    // Windows can reuse a departed parent's PID.
+                    if (rootStarted is { } lower && parentStarted is { } upper && upper >= lower)
+                    {
+                        break;
+                    }
+
+                    root = parent;
+                    rootStarted = parentStarted;
+                }
+            }
+
+            if (!groups.TryGetValue(root, out var group))
+            {
+                group = [];
+                groups.Add(root, group);
+            }
+
+            group.Add((id, started));
+        }
+
+        return [.. groups.Values];
     }
 
     // Waiting sessions first (oldest request first) when the setting is on; the badge counts them.
@@ -524,6 +612,9 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
     public TerminalPaneViewModel? TerminalPane { get; }
 
     internal HashSet<(int Id, DateTimeOffset? StartedAt)>? TerminalProcesses { get; set; }
+
+    /// <summary>Last scan that found the CLI in the terminal (terminal rows; see <see cref="AiMonitorPaneViewModel.ProcessGrace"/>).</summary>
+    internal DateTimeOffset? LastSeenAlive { get; set; }
 
     public CliKind Cli { get; }
 
@@ -628,6 +719,18 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
 
     /// <summary>"컨텍스트 38%", "컨텍스트 38% (추정)", "컨텍스트 4.2만 토큰", "컨텍스트 첫 응답 후 측정", …; empty before the first read.</summary>
     public string ContextText => ContextUsage is { } usage ? "컨텍스트 " + usage.Text : string.Empty;
+
+    internal bool ContextTracked { get; set; }
+
+    /// <summary>
+    /// The session log the row's context value was matched to (set by <see cref="ContextUsageTracker"/>); the
+    /// "컨텍스트" tab reads the same file so both describe one conversation.
+    /// </summary>
+    public string? ContextLogPath
+    {
+        get;
+        internal set => SetProperty(ref field, value, StringComparer.OrdinalIgnoreCase);
+    }
 
     /// <summary>Orange/red from the settings' thresholds; never colored without a percentage.</summary>
     public ContextUsageLevel ContextLevel { get; private set; }

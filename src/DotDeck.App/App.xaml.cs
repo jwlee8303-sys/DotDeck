@@ -24,6 +24,11 @@ public partial class App : Application
     private FileAppLog? _log;
     private DotDeck.Core.AiCli.Sessions.AiSessionManager? _aiSessions;
     private ShellViewModel? _shell;
+    private DotDeck.Core.AiCli.Approvals.ApprovalService? _approvalService;
+    private ViewModels.Approvals.ApprovalCoordinator? _approvals;
+    private Views.Approvals.ApprovalCardsController? _approvalCards;
+    private Views.Tools.TerminalScreenProbe? _screenProbe;
+    private DotDeck.Core.AiCli.Launch.SessionHookSettings _sessionHooks = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -74,6 +79,8 @@ public partial class App : Application
             Themes.ThemeManager.Apply(settings.Theme == "Light" ? Themes.ThemeKind.Light : Themes.ThemeKind.Dark);
             Themes.FileIcons.Initialize(paths, _log);
             Core.Security.SecretPresentation.ScreenShareMode = settings.ScreenShareMode;
+            CreateApprovals(settings.AiApproval);
+            _sessionHooks = settings.SessionHooks;
             var backups = new BackupStore(store, settings.BackupDirectory ?? paths.BackupsDir, TimeProvider.System, settings.BackupRetention, new DpapiBackupProtector());
             var services = new ShellServices(
                 paths,
@@ -93,7 +100,10 @@ public partial class App : Application
             backups.IsAutomaticBackupExcluded = path => shell.Exclusions.BackupPolicy.IsExcluded(path);
             shell.AttachAiSessions(CreateAiSessionManager(paths, store, registry), registry);
             shell.AttachTerminals(new JobProcessLauncher(), () => DotDeck.Core.AiCli.Launch.ShellTerminal.Locate(SystemProcessEnvironment.Instance, store), paths, ProcessInspector.Inspect);
-            shell.AttachUsage(new DotDeck.Core.Usage.ClaudeStatusLineInstaller(paths, services.Reader, services.Writer));
+            shell.AttachUsage(
+                new DotDeck.Core.Usage.ClaudeStatusLineInstaller(paths, services.Reader, services.Writer),
+                new DotDeck.Core.Usage.AgyStatusLineInstaller(paths, services.Reader, services.Writer));
+            shell.AttachContextBudget(new JobProcessLauncher());
             shell.AttachUpdater(new VelopackAppUpdater(Environment.GetEnvironmentVariable(VelopackAppUpdater.FeedVariable)));
             _shell = shell;
 
@@ -106,6 +116,7 @@ public partial class App : Application
 
             var window = new MainWindow(shell, new LayoutPersistence(paths.LayoutDir, _log)) { CloseToTray = settings.CloseToTray };
             MainWindow = window;
+            AttachApprovals(shell, window);
             window.Show();
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -127,6 +138,49 @@ public partial class App : Application
             MessageBoxButton.OK,
             MessageBoxImage.Error);
         Shutdown(1);
+    }
+
+    /// <summary>The approval service (single owner of request state and answers) and its coordinator.</summary>
+    private void CreateApprovals(DotDeck.Core.AiCli.Approvals.ApprovalSettings settings)
+    {
+        var log = new DotDeck.Core.AiCli.Approvals.ApprovalRecordLog(
+            key => _aiSessions?.Sessions.FirstOrDefault(s => s.Id == key)?.Directory,
+            message => _log?.Info(message));
+        _approvalService = new DotDeck.Core.AiCli.Approvals.ApprovalService(settings, TimeProvider.System, log);
+        _approvals = new ViewModels.Approvals.ApprovalCoordinator(
+            _approvalService,
+            DotDeck.Core.AiCli.Approvals.ScreenPromptCatalog.BuiltIn(),
+            ProcessInspector.Inspect,
+            ProcessInspector.ImagePath,
+            CliVersionReader.ReadAsync);
+    }
+
+    /// <summary>AI 모니터 sections, terminal bars, notification cards; DotDeck's activation decides when cards show.</summary>
+    private void AttachApprovals(ShellViewModel shell, MainWindow window)
+    {
+        if (_approvals is not { } approvals || _approvalService is not { } service)
+        {
+            return;
+        }
+
+        _screenProbe = new Views.Tools.TerminalScreenProbe();
+        var probe = _screenProbe;
+        shell.AttachApprovals(
+            approvals,
+            (pane, ct) => probe.RenderAsync(pane.Connection.RecentOutput(), pane.Connection.Size, ct),
+            () =>
+            {
+                window.RestoreFromTray();
+                window.Activate();
+            });
+        _approvalCards = new Views.Approvals.ApprovalCardsController(approvals);
+        Activated += (_, _) => approvals.IsAppActive = true;
+        Deactivated += (_, _) => approvals.IsAppActive = false;
+        shell.SettingsChanged += (_, s) =>
+        {
+            service.ApplySettings(s.AiApproval);
+            _sessionHooks = s.SessionHooks; // new sessions only
+        };
     }
 
     private DotDeck.Core.AiCli.Sessions.AiSessionManager CreateAiSessionManager(AppPaths paths, IFileStore store, ProjectRegistry registry)
@@ -152,6 +206,8 @@ public partial class App : Application
             RecycleBin = _log is null ? null : new WindowsRecycleBin(_log),
             CodexSandboxMode = () => DotDeck.Core.AiCli.Launch.CodexSandboxPolicy.ReadMode(store, paths.CodexHome),
             FinalPathResolver = WindowsFinalPathResolver.Instance,
+            StartApprovalHost = _approvals is { } approvals ? approvals.StartHost : null,
+            SessionHooks = () => _sessionHooks,
             StartMcpHost = session =>
             {
                 var tools = new DotDeck.Core.AiCli.Mcp.SessionTools(
@@ -180,6 +236,11 @@ public partial class App : Application
     {
         // Running CLI trees end with their jobs (also if this never runs: the OS closes the job handles).
         _shell?.CloseAllTerminals();
+        // Waiting approval hooks end without a decision: the CLI prompts decide (fail-safe, never an allow).
+        _approvals?.Dispose();
+        _approvalService?.Dispose();
+        _approvalCards?.Close();
+        _screenProbe?.Dispose();
         _aiSessions?.Dispose();
         Themes.FileIcons.Shutdown();
         _log?.Info("DotDeck 종료");

@@ -14,6 +14,26 @@ public static partial class ProcessInspector
     private const int ProcessCommandLineInformation = 60;
     private const int MaxCommandLineBytes = 32768 * sizeof(char);
 
+    /// <summary>Full path of the process's executable, or null when it cannot be read.</summary>
+    public static unsafe string? ImagePath(int processId)
+    {
+        if (processId <= 0)
+        {
+            return null;
+        }
+
+        using var process = OpenProcess(ProcessQueryLimitedInformation, false, (uint)processId);
+        if (process.IsInvalid)
+        {
+            return null;
+        }
+
+        const int capacity = 1024;
+        var buffer = stackalloc char[capacity];
+        var length = capacity;
+        return QueryFullProcessImageNameW(process, 0, buffer, ref length) && length > 0 ? new string(buffer, 0, length) : null;
+    }
+
     /// <summary>File name and start time, or null for an unreadable process or a Codex background server.</summary>
     public static unsafe (string Name, DateTimeOffset? StartedAt)? Inspect(int processId)
     {

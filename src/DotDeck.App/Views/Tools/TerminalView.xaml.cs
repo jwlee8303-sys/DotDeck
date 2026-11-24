@@ -38,12 +38,21 @@ public partial class TerminalView : UserControl
     private bool _initializing;
     private TerminalPaneViewModel? _pane;
     private Action<string>? _viewer;
+    private readonly Dictionary<int, TaskCompletionSource<string?>> _screenReads = [];
+    private int _nextScreenRead;
 
     public TerminalView()
     {
         InitializeComponent();
         Loaded += (_, _) => _ = StartAsync();
         Unloaded += (_, _) => Stop();
+        IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is true)
+            {
+                FocusTerminalSoon();
+            }
+        };
         DataContextChanged += (_, _) =>
         {
             Stop();
@@ -98,7 +107,10 @@ public partial class TerminalView : UserControl
         }
     }
 
-    private void Configure(CoreWebView2 core)
+    private void Configure(CoreWebView2 core) => ConfigurePage(core, OnWebMessageReceived);
+
+    /// <summary>Locks the page down (only the embedded terminal page, no navigation/downloads/permissions) and listens.</summary>
+    internal static void ConfigurePage(CoreWebView2 core, EventHandler<CoreWebView2WebMessageReceivedEventArgs> onMessage)
     {
         var settings = core.Settings;
         settings.AreDevToolsEnabled = false;
@@ -128,10 +140,10 @@ public partial class TerminalView : UserControl
         core.NewWindowRequested += (_, e) => e.Handled = true;
         core.DownloadStarting += (_, e) => e.Cancel = true;
         core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
-        core.WebMessageReceived += OnWebMessageReceived;
+        core.WebMessageReceived += onMessage;
     }
 
-    private static bool IsOwnPage(string? url) =>
+    internal static bool IsOwnPage(string? url) =>
         Uri.TryCreate(url, UriKind.Absolute, out var uri)
         && uri.Scheme == Uri.UriSchemeHttps
         && string.Equals(uri.Host, TerminalAssets.Host, StringComparison.OrdinalIgnoreCase)
@@ -192,11 +204,49 @@ public partial class TerminalView : UserControl
                 case "copy":
                     pane.Copy(Text(root));
                     break;
+                case "screen":
+                    if (root.TryGetProperty("id", out var id) && id.TryGetInt32(out var readId) && _screenReads.Remove(readId, out var read))
+                    {
+                        read.TrySetResult(Text(root));
+                    }
+
+                    break;
             }
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
         {
             // A malformed message from the page is ignored.
+        }
+    }
+
+    /// <summary>The screen lines as the page shows them, or null (no answer within 2 s, or the view went away).</summary>
+    private async Task<string?> ReadScreenAsync(CancellationToken cancellationToken)
+    {
+        var read = await Dispatcher.InvokeAsync(() =>
+        {
+            if (_web?.CoreWebView2 is null)
+            {
+                return null;
+            }
+
+            var id = ++_nextScreenRead;
+            var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _screenReads[id] = completion;
+            Post(new { t = "screen", id });
+            return completion;
+        });
+        if (read is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await read.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is TimeoutException or OperationCanceledException)
+        {
+            return null;
         }
     }
 
@@ -223,6 +273,7 @@ public partial class TerminalView : UserControl
         }
 
         _viewer = OnOutput;
+        pane.ScreenReader = ReadScreenAsync;
         var replay = pane.Connection.Attach(_viewer);
         if (!pane.IsRunning)
         {
@@ -239,6 +290,8 @@ public partial class TerminalView : UserControl
         {
             pane.Connection.Resize(s);
         }
+
+        FocusTerminalSoon();
     }
 
     // Reader thread: collect, and flush once per dispatcher turn so heavy output becomes few large messages.
@@ -287,12 +340,25 @@ public partial class TerminalView : UserControl
     private void OnPanePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         // Not while the tab title is being edited: the edit box keeps the focus (an extension window activates late).
-        if (e.PropertyName == nameof(TerminalPaneViewModel.IsActive) && _pane is { IsActive: true, IsRenaming: false } && _web is { } web)
+        if (e.PropertyName == nameof(TerminalPaneViewModel.IsActive))
         {
-            web.Focus();
-            Post(new { t = "focus" });
+            FocusTerminalSoon();
         }
     }
+
+    /// <summary>
+    /// Gives the active terminal the keyboard focus once the dock has finished activating it (it moves the focus itself
+    /// first, and a pane switched in is not visible yet), so typing works without a click in the terminal.
+    /// </summary>
+    private void FocusTerminalSoon() =>
+        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () =>
+        {
+            if (_pane is { IsActive: true, IsRenaming: false } && _web is { IsVisible: true } web)
+            {
+                web.Focus();
+                Post(new { t = "focus" });
+            }
+        });
 
     private void OnThemeChanged(object? sender, EventArgs e) =>
         Post(new { t = "theme", theme = Theme(), fontFamily = CssFontFamily(), fontSize = CssFontSize() });
@@ -325,7 +391,18 @@ public partial class TerminalView : UserControl
 
             pane.PropertyChanged -= OnPanePropertyChanged;
             pane.Ended -= OnPaneEnded;
+            if (pane.ScreenReader == ReadScreenAsync)
+            {
+                pane.ScreenReader = null;
+            }
         }
+
+        foreach (var read in _screenReads.Values)
+        {
+            read.TrySetResult(null);
+        }
+
+        _screenReads.Clear();
 
         ThemeManager.Changed -= OnThemeChanged;
         _viewer = null;

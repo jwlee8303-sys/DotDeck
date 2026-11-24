@@ -149,6 +149,8 @@
 
     <SolidColorBrush x:Key="DD.Brush.Error" Color="{StaticResource DD.Color.Error}" />
     <SolidColorBrush x:Key="DD.Brush.Warning" Color="{StaticResource DD.Color.Warning}" />
+    <!-- AI 모니터 컨텍스트 사용률 경고(주황) -->
+    <SolidColorBrush x:Key="DD.Brush.Caution" Color="#FFC2570C" />
     <SolidColorBrush x:Key="DD.Brush.Info" Color="{StaticResource DD.Color.Info}" />
 
     <SolidColorBrush x:Key="DD.Brush.FileKind.Folder" Color="{StaticResource DD.Color.FileKind.Folder}" />

@@ -63,6 +63,32 @@ public sealed class JobProcessLauncherTests : IDisposable
     }
 
     [Fact]
+    public async Task Mcp_runs_keep_stdin_open_use_the_raw_command_line_and_end_on_dispose()
+    {
+        var host = (DotDeck.Core.AiCli.ContextBudget.IMcpProcessHost)new JobProcessLauncher();
+        var commandLine = "\"" + Cmd + "\" /d /s /c \"\"" + FindStr + "\" /n ^^\"";
+        var process = host.Start(Cmd, commandLine, _cwd, new Dictionary<string, string> { ["DOTDECK_MCP_TEST"] = "1" });
+        try
+        {
+            var bytes = System.Text.Encoding.ASCII.GetBytes("first\r\nsecond\r\n");
+            await process.Input.WriteAsync(bytes, TestContext.Current.CancellationToken);
+            await process.Input.FlushAsync(TestContext.Current.CancellationToken);
+            process.Input.Close();
+
+            using var reader = new StreamReader(process.Output);
+            var stdout = await reader.ReadToEndAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
+
+            Assert.Contains("1:first", stdout, StringComparison.Ordinal);
+            Assert.Contains("2:second", stdout, StringComparison.Ordinal);
+        }
+        finally
+        {
+            process.Dispose();
+            process.Dispose(); // idempotent: the probe disposes on timeout and at the end
+        }
+    }
+
+    [Fact]
     public async Task Exit_code_is_reported()
     {
         var (exit, _) = await RunAsync(Plan(Cmd, ["/d", "/c", "exit 7"]));

@@ -23,6 +23,10 @@ public static class Program
                     return RunWithStdio(s => GuardHost.RunHeartbeat(args, s.In, TimeProvider.System));
                 case NamedPipeMcpHost.BridgeSwitch:
                     return RunWithStdio(s => NamedPipeMcpHost.RunBridgeAsync(args, s.In, s.Out).GetAwaiter().GetResult());
+                case DotDeck.Core.AiCli.Approvals.ClaudeApprovalHook.RequestSwitch:
+                    return RunWithStdio(s => NamedPipeApprovalHost.RunRequestHookAsync(args, s.In, s.Out).GetAwaiter().GetResult());
+                case DotDeck.Core.AiCli.Approvals.ClaudeApprovalHook.ToolRanSwitch:
+                    return RunWithStdio(s => NamedPipeApprovalHost.RunToolRanHookAsync(args, s.In).GetAwaiter().GetResult());
             }
         }
 

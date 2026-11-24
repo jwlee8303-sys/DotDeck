@@ -14,6 +14,7 @@ public sealed class TerminalConnection : IDisposable
     /// <summary>Characters of recent output replayed to a new viewer (DESIGN: 2MB raw replay buffer).</summary>
     public const int ReplayChars = 1024 * 1024;
 
+    private long _inputCount;
     private readonly ITerminalProcess _process;
     private readonly Lock _gate = new();
     private readonly StringBuilder _replay = new();
@@ -77,6 +78,15 @@ public sealed class TerminalConnection : IDisposable
         }
     }
 
+    /// <summary>A copy of the recent output (the replay buffer) without subscribing (approval prompt detection).</summary>
+    public string RecentOutput()
+    {
+        lock (_gate)
+        {
+            return _replay.ToString();
+        }
+    }
+
     public void Detach(Action<string> viewer)
     {
         lock (_gate)
@@ -90,15 +100,23 @@ public sealed class TerminalConnection : IDisposable
     {
         if (!string.IsNullOrEmpty(text))
         {
+            Interlocked.Increment(ref _inputCount);
             _input.Writer.TryWrite(Encoding.UTF8.GetBytes(text));
         }
     }
+
+    /// <summary>
+    /// Number of inputs sent so far (keys, pastes, mouse reports). The approval coordinator compares it to see whether
+    /// the user typed into a session's terminal after an approval request arrived.
+    /// </summary>
+    public long InputCount => Interlocked.Read(ref _inputCount);
 
     /// <summary>Queues raw bytes (xterm.js "binary" data such as legacy mouse reports: one char per byte).</summary>
     public void SendBinary(string latin1)
     {
         if (!string.IsNullOrEmpty(latin1))
         {
+            Interlocked.Increment(ref _inputCount);
             _input.Writer.TryWrite(Encoding.Latin1.GetBytes(latin1));
         }
     }

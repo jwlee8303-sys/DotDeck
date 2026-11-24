@@ -104,9 +104,10 @@ public sealed class DialogService : IDialogService
         return Modal(() => dialog.ShowDialog() == true) ? dialog.Value : null;
     }
 
-    public DotDeck.Core.Settings.AppSettings? ShowSettings(DotDeck.Core.Settings.AppSettings current, string defaultBackupDirectory)
+    public DotDeck.Core.Settings.AppSettings? ShowSettings(
+        DotDeck.Core.Settings.AppSettings current, string defaultBackupDirectory, SessionHooksViewModel sessionHooks)
     {
-        var dialog = new SettingsDialog(current, defaultBackupDirectory) { Owner = Owner };
+        var dialog = new SettingsDialog(current, defaultBackupDirectory, sessionHooks) { Owner = Owner };
         return Modal(() => dialog.ShowDialog() == true) ? dialog.Result : null;
     }
 

@@ -174,14 +174,14 @@ public sealed partial class JobProcessLauncher : ICliProcessLauncher, ITerminalL
     /// as its only inherited handles or attached to <paramref name="console"/>.
     /// </summary>
     private static unsafe PROCESS_INFORMATION CreateInJob(
-        CliLaunchPlan plan, SafeJobHandle job, SafeFileHandle[]? inherit, SafePseudoConsoleHandle? console)
+        CliLaunchPlan plan, SafeJobHandle job, SafeFileHandle[]? inherit, SafePseudoConsoleHandle? console, string? rawCommandLine = null)
     {
         if ((inherit is null) == (console is null))
         {
             throw new ArgumentException("inherit and console are exclusive");
         }
 
-        var commandLine = (plan.CommandLine + '\0').ToCharArray();
+        var commandLine = ((rawCommandLine ?? plan.CommandLine) + '\0').ToCharArray();
         var environment = BuildEnvironmentBlock(plan.Environment).ToCharArray();
 
         var refs = new List<SafeHandle> { job };

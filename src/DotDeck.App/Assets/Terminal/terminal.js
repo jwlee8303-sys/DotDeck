@@ -1,6 +1,7 @@
 // DotDeck terminal page: xterm.js bridged to the host (TerminalView) through WebView2 web messages.
-// Host -> page: init {theme, fontFamily, fontSize, replay}, output {d}, theme {...}, notice {d}, stdin {enabled}, focus.
-// Page -> host: ready {c, r}, input {d}, binary {d}, resize {c, r}, copy {d}.
+// Host -> page: init {theme, fontFamily, fontSize, replay}, output {d}, theme {...}, notice {d}, stdin {enabled}, focus,
+//   screen {id} (read the screen lines), probe {id, c, r, replay} (render recent output of a hidden terminal and read it).
+// Page -> host: ready {c, r}, input {d}, binary {d}, resize {c, r}, copy {d}, screen {id, d}.
 (() => {
   'use strict';
 
@@ -26,7 +27,13 @@
 
   let lastCols = 0;
   let lastRows = 0;
+  // A probe page renders other terminals' output at their size: it never fits itself to the window.
+  let probing = false;
   const refit = () => {
+    if (probing) {
+      return;
+    }
+
     try {
       fit.fit();
     } catch (e) {
@@ -90,6 +97,19 @@
     refit();
   };
 
+  // The current screen (not the scrollback), top to bottom, after everything written so far has been parsed.
+  const postScreen = (id) => {
+    term.write('', () => {
+      const buffer = term.buffer.active;
+      const lines = [];
+      for (let y = buffer.baseY; y < buffer.baseY + term.rows; y++) {
+        const line = buffer.getLine(y);
+        lines.push(line ? line.translateToString(true) : '');
+      }
+      post({ t: 'screen', id: typeof id === 'number' ? id : 0, d: lines.join('\n') });
+    });
+  };
+
   host.addEventListener('message', (event) => {
     const m = event.data;
     if (!m || typeof m.t !== 'string') {
@@ -120,6 +140,19 @@
         break;
       case 'focus':
         term.focus();
+        break;
+      case 'screen':
+        postScreen(m.id);
+        break;
+      case 'probe':
+        probing = true;
+        term.options.disableStdin = true;
+        term.reset();
+        if (m.c > 0 && m.r > 0) {
+          term.resize(m.c, m.r);
+        }
+        term.write(m.replay || '');
+        postScreen(m.id);
         break;
     }
   });

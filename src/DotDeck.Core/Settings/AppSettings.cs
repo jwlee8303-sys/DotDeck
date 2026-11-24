@@ -40,6 +40,15 @@ public sealed record AppSettings
     /// </summary>
     public IReadOnlyList<string>? WordWrapExtensions { get; init; }
 
+    /// <summary>"AI 승인 요청": detection and notification cards.</summary>
+    public AiCli.Approvals.ApprovalSettings AiApproval { get; init; } = new();
+
+    /// <summary>"AI 세션 훅": DotDeck's hooks on/off and the user's extra hooks for DotDeck Claude sessions.</summary>
+    public AiCli.Launch.SessionHookSettings SessionHooks { get; init; } = new();
+
+    /// <summary>"AI 컨텍스트": thresholds of the AI 모니터 "컨텍스트" tab's suggestions.</summary>
+    public AiCli.ContextBudget.ContextBudgetSettings ContextBudget { get; init; } = new();
+
     /// <summary>Keys this version does not know (written by a newer DotDeck or by hand), kept on save.</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }
@@ -54,6 +63,9 @@ public sealed record AppSettings
         ProjectBackupDirectory = FullOrNull(ProjectBackupDirectory),
         DefaultExtensions = DefaultExtensions is null ? null : Explorer.Visibility.ExtensionRules.NormalizeAll(DefaultExtensions),
         WordWrapExtensions = WordWrapExtensions is null ? null : Explorer.Visibility.ExtensionRules.NormalizeAll(WordWrapExtensions),
+        AiApproval = AiApproval ?? new AiCli.Approvals.ApprovalSettings(),
+        SessionHooks = (SessionHooks ?? new AiCli.Launch.SessionHookSettings()).Normalize(),
+        ContextBudget = (ContextBudget ?? new AiCli.ContextBudget.ContextBudgetSettings()).Normalize(),
     };
 
     private static string? FullOrNull(string? path) =>

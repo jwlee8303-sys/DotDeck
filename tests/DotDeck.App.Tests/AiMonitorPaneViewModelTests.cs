@@ -452,6 +452,133 @@ public sealed class AiMonitorPaneViewModelTests : IDisposable
     public void Spans_are_short(int seconds, string expected) =>
         Assert.Equal(expected, AiMonitorItemViewModel.FormatSpan(TimeSpan.FromSeconds(seconds)));
 
+    private sealed class CountingHost : DotDeck.Core.AiCli.ContextBudget.IMcpProcessHost
+    {
+        public int Starts { get; private set; }
+
+        public DotDeck.Core.AiCli.ContextBudget.IMcpProcess Start(string executable, string commandLine, string workingDirectory, IReadOnlyDictionary<string, string> environment)
+        {
+            Starts++;
+            throw new IOException("not started in tests");
+        }
+    }
+
+    private (AiMonitorPaneViewModel Pane, CountingHost Host, List<string> Confirms) ContextPane(bool directMeasure)
+    {
+        var home = Path.Combine(_temp, "home");
+        var host = new CountingHost();
+        var confirms = new List<string>();
+        var pane = Pane();
+        pane.AttachContext(new ContextBudgetViewModel(new ContextBudgetServices(
+            new DotDeck.Core.AiCli.ContextBudget.ContextCollector(home),
+            new DotDeck.Core.AiCli.ContextBudget.SessionLogReader(Path.Combine(home, ".claude"), Path.Combine(home, ".codex")),
+            new DotDeck.Core.AiCli.ContextBudget.McpMeasurementStore(PhysicalFileStore.Instance, Path.Combine(_temp, "local", "context-mcp.json")),
+            new DotDeck.Core.AiCli.ContextBudget.McpProbe(host),
+            () => new DotDeck.Core.AiCli.ContextBudget.ContextBudgetSettings { McpDirectMeasure = directMeasure, InstructionFileTokens = 100 },
+            _ => Task.CompletedTask,
+            (_, message) =>
+            {
+                confirms.Add(message);
+                return false;
+            }), _time));
+        return (pane, host, confirms);
+    }
+
+    [Fact]
+    public async Task Selecting_a_session_shows_its_context_and_mcp_measuring_asks_first()
+    {
+        var root = Path.Combine(_temp, "proj");
+        File.WriteAllText(Path.Combine(root, "CLAUDE.md"), new string('x', 2000));
+        File.WriteAllText(Path.Combine(root, ".mcp.json"), """{ "mcpServers": { "docs": { "command": "docs-server" } } }""");
+        var (pane, host, confirms) = ContextPane(directMeasure: true);
+
+        Start();
+        pane.SelectedSession = pane.Sessions[0];
+        await Eventually(() => pane.Context!.Report is not null && !pane.Context.IsBusy);
+
+        var context = pane.Context!;
+        Assert.True(context.HasTarget);
+        Assert.Contains(context.Rows, r => r.Name == "proj/CLAUDE.md" && r.TokensText == "500");
+        Assert.Contains(context.Suggestions, s => s.Text.Contains("100 이하 권장", StringComparison.Ordinal));
+        Assert.Contains("파일 추정", context.SummaryText, StringComparison.Ordinal);
+        Assert.Contains("첫 응답 후 측정", context.BreakdownText, StringComparison.Ordinal);
+        var docs = Assert.Single(context.Rows, r => r.Name == "docs MCP");
+        Assert.True(docs.CanMeasure);
+
+        await context.MeasureAllCommand.ExecuteAsync(null);
+
+        Assert.Equal(ContextBudgetViewModel.ConfirmMessage + "\n\n· docs (프로젝트 (.mcp.json))", Assert.Single(confirms));
+        Assert.Equal(0, host.Starts); // declined: nothing started
+    }
+
+    [Fact]
+    public async Task Mcp_measuring_is_hidden_unless_turned_on()
+    {
+        File.WriteAllText(Path.Combine(_temp, "proj", ".mcp.json"), """{ "mcpServers": { "docs": { "command": "docs-server" } } }""");
+        var (pane, _, confirms) = ContextPane(directMeasure: false);
+
+        Start();
+        pane.SelectedSession = pane.Sessions[0];
+        await Eventually(() => pane.Context!.Report is not null && !pane.Context.IsBusy);
+
+        Assert.False(pane.Context!.CanMeasureMcp);
+        var docs = Assert.Single(pane.Context.Rows, r => r.Name == "docs MCP");
+        Assert.False(docs.CanMeasure);
+        Assert.Contains("기타에 포함", docs.Detail, StringComparison.Ordinal);
+        await pane.Context.MeasureAllCommand.ExecuteAsync(null);
+        Assert.Empty(confirms);
+    }
+
+    [Fact]
+    public async Task Every_row_shows_its_context_usage_updated_from_the_watched_log_and_kept_after_the_end()
+    {
+        var home = Path.Combine(_temp, "home");
+        var pane = Pane();
+        var logs = new DotDeck.Core.AiCli.ContextBudget.SessionLogReader(Path.Combine(home, ".claude"), Path.Combine(home, ".codex"));
+        var statusLines = new DotDeck.Core.AiCli.ContextBudget.StatusLineContextStore(Path.Combine(home, ".dotdeck"));
+        using var tracker = new ContextUsageTracker(new DotDeck.Core.AiCli.ContextBudget.ContextUsageReader(logs, statusLines),
+            () => new DotDeck.Core.AiCli.ContextBudget.ContextBudgetSettings(), statusLines.Directory, _time);
+        pane.AttachContextUsage(tracker);
+
+        var session = Start();
+        var item = Assert.Single(pane.Sessions);
+        await Eventually(() => item.ContextText == "컨텍스트 첫 응답 후 측정");
+
+        static string Answer(string id, int read) =>
+            "{\"type\":\"assistant\",\"message\":{\"id\":\"" + id + "\",\"model\":\"claude-opus-5-5\",\"usage\":{\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":" + read.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}}}\n";
+        var folder = Path.Combine(home, ".claude", "projects",
+            DotDeck.Core.AiCli.ContextBudget.SessionLogReader.ClaudeProjectFolder(session.Scope.Primary.Root));
+        Directory.CreateDirectory(folder);
+        var log = Path.Combine(folder, Guid.NewGuid() + ".jsonl");
+        File.WriteAllText(log, $$$"""{"type":"user","timestamp":"{{{session.StartedAt.UtcDateTime:O}}}","message":{"content":"hi"}}""" + "\n" + Answer("m1", 40_000));
+
+        // Not matched yet: retried by the monitor's tick.
+        _time.Advance(ContextUsageTracker.RetryInterval);
+        pane.Tick();
+        await Eventually(() => item.ContextText == "컨텍스트 20% (추정)");
+        Assert.StartsWith("Claude: claude-opus-5-5 기준 추정(창 200k)", item.ContextToolTip, StringComparison.Ordinal);
+        Assert.Equal(DotDeck.Core.AiCli.ContextBudget.ContextUsageLevel.Normal, item.ContextLevel);
+
+        // Matched: the file is watched and appended answers show up without a tick.
+        File.AppendAllText(log, Answer("m2", 150_000));
+        await Eventually(() => item.ContextText == "컨텍스트 75% (추정)");
+        Assert.Equal(DotDeck.Core.AiCli.ContextBudget.ContextUsageLevel.Warning, item.ContextLevel);
+
+        _manager.Stop(session);
+        await Eventually(() =>
+        {
+            pane.Refresh();
+            return !item.IsRunning;
+        });
+        await Task.Delay(500, TestContext.Current.CancellationToken); // the read made at the end
+        Assert.Equal("컨텍스트 75% (추정)", item.ContextText);
+        File.AppendAllText(log, Answer("m3", 190_000)); // no longer watched: the last value stays
+        await Task.Delay(ContextUsageTracker.Debounce + TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        _time.Advance(ContextUsageTracker.RetryInterval);
+        pane.Tick();
+        Assert.Equal("컨텍스트 75% (추정)", item.ContextText);
+    }
+
     private sealed class Clock(DateTimeOffset start) : TimeProvider
     {
         private long _ticks = start.UtcTicks;

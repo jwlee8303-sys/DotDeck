@@ -132,6 +132,41 @@ public sealed class ClaudeStatusLineInstallerTests : IDisposable
         Assert.Equal("Opus 한글 | 5h 72%", RunScript(input, show: true));
     }
 
+    [Fact]
+    public void Script_saves_each_sessions_context_window_and_refresh_only_rewrites_an_installed_script()
+    {
+        Assert.False(_installer.RefreshScript()); // not installed: nothing is written
+        Assert.False(File.Exists(_installer.ScriptPath));
+
+        _installer.Install();
+        const string input = """{"session_id":"0b7d2f4e-1111-2222-3333-444455556666","transcript_path":"C:/u/.claude/projects/D--w/0b7d.jsonl","cwd":"D:\\w","model":{"id":"claude-opus-5-5","display_name":"Opus"},"context_window":{"context_window_size":200000,"used_percentage":38,"current_usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":1000,"cache_read_input_tokens":74990}}}""";
+
+        Assert.Equal(input, RunScript(input, show: false));
+
+        var saved = (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(_installer.ContextDir, "claude-0b7d2f4e-1111-2222-3333-444455556666.json")))!;
+        Assert.Equal(38, saved["used_percentage"]!.GetValue<double>());
+        Assert.Equal(200_000, saved["context_window_size"]!.GetValue<int>());
+        Assert.Equal(76_000, saved["input_tokens"]!.GetValue<long>());
+        Assert.Equal("claude-opus-5-5", saved["model"]!.GetValue<string>());
+        Assert.Equal(@"D:\w", saved["cwd"]!.GetValue<string>());
+
+        // A later report keeps the session's first report time.
+        var first = saved["first_seen"]!.GetValue<long>();
+        Thread.Sleep(50);
+        RunScript(input, show: false);
+        var again = (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(_installer.ContextDir, "claude-0b7d2f4e-1111-2222-3333-444455556666.json")))!;
+        Assert.Equal(first, again["first_seen"]!.GetValue<long>());
+        Assert.True(again["measured_at"]!.GetValue<long>() > first);
+
+        File.WriteAllText(_installer.ScriptPath, "# old version");
+        Assert.True(_installer.RefreshScript());
+        Assert.Equal(ClaudeStatusLineInstaller.Script, File.ReadAllText(_installer.ScriptPath));
+        Assert.False(_installer.RefreshScript());
+
+        _installer.Uninstall();
+        Assert.Empty(Directory.EnumerateFiles(_installer.ContextDir));
+    }
+
     private string RunScript(string input, bool show)
     {
         var start = new ProcessStartInfo("powershell.exe")

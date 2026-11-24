@@ -157,6 +157,12 @@ public sealed partial class TerminalPaneViewModel : ToolPaneViewModel
 
     public int? ExitCode { get; private set; }
 
+    /// <summary>
+    /// Reads the lines of the screen as the tab shows them; set by the terminal view while it is loaded (null when the
+    /// tab is not shown). Used by the fallback approval detection.
+    /// </summary>
+    public Func<CancellationToken, Task<string?>>? ScreenReader { get; internal set; }
+
     /// <summary>The user closed (hid) the tab; the shell decides whether it really goes away.</summary>
     public event EventHandler? CloseRequested;
 

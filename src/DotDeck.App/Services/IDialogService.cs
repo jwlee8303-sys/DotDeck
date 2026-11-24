@@ -58,7 +58,8 @@ public interface IDialogService
     string? PickFolder(string title, string? initialDirectory);
 
     /// <summary>Settings dialog. Returns the new settings, or null when cancelled.</summary>
-    DotDeck.Core.Settings.AppSettings? ShowSettings(DotDeck.Core.Settings.AppSettings current, string defaultBackupDirectory);
+    DotDeck.Core.Settings.AppSettings? ShowSettings(
+        DotDeck.Core.Settings.AppSettings current, string defaultBackupDirectory, ViewModels.Dialogs.SessionHooksViewModel sessionHooks);
 
     void ShowExclusions(ExclusionSettingsViewModel model) { }
 

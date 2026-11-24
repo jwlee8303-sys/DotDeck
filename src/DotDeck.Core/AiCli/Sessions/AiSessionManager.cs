@@ -81,6 +81,9 @@ public sealed record AiSessionEnvironment
 
     public TimeProvider Time { get; init; } = TimeProvider.System;
 
+    /// <summary>"AI 세션 훅" at launch time (null: DotDeck's hooks on, no extra hooks).</summary>
+    public Func<Launch.SessionHookSettings>? SessionHooks { get; init; }
+
     /// <summary>Claude must run the SessionStart heartbeat hook within this time, or the session settings did not apply.</summary>
     public TimeSpan HeartbeatTimeout { get; init; } = TimeSpan.FromSeconds(15);
 
@@ -99,6 +102,12 @@ public sealed record AiSessionEnvironment
     public IRecycleBin? RecycleBin { get; init; }
 
     public Func<AiSession, IDisposable>? StartMcpHost { get; init; }
+
+    /// <summary>
+    /// Starts the approval channel of an interactive Claude session (the PermissionRequest hook talks to it). Without it
+    /// the session settings get no approval hooks.
+    /// </summary>
+    public Func<AiSession, IDisposable>? StartApprovalHost { get; init; }
 
     public Func<string?> CodexSandboxMode { get; init; } = () => null;
 
@@ -152,6 +161,17 @@ public sealed class AiSession
     internal ICliProcess? Process { get; set; }
 
     internal IDisposable? McpHost { get; set; }
+
+    internal IDisposable? ApprovalHost { get; set; }
+
+    /// <summary>Approval requests of this session come through the PermissionRequest hook (interactive Claude).</summary>
+    public bool HasApprovalHooks { get; internal set; }
+
+    /// <summary>False when "AI 세션 훅" left the tool guard out of this Claude session (shown as "가드 꺼짐").</summary>
+    public bool GuardEnabled { get; internal set; } = true;
+
+    /// <summary>The session settings carry the user's extra hooks.</summary>
+    public bool HasUserHooks { get; internal set; }
 
     internal IDisposable? DirectoryLease { get; set; }
 
@@ -297,6 +317,7 @@ public sealed class AiSession
         }
 
         McpHost?.Dispose();
+        ApprovalHost?.Dispose();
         StateChanged?.Invoke(this);
         return true;
     }
@@ -495,7 +516,17 @@ public sealed class AiSessionManager : IDisposable
                 throw new AiSessionStartException($"명령줄이 너무 깁니다({plan.CommandLine.Length:N0}자). 열린 문서 전달을 끄거나 추가 프로젝트를 줄이세요.");
             }
 
-            SessionFilesWriter.Write(_env.GuardExecutable, directory, ScopeDocumentFor(session, scope, generation: 1));
+            // Read once per launch: later changes apply to the next session, never to this one.
+            var hookSettings = (_env.SessionHooks?.Invoke() ?? new SessionHookSettings()).Normalize();
+            var isClaude = request.Cli == CliKind.Claude;
+            session.HasApprovalHooks = hookSettings.Approval && _env.StartApprovalHost is not null && isClaude && request.Mode == LaunchMode.Interactive;
+            session.GuardEnabled = !isClaude || hookSettings.Guard;
+            session.HasUserHooks = isClaude && hookSettings.HasUserHooks;
+            SessionFilesWriter.Write(
+                _env.GuardExecutable,
+                directory,
+                ScopeDocumentFor(session, scope, generation: 1),
+                new SessionHookPlan(hookSettings.Guard, session.HasApprovalHooks, hookSettings.UserHooks));
             File.WriteAllText(Path.Combine(directory, SessionFileNames.Context), context, new UTF8Encoding(false));
             session.ScopeGeneration = 1;
             session.CommandLinePreview = plan.CommandLine;
@@ -523,6 +554,11 @@ public sealed class AiSessionManager : IDisposable
             {
                 session.DirectoryLease = new FileStream(Path.Combine(directory, SessionRetention.LeaseFile), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
                 session.McpHost = _env.StartMcpHost?.Invoke(session);
+                if (session.HasApprovalHooks)
+                {
+                    session.ApprovalHost = _env.StartApprovalHost!.Invoke(session);
+                }
+
                 if (request.Mode == LaunchMode.Interactive)
                 {
                     session.Terminal = new TerminalConnection(_env.TerminalLauncher!.Start(plan, TerminalSize.Default), TerminalSize.Default, plan.WorkingDirectory);
@@ -535,6 +571,7 @@ public sealed class AiSessionManager : IDisposable
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
             {
                 session.McpHost?.Dispose();
+                session.ApprovalHost?.Dispose();
                 session.DirectoryLease?.Dispose();
                 throw new AiSessionStartException($"CLI를 실행하지 못했습니다: {ex.Message}", ex);
             }

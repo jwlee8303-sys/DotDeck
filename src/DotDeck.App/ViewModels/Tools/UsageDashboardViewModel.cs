@@ -13,7 +13,8 @@ public sealed record UsageSources(
     Func<DateTimeOffset, TimeZoneInfo, TokenUsageReport?> Claude,
     Func<DateTimeOffset, TimeZoneInfo, TokenUsageReport?> Codex,
     Func<DateTimeOffset, TimeZoneInfo, AgyActivity?> Agy,
-    ClaudeStatusLineInstaller? StatusLine = null);
+    ClaudeStatusLineInstaller? StatusLine = null,
+    AgyStatusLineInstaller? AgyStatusLine = null);
 
 /// <summary>
 /// "사용량" section at the top of the AI 모니터: today's tokens of Claude and Codex (cache reads apart), the 5-hour
@@ -69,6 +70,17 @@ public sealed partial class UsageDashboardViewModel : ObservableObject
 
     public bool CanUninstallStatusLine => CanManageStatusLine && IsStatusLineInstalled == true;
 
+    public bool CanManageAgyStatusLine => _sources.AgyStatusLine is not null;
+
+    /// <summary>agy's status line runs DotDeck's script (null: not known yet or unreadable).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanInstallAgyStatusLine), nameof(CanUninstallAgyStatusLine))]
+    private bool? _isAgyStatusLineInstalled;
+
+    public bool CanInstallAgyStatusLine => CanManageAgyStatusLine && IsAgyStatusLineInstalled == false;
+
+    public bool CanUninstallAgyStatusLine => CanManageAgyStatusLine && IsAgyStatusLineInstalled == true;
+
     /// <summary>"갱신 14:32" after the first refresh.</summary>
     [ObservableProperty]
     private string _refreshedText = string.Empty;
@@ -115,17 +127,19 @@ public sealed partial class UsageDashboardViewModel : ObservableObject
     {
         var now = _time.GetUtcNow();
         _lastRefresh = now;
-        var (claude, codex, agy, installed) = await Task.Run(() => (
+        var (claude, codex, agy, installed, agyInstalled) = await Task.Run(() => (
             Try("Claude", () => _sources.Claude(now, _zone)),
             Try("Codex", () => _sources.Codex(now, _zone)),
             Try("agy", () => _sources.Agy(now, _zone)),
-            _sources.StatusLine is { } statusLine ? Try("Claude 상태 표시줄", () => (bool?)statusLine.IsInstalled()) : null)).ConfigureAwait(true);
+            _sources.StatusLine is { } statusLine ? Try("Claude 상태 표시줄", () => (bool?)statusLine.IsInstalled()) : null,
+            _sources.AgyStatusLine is { IsAvailable: true } agyLine ? Try("agy 상태 표시줄", () => (bool?)agyLine.IsInstalled()) : null)).ConfigureAwait(true);
         Claude.ShowTokens(claude, now, _zone, _projectName, claude?.Limits is null && CanManageStatusLine
             ? "5시간 한도: 상태 표시줄 연결 후 Claude Code를 사용하면 표시"
             : null);
         Codex.ShowTokens(codex, now, _zone, _projectName, null);
         Agy.ShowActivity(agy, now, _zone);
         IsStatusLineInstalled = installed;
+        IsAgyStatusLineInstalled = agyInstalled;
         RefreshedText = "갱신 " + TimeOf(now, _zone);
     }
 
@@ -141,14 +155,55 @@ public sealed partial class UsageDashboardViewModel : ObservableObject
                 "Claude Code 상태 표시줄에 DotDeck 스크립트를 연결합니다.\n\n"
                 + $"- {statusLine.SettingsPath}의 statusLine을 바꿉니다(저장 전 백업).\n"
                 + "- 기존 상태 표시줄 명령은 DotDeck 스크립트 뒤에 파이프로 이어서 그대로 실행됩니다.\n"
-                + $"- 사용률과 리셋 시각은 {Path.GetDirectoryName(statusLine.ScriptPath)}에 저장됩니다.\n"
+                + $"- 사용률·리셋 시각과 세션별 컨텍스트 사용률은 {Path.GetDirectoryName(statusLine.ScriptPath)}에 저장됩니다(대화 내용은 저장하지 않음).\n"
                 + "- settings.json은 다시 정렬되어 저장되며, 파일 안의 주석은 지워집니다(원본은 백업에 남음).\n"
                 + "- Windows PowerShell이 필요하고, 값은 Claude Code가 다음에 응답할 때부터 들어옵니다.\n\n연결할까요?"))
         {
             return;
         }
 
-        await ChangeStatusLineAsync(statusLine.Install, "연결").ConfigureAwait(true);
+        await ChangeStatusLineAsync(statusLine.Install, "Claude", "연결").ConfigureAwait(true);
+    }
+
+    [RelayCommand]
+    private async Task InstallAgyStatusLineAsync()
+    {
+        if (_sources.AgyStatusLine is not { } statusLine)
+        {
+            return;
+        }
+
+        if (_dialogs is not null && !_dialogs.Confirm("agy 사용률 연결",
+                "agy 상태 표시줄에 DotDeck 스크립트를 연결해 세션별 컨텍스트 사용률을 받습니다.\n\n"
+                + $"- {statusLine.SettingsPath}의 statusLine을 바꿉니다(저장 전 백업).\n"
+                + "- 기존 상태 표시줄 명령은 DotDeck 스크립트 뒤에 파이프로 이어서 같은 입력으로 그대로 실행되고, 그 출력과 종료 코드가 그대로 쓰입니다.\n"
+                + "- DotDeck 스크립트는 입력을 먼저 넘긴 뒤 저장하며, 저장에 실패해도 조용히 넘어갑니다.\n"
+                + $"- 사용률은 {statusLine.ContextDir}에 저장됩니다(대화 내용은 저장하지 않음).\n"
+                + "- settings.json은 다시 정렬되어 저장되며, 파일 안의 주석은 지워집니다(원본은 백업에 남음).\n"
+                + "- Windows PowerShell이 필요하고, 값은 agy가 다음에 상태 표시줄을 갱신할 때부터 들어옵니다.\n\n연결할까요?"))
+        {
+            return;
+        }
+
+        await ChangeStatusLineAsync(statusLine.Install, "agy", "연결").ConfigureAwait(true);
+    }
+
+    [RelayCommand]
+    private async Task UninstallAgyStatusLineAsync()
+    {
+        if (_sources.AgyStatusLine is not { } statusLine)
+        {
+            return;
+        }
+
+        if (_dialogs is not null && !_dialogs.Confirm("agy 사용률 연결 해제",
+                "agy 상태 표시줄에서 DotDeck 스크립트를 빼고(이어서 실행하던 명령은 현재 내용 그대로 유지), "
+                + "DotDeck 스크립트와 저장된 agy 사용률을 지웁니다. 계속할까요?"))
+        {
+            return;
+        }
+
+        await ChangeStatusLineAsync(statusLine.Uninstall, "agy", "연결 해제").ConfigureAwait(true);
     }
 
     [RelayCommand]
@@ -166,21 +221,21 @@ public sealed partial class UsageDashboardViewModel : ObservableObject
             return;
         }
 
-        await ChangeStatusLineAsync(statusLine.Uninstall, "연결 해제").ConfigureAwait(true);
+        await ChangeStatusLineAsync(statusLine.Uninstall, "Claude", "연결 해제").ConfigureAwait(true);
     }
 
-    private async Task ChangeStatusLineAsync(Action change, string what)
+    private async Task ChangeStatusLineAsync(Action change, string product, string what)
     {
         try
         {
             await Task.Run(change).ConfigureAwait(true);
-            _log?.Info($"Claude 상태 표시줄 {what}");
+            _log?.Info($"{product} 상태 표시줄 {what}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException
                                        or InvalidOperationException or DotDeck.Core.Documents.ExternalChangeException)
         {
-            _log?.Warning($"Claude 상태 표시줄 {what} 실패", ex);
-            _dialogs?.ShowError("Claude 사용률 " + what, $"Claude 설정을 바꾸지 못했습니다: {ex.Message}");
+            _log?.Warning($"{product} 상태 표시줄 {what} 실패", ex);
+            _dialogs?.ShowError(product + " 사용률 " + what, $"{product} 설정을 바꾸지 못했습니다: {ex.Message}");
         }
 
         await RefreshAsync().ConfigureAwait(true);
@@ -242,7 +297,7 @@ public sealed record UsageBar(double Height, string ToolTip);
 /// <summary>One AI in the usage dashboard.</summary>
 public sealed partial class UsageCardViewModel(string name) : ObservableObject
 {
-    public const double GraphHeight = 24;
+    public const double GraphHeight = 12;
 
     public string Name { get; } = name;
 

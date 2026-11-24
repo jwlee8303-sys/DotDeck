@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json.Nodes;
+using DotDeck.Core.AiCli.Approvals;
+using DotDeck.Core.AiCli.Guard;
 using DotDeck.Core.AiCli.Launch;
 using DotDeck.Core.AiCli.Presets;
 using DotDeck.Core.AiCli.Scope;
@@ -8,6 +10,7 @@ using DotDeck.Core.AiCli.Sessions;
 using DotDeck.Core.Files;
 using DotDeck.Core.Paths;
 using DotDeck.Core.Projects;
+using DotDeck.Core.Settings;
 using DotDeck.Core.Tests.Support;
 
 namespace DotDeck.Core.Tests.AiCli;
@@ -40,7 +43,8 @@ public sealed class AiSessionManagerTests : IDisposable
         new(_temp.Combine("home"), source, _temp.Combine("roaming"), _temp.Combine("local"));
 
     private AiSessionManager Manager(AppPaths? paths = null, SessionPresetStore? presets = null, TimeSpan? heartbeat = null, bool terminals = false,
-        string? sandbox = null, Func<AiSession, IDisposable>? mcp = null, Func<string?>? sandboxProvider = null) => new(new AiSessionEnvironment
+        string? sandbox = null, Func<AiSession, IDisposable>? mcp = null, Func<string?>? sandboxProvider = null,
+        Func<SessionHookSettings>? sessionHooks = null, Func<AiSession, IDisposable>? approval = null) => new(new AiSessionEnvironment
     {
         Paths = paths ?? Paths(),
         Store = PhysicalFileStore.Instance,
@@ -53,6 +57,8 @@ public sealed class AiSessionManagerTests : IDisposable
         HeartbeatTimeout = heartbeat ?? TimeSpan.FromMinutes(5),
         CodexSandboxMode = sandboxProvider ?? (() => sandbox),
         StartMcpHost = mcp,
+        SessionHooks = sessionHooks,
+        StartApprovalHost = approval,
     });
 
     [Fact]
@@ -607,6 +613,115 @@ public sealed class AiSessionManagerTests : IDisposable
         await Eventually(() => session.State == AiSessionState.Exited);
         Assert.True(_terminals.Last.Disposed);
         Assert.Equal("TUI 화면", session.Terminal!.Attach(_ => { })); // replay survives the exit
+    }
+
+    [Fact]
+    public async Task Saved_hook_changes_apply_only_to_new_claude_sessions()
+    {
+        var store = new AppSettingsStore(PhysicalFileStore.Instance, _temp.Combine("settings.json"));
+        var approvalHost = new CountedDisposable();
+        var reads = 0;
+        using var manager = Manager(terminals: true, sessionHooks: () =>
+        {
+            reads++;
+            return store.Load().SessionHooks;
+        }, approval: _ => approvalHost);
+        var request = Request() with { Mode = LaunchMode.Interactive, Prompt = null };
+        var first = manager.Start(request);
+        var firstSettingsPath = Path.Combine(first.Directory, SessionFileNames.Settings);
+        var original = File.ReadAllText(firstSettingsPath);
+        var originalSettings = JsonNode.Parse(original)!;
+
+        var userHooks = JsonNode.Parse("""
+            { "Stop": [{ "extraGroupField": true, "hooks": [
+                { "type": "command", "command": "example", "args": ["sample"] },
+                { "type": "prompt", "prompt": "Example", "extraHandlerField": 42 },
+                { "type": "http", "url": "https://example.test/hook" }
+            ] }] }
+            """)!.AsObject();
+        store.Save(new AppSettings { SessionHooks = new SessionHookSettings { Guard = false, Approval = false, UserHooks = userHooks } });
+        var loaded = store.Load().SessionHooks;
+        Assert.False(loaded.Guard);
+        Assert.False(loaded.Approval);
+        Assert.True(JsonNode.DeepEquals(userHooks, loaded.UserHooks));
+
+        var next = manager.Start(request);
+        var nextSettings = JsonNode.Parse(File.ReadAllText(Path.Combine(next.Directory, SessionFileNames.Settings)))!;
+        var nextHooks = nextSettings["hooks"]!.AsObject();
+        Assert.False(next.GuardEnabled);
+        Assert.False(next.HasApprovalHooks);
+        Assert.True(next.HasUserHooks);
+        Assert.False(nextHooks.ContainsKey("PreToolUse"));
+        Assert.False(nextHooks.ContainsKey("PermissionRequest"));
+        Assert.False(nextHooks.ContainsKey("PostToolUse"));
+        Assert.True(JsonNode.DeepEquals(userHooks["Stop"], nextHooks["Stop"]));
+        Assert.Equal(GuardHost.HeartbeatSwitch, nextHooks["SessionStart"]![0]!["hooks"]![0]!["args"]![0]!.GetValue<string>());
+        Assert.True(JsonNode.DeepEquals(originalSettings["permissions"], nextSettings["permissions"]));
+        Assert.True(File.Exists(Path.Combine(next.Directory, SessionFileNames.Scope)));
+
+        File.WriteAllText(Path.Combine(next.Directory, GuardHost.HeartbeatFileName), "x");
+        await Eventually(() => next.GuardConnected);
+        Assert.Equal(AiSessionState.Running, next.State);
+        Assert.Equal(AiSessionState.Running, first.State);
+        Assert.True(first.GuardEnabled);
+        Assert.True(first.HasApprovalHooks);
+        Assert.False(first.HasUserHooks);
+        Assert.Equal(original, File.ReadAllText(firstSettingsPath));
+        Assert.Equal(2, reads);
+    }
+
+    [Fact]
+    public void Session_settings_append_user_groups_after_intact_built_in_groups()
+    {
+        var executable = _temp.Combine("DotDeck.exe");
+        var directory = _temp.Combine("session");
+        var scope = new ScopeDocument { SessionId = "session" };
+        var plan = new SessionHookPlan(Guard: true, Approval: true, UserHooks: null);
+        var builtIn = JsonNode.Parse(SessionFilesWriter.BuildSettings(executable, directory, scope, plan))!["hooks"]!.AsObject();
+        var userHooks = JsonNode.Parse("""
+            {
+              "PreToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "first" }] },
+                             { "matcher": "Write", "hooks": [{ "type": "command", "command": "second" }] }],
+              "PermissionRequest": [{ "hooks": [{ "type": "command", "command": "approval" }] }],
+              "PostToolUse": [{ "hooks": [{ "type": "command", "command": "post" }] }],
+              "SessionStart": [{ "hooks": [{ "type": "command", "command": "start" }] }],
+              "Stop": [{ "hooks": [{ "type": "command", "command": "stop" }] }],
+              "Invalid": {}, " ": [{}]
+            }
+            """)!.AsObject();
+
+        var merged = JsonNode.Parse(SessionFilesWriter.BuildSettings(executable, directory, scope, plan with { UserHooks = userHooks }))!["hooks"]!.AsObject();
+
+        foreach (var evt in new[] { "PreToolUse", "PermissionRequest", "PostToolUse", "SessionStart" })
+        {
+            var originalGroup = Assert.Single(builtIn[evt]!.AsArray());
+            var groups = merged[evt]!.AsArray();
+            var userGroups = userHooks[evt]!.AsArray();
+            Assert.Equal(1 + userGroups.Count, groups.Count);
+            Assert.True(JsonNode.DeepEquals(originalGroup, groups[0]), evt);
+            for (var i = 0; i < userGroups.Count; i++)
+            {
+                Assert.True(JsonNode.DeepEquals(userGroups[i], groups[i + 1]), evt);
+            }
+        }
+
+        var guard = merged["PreToolUse"]![0]!;
+        Assert.Equal("*", guard["matcher"]!.GetValue<string>());
+        Assert.Equal("block", guard["hooks"]![0]!["onFailure"]!.GetValue<string>());
+        var approval = merged["PermissionRequest"]![0]!["hooks"]![0]!;
+        var timeout = approval["timeout"]!.GetValue<int>();
+        Assert.Equal(1830, timeout);
+        Assert.True(TimeSpan.FromSeconds(timeout) > ApprovalSettings.HookWaitLimit);
+        Assert.False(approval.AsObject().ContainsKey("onFailure"));
+        Assert.False(merged["PostToolUse"]![0]!["hooks"]![0]!.AsObject().ContainsKey("onFailure"));
+        Assert.True(JsonNode.DeepEquals(userHooks["Stop"], merged["Stop"]));
+        Assert.False(merged.ContainsKey("Invalid"));
+        Assert.False(merged.ContainsKey(" "));
+
+        var copied = new JsonObject();
+        SessionFilesWriter.AppendUserHooks(copied, userHooks);
+        userHooks["Stop"]![0]!["hooks"]![0]!["command"] = "changed";
+        Assert.Equal("stop", copied["Stop"]![0]!["hooks"]![0]!["command"]!.GetValue<string>());
     }
 
     [Fact]

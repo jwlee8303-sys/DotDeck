@@ -320,7 +320,15 @@ public sealed partial class ShellViewModel
     private void OpenSettings()
     {
         var store = new DotDeck.Core.Settings.AppSettingsStore(_store, Paths.SettingsFile);
-        if (_dialogs.ShowSettings(store.Load(), Paths.BackupsDir) is not { } settings)
+        var current = store.Load();
+        var sessionHooks = new Dialogs.SessionHooksViewModel(
+            current.SessionHooks,
+            Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "DotDeck.exe"),
+            Paths.AiSessionsDir,
+            Paths.ClaudeHome,
+            _dialogs,
+            Paths.Home);
+        if (_dialogs.ShowSettings(current, Paths.BackupsDir, sessionHooks) is not { } settings)
         {
             return;
         }

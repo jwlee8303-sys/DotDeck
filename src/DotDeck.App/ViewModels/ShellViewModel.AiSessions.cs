@@ -52,14 +52,65 @@ public sealed partial class ShellViewModel
     /// Connects the AI 모니터 "사용량" section (once, from App startup) to the CLIs' logs under <see cref="Paths"/>.
     /// With <paramref name="statusLine"/> the Claude status line can be connected from the section.
     /// </summary>
-    public void AttachUsage(DotDeck.Core.Usage.ClaudeStatusLineInstaller? statusLine)
+    public void AttachUsage(
+        DotDeck.Core.Usage.ClaudeStatusLineInstaller? statusLine,
+        DotDeck.Core.Usage.AgyStatusLineInstaller? agyStatusLine = null)
     {
         var claude = new DotDeck.Core.Usage.ClaudeUsageReader(Paths.ClaudeHome, Paths.ClaudeUsageFile);
         var codex = new DotDeck.Core.Usage.CodexUsageReader(Paths.CodexHome);
         var agy = new DotDeck.Core.Usage.AgyActivityReader(Paths.AntigravityHome);
         AiMonitor.AttachUsage(new Tools.UsageDashboardViewModel(
-            new Tools.UsageSources(claude.Read, codex.Read, agy.Read, statusLine),
+            new Tools.UsageSources(claude.Read, codex.Read, agy.Read, statusLine, agyStatusLine),
             UsageProjectName, dialogs: _dialogs, log: _log));
+
+        // Connected scripts get DotDeck's current version (settings untouched); old per-session values are dropped.
+        _ = Task.Run(() =>
+        {
+            foreach (var installer in new DotDeck.Core.Usage.StatusLineInstaller?[] { statusLine, agyStatusLine })
+            {
+                try
+                {
+                    if (installer?.RefreshScript() == true)
+                    {
+                        _log.Info($"{installer.ProductName} 상태 표시줄 스크립트 갱신");
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    _log.Warning("상태 표시줄 스크립트 갱신 실패", ex);
+                }
+            }
+
+            new DotDeck.Core.AiCli.ContextBudget.StatusLineContextStore(Paths.DotDeckHomeDir).Prune(DateTimeOffset.UtcNow, TimeSpan.FromDays(7));
+        });
+    }
+
+    /// <summary>
+    /// Connects the AI 모니터 "컨텍스트" tab (once, from App startup). <paramref name="mcpProcesses"/> starts MCP servers
+    /// for the optional direct measurement ("고급 → MCP 직접 측정", off by default).
+    /// </summary>
+    public void AttachContextBudget(DotDeck.Core.AiCli.ContextBudget.IMcpProcessHost? mcpProcesses)
+    {
+        var settings = new DotDeck.Core.Settings.AppSettingsStore(_store, Paths.SettingsFile);
+
+        // Codex honours CODEX_HOME; a sandbox home (--home) keeps everything under it.
+        var codexHome = !Paths.IsHomeOverridden && Environment.GetEnvironmentVariable("CODEX_HOME") is { Length: > 0 } env && Path.IsPathFullyQualified(env)
+            ? env
+            : Paths.CodexHome;
+        var logs = new DotDeck.Core.AiCli.ContextBudget.SessionLogReader(Paths.ClaudeHome, codexHome);
+        var statusLines = new DotDeck.Core.AiCli.ContextBudget.StatusLineContextStore(Paths.DotDeckHomeDir);
+        AiMonitor.AttachContextUsage(new Tools.ContextUsageTracker(
+            new DotDeck.Core.AiCli.ContextBudget.ContextUsageReader(logs, statusLines),
+            () => settings.Load().ContextBudget,
+            statusLines.Directory));
+        AiMonitor.AttachContext(new Tools.ContextBudgetViewModel(new Tools.ContextBudgetServices(
+            new DotDeck.Core.AiCli.ContextBudget.ContextCollector(Paths.Home, codexHome),
+            logs,
+            new DotDeck.Core.AiCli.ContextBudget.McpMeasurementStore(_store, Path.Combine(Paths.StateDir, "context-mcp.json")),
+            new DotDeck.Core.AiCli.ContextBudget.McpProbe(mcpProcesses),
+            () => settings.Load().ContextBudget,
+            path => OpenFileAsync(path, preview: false),
+            _dialogs.Confirm)));
     }
 
     /// <summary>The DotDeck project whose root holds <paramref name="folder"/> (deepest root), else the folder's name.</summary>

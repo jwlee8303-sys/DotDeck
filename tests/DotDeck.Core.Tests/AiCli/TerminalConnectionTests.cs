@@ -100,9 +100,14 @@ public sealed class TerminalConnectionTests : IDisposable
         using var process = new FakeTerminal();
         using var connection = new TerminalConnection(process, TerminalSize.Default);
 
+        Assert.Equal(0, connection.InputCount);
         connection.Send("ls 한글\r");
+        Assert.Equal(1, connection.InputCount);
         connection.SendBinary("\u001b[M\u00ff");
+        Assert.Equal(2, connection.InputCount);
         connection.Send(string.Empty);
+        connection.SendBinary(string.Empty);
+        Assert.Equal(2, connection.InputCount);
 
         var expected = Encoding.UTF8.GetBytes("ls 한글\r").Concat(new byte[] { 0x1b, (byte)'[', (byte)'M', 0xff }).ToArray();
         await Eventually(() => process.Typed.Length >= expected.Length);

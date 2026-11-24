@@ -1,0 +1,41 @@
+{
+  // Approval prompts as they appear on the terminal screen, per CLI. Used only by the fallback detection (screen
+  // pattern + stopped output) of CLIs that have no official approval channel in DotDeck.
+  //
+  // "question" and every "options" entry are regular expressions that must all match the bottom of the screen.
+  // "allowKeys"/"denyKeys" are typed into the terminal only when the installed CLI version equals "verifiedVersion";
+  // for any other version DotDeck shows the request but offers only [터미널로 이동]. Never add keys that were not
+  // tried on that exact version. "\u001b" is Esc.
+  "prompts": [
+    {
+      "cli": "Claude",
+      "verifiedVersion": "2.1.330",
+      "verified": "2026-11-23",
+      "note": "File creation outside the workspace (Write). '1' allowed it, Esc rejected it. Bash uses the same dialog ('Do you want to proceed?').",
+      "question": "Do you want to [^\\n?]{1,200}\\?",
+      "options": [ "\\b1\\.\\s*Yes\\b", "\\b\\d\\.\\s*No\\b" ],
+      "allowKeys": "1",
+      "denyKeys": "\u001b"
+    },
+    {
+      "cli": "Codex",
+      "verifiedVersion": "0.171.0",
+      "verified": "2026-11-23",
+      "note": "Command escalation in 'codex -s read-only -a on-request'. 'y' approved it, Esc canceled it. The edits prompt was not tried.",
+      "question": "Would you like to run the following command\\?",
+      "options": [ "\\b1\\.\\s*Yes, proceed \\(y\\)", "\\(esc\\)" ],
+      "allowKeys": "y",
+      "denyKeys": "\u001b"
+    },
+    {
+      "cli": "Antigravity",
+      "verifiedVersion": "1.5.15",
+      "verified": "2026-11-23",
+      "note": "File creation with an 'ask' permission rule. '1' allowed it; Esc rejected it and interrupted the turn ('What should Antigravity CLI do instead?'). The command prompt was not seen ('2' was not tried).",
+      "question": "Allow [^\\n?]{1,120}\\?",
+      "options": [ "\\b1\\.\\s*Yes, allow\\b", "\\b2\\.\\s*No, deny\\b" ],
+      "allowKeys": "1",
+      "denyKeys": "\u001b"
+    }
+  ]
+}

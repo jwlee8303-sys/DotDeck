@@ -44,7 +44,7 @@ public sealed class UsageDashboardViewModelTests
         Assert.Equal("최다 세션: DotDeck (4.5K) · 세션 2개", claude.DetailText);
         Assert.Equal(24, claude.Bars.Count);
         Assert.Equal(UsageCardViewModel.GraphHeight, claude.Bars[14].Height);
-        Assert.Equal(6, claude.Bars[9].Height);
+        Assert.Equal(UsageCardViewModel.GraphHeight / 4, claude.Bars[9].Height);
 
         Assert.Equal(string.Empty, dashboard.Codex.PercentText); // no limits in its logs
         Assert.Equal(UsageLevel.Normal, dashboard.Codex.Level);

@@ -6,7 +6,8 @@
                     xmlns:explorerViews="clr-namespace:DotDeck.App.Views.Explorer"
                     xmlns:editorViews="clr-namespace:DotDeck.App.Views.Editor"
                     xmlns:conv="clr-namespace:DotDeck.App.Converters"
-                    xmlns:toolViews="clr-namespace:DotDeck.App.Views.Tools">
+                    xmlns:toolViews="clr-namespace:DotDeck.App.Views.Tools"
+                    xmlns:approvalViews="clr-namespace:DotDeck.App.Views.Approvals">
 
     <BooleanToVisibilityConverter x:Key="SysBoolToVisible" />
     <conv:FalseToVisibleConverter x:Key="SysFalseToVisible" />
@@ -260,42 +261,41 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:UsageCardViewModel}">
-        <Border BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="0,1,0,0" Padding="2,4">
+        <!-- Compact card (max two lines): the monitor's main job is the session list below. Note moves to the tooltip. -->
+        <Border x:Name="Card" BorderBrush="{DynamicResource DD.Brush.Border}" BorderThickness="0,1,0,0" Padding="2,1" TextElement.FontSize="11"
+                Background="Transparent" ToolTip="{Binding Note}">
             <StackPanel>
                 <DockPanel>
-                    <TextBlock x:Name="Percent" DockPanel.Dock="Right" FontWeight="SemiBold" Text="{Binding PercentText}" />
-                    <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                    <TextBlock x:Name="Percent" DockPanel.Dock="Right" Margin="6,0,0,0" FontWeight="SemiBold" Text="{Binding PercentText}" />
+                    <ItemsControl DockPanel.Dock="Right" Width="72" Height="12" Margin="6,0,0,0" VerticalAlignment="Center"
+                                  ItemsSource="{Binding Bars}" Focusable="False" AutomationProperties.Name="오늘 시간대별 사용량"
+                                  ToolTip="오늘 시간대별 토큰 0~23시 (캐시 읽기 제외)"
+                                  Visibility="{Binding HasBars, Converter={StaticResource SysBoolToVisible}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Background="Transparent" ToolTip="{Binding ToolTip}">
+                                    <Border Height="{Binding Height}" Margin="0.3,0" VerticalAlignment="Bottom" Background="{DynamicResource DD.Brush.Accent}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Width="52" FontWeight="SemiBold" Text="{Binding Name}" />
+                    <Grid>
+                        <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="데이터 없음"
+                                   Visibility="{Binding HasData, Converter={StaticResource SysFalseToVisible}}" />
+                        <TextBlock Text="{Binding TodayText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding TodayText}"
+                                   Visibility="{Binding HasData, Converter={StaticResource SysBoolToVisible}}" />
+                    </Grid>
                 </DockPanel>
-                <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="데이터 없음"
-                           Visibility="{Binding HasData, Converter={StaticResource SysFalseToVisible}}" />
-                <StackPanel Visibility="{Binding HasData, Converter={StaticResource SysBoolToVisible}}">
-                    <TextBlock Text="{Binding TodayText}" TextWrapping="Wrap" />
-                    <TextBlock x:Name="Limit" Text="{Binding LimitText}" TextWrapping="Wrap" />
-                    <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="{Binding DetailText}" TextWrapping="Wrap" />
-                    <StackPanel Margin="0,3,0,0" Visibility="{Binding HasBars, Converter={StaticResource SysBoolToVisible}}"
-                                ToolTip="오늘 시간대별 토큰 (캐시 읽기 제외)">
-                        <ItemsControl Height="24" ItemsSource="{Binding Bars}" Focusable="False" AutomationProperties.Name="오늘 시간대별 사용량">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <UniformGrid Rows="1" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Background="Transparent" ToolTip="{Binding ToolTip}">
-                                        <Border Height="{Binding Height}" Margin="0.5,0" VerticalAlignment="Bottom" Background="{DynamicResource DD.Brush.Accent}" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource DD.Text.Secondary}" FontSize="10" Text="23시" />
-                            <TextBlock Style="{StaticResource DD.Text.Secondary}" FontSize="10" Text="0시" />
-                        </DockPanel>
-                    </StackPanel>
-                    <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="{Binding Note}" TextWrapping="Wrap"
-                               Visibility="{Binding Note, Converter={StaticResource SysNullToCollapsed}}" />
-                </StackPanel>
+                <DockPanel Margin="52,0,0,0" Visibility="{Binding HasData, Converter={StaticResource SysBoolToVisible}}">
+                    <TextBlock x:Name="Limit" DockPanel.Dock="Left" Margin="0,0,8,0" Text="{Binding LimitText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding LimitText}" />
+                    <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="{Binding DetailText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding DetailText}" />
+                </DockPanel>
             </StackPanel>
         </Border>
         <DataTemplate.Triggers>
@@ -326,88 +326,261 @@
                 </Button>
                 <CheckBox Content="끝난 세션 표시" IsChecked="{Binding ShowFinished}" VerticalAlignment="Center" />
             </ToolBar>
-            <Expander DockPanel.Dock="Top" Margin="6,4,6,0" IsExpanded="True" DataContext="{Binding Usage}"
+            <Expander DockPanel.Dock="Top" Margin="6,2,6,0" IsExpanded="True" DataContext="{Binding Usage}" TextElement.FontSize="11"
                       Visibility="{Binding Converter={StaticResource SysNullToCollapsed}}" AutomationProperties.Name="사용량 대시보드">
                 <Expander.Header>
-                    <TextBlock>
-                        <Run Text="사용량" FontWeight="SemiBold" /> <Run Text="{Binding RefreshedText, Mode=OneWay}" Foreground="{DynamicResource DD.Brush.Text.Secondary}" />
-                    </TextBlock>
-                </Expander.Header>
-                <StackPanel Margin="0,2,0,0">
-                    <ContentControl Content="{Binding Claude}" Focusable="False" />
-                    <WrapPanel Margin="0,0,0,4">
-                        <Button Content="Claude 사용률 연결…" Margin="0,0,6,0" Command="{Binding InstallStatusLineCommand}"
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center">
+                            <Run Text="사용량" FontWeight="SemiBold" /> <Run Text="{Binding RefreshedText, Mode=OneWay}" Foreground="{DynamicResource DD.Brush.Text.Secondary}" />
+                        </TextBlock>
+                        <Button Content="Claude 사용률 연결…" Margin="8,0,0,0" Padding="4,0" FontSize="11" Command="{Binding InstallStatusLineCommand}"
                                 ToolTip="Claude Code 상태 표시줄에 DotDeck 스크립트를 연결해 5시간 사용률을 받습니다"
                                 Visibility="{Binding CanInstallStatusLine, Converter={StaticResource SysBoolToVisible}}" />
-                        <Button Content="연결 해제…" Margin="0,0,6,0" Command="{Binding UninstallStatusLineCommand}"
+                        <Button Content="연결 해제…" Margin="6,0,0,0" Padding="4,0" FontSize="11" Command="{Binding UninstallStatusLineCommand}"
                                 ToolTip="Claude Code 상태 표시줄을 연결 전 설정으로 되돌립니다"
                                 Visibility="{Binding CanUninstallStatusLine, Converter={StaticResource SysBoolToVisible}}" />
-                        <Button Content="지금 갱신" Command="{Binding RefreshCommand}" ToolTip="사용량을 다시 읽기 (1분마다 자동 갱신)" />
-                    </WrapPanel>
+                        <Button Content="agy 사용률 연결…" Margin="6,0,0,0" Padding="4,0" FontSize="11" Command="{Binding InstallAgyStatusLineCommand}"
+                                ToolTip="agy 상태 표시줄에 DotDeck 스크립트를 연결해 세션별 컨텍스트 사용률을 받습니다 (기존 명령은 그대로 이어서 실행)"
+                                Visibility="{Binding CanInstallAgyStatusLine, Converter={StaticResource SysBoolToVisible}}" />
+                        <Button Content="agy 연결 해제…" Margin="6,0,0,0" Padding="4,0" FontSize="11" Command="{Binding UninstallAgyStatusLineCommand}"
+                                ToolTip="agy 상태 표시줄을 연결 전 설정으로 되돌립니다"
+                                Visibility="{Binding CanUninstallAgyStatusLine, Converter={StaticResource SysBoolToVisible}}" />
+                        <Button Margin="6,0,0,0" Padding="3,0" Command="{Binding RefreshCommand}" ToolTip="사용량을 다시 읽기 (1분마다 자동 갱신)"
+                                AutomationProperties.Name="사용량 지금 갱신">
+                            <TextBlock Style="{StaticResource DD.Glyph}" FontSize="11" Text="&#xE72C;" />
+                        </Button>
+                    </StackPanel>
+                </Expander.Header>
+                <StackPanel Margin="0,1,0,0">
+                    <ContentControl Content="{Binding Claude}" Focusable="False" />
                     <ContentControl Content="{Binding Codex}" Focusable="False" />
                     <ContentControl Content="{Binding Agy}" Focusable="False" />
                 </StackPanel>
             </Expander>
             <TextBlock DockPanel.Dock="Top" Margin="8,4" Style="{StaticResource DD.Text.Secondary}" Text="{Binding Summary}" />
+            <!-- Approval summary: "승인 대기 N건" filters the list. -->
+            <ToggleButton DockPanel.Dock="Top" HorizontalAlignment="Left" Margin="6,0,6,4" Padding="6,1" IsChecked="{Binding ShowOnlyWaiting}" FontWeight="SemiBold"
+                          Foreground="{DynamicResource DD.Brush.Warning}" Content="{Binding WaitingSummary}"
+                          ToolTip="승인 대기 세션만 보기 (다시 누르면 전체)" AutomationProperties.Name="승인 대기 세션만 보기"
+                          Visibility="{Binding HasWaiting, Converter={StaticResource SysBoolToVisible}}" />
             <TextBlock DockPanel.Dock="Top" Style="{StaticResource PlaceholderText}"
                        Text="표시할 AI 세션이 없습니다. 도구 메뉴의 &quot;Claude 세션 시작…&quot;(Ctrl+Alt+C)으로 시작하거나 터미널 탭에서 claude·codex·agy를 실행하세요."
                        Visibility="{Binding HasVisibleSessions, Converter={StaticResource SysFalseToVisible}}" />
-            <ListBox ItemsSource="{Binding Sessions}" SelectedItem="{Binding SelectedSession}" BorderThickness="0"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="AI 세션 모니터"
-                     Visibility="{Binding HasVisibleSessions, Converter={StaticResource SysBoolToVisible}}">
-                <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                        <Setter Property="Visibility" Value="{Binding IsShown, Converter={StaticResource SysBoolToVisible}}" />
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    </Style>
-                </ListBox.ItemContainerStyle>
-                <ListBox.ItemTemplate>
-                    <DataTemplate DataType="{x:Type tools:AiMonitorItemViewModel}">
-                        <Grid Margin="2,4" Background="Transparent" ToolTip="{Binding ScopeText}">
-                            <Grid.InputBindings>
-                                <MouseBinding Gesture="LeftDoubleClick" CommandParameter="{Binding}"
-                                              Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" />
-                            </Grid.InputBindings>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="16" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Ellipse x:Name="Dot" Width="8" Height="8" Margin="0,5,0,0" VerticalAlignment="Top"
-                                     Fill="{DynamicResource DD.Brush.Text.Disabled}" />
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
-                                <TextBlock Style="{StaticResource DD.Text.Secondary}" TextTrimming="CharacterEllipsis">
-                                    <Run Text="{Binding KindText, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding StartedText, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding ElapsedText, Mode=OneWay}" />
-                                </TextBlock>
-                                <TextBlock TextTrimming="CharacterEllipsis">
-                                    <Run x:Name="Activity" Text="{Binding ActivityText, Mode=OneWay}" />
-                                    <Run x:Name="Guard" Text="{Binding GuardText, Mode=OneWay, StringFormat=· {0}}" Foreground="{DynamicResource DD.Brush.Text.Secondary}" />
-                                </TextBlock>
-                                <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="{Binding ScopeText}" TextTrimming="CharacterEllipsis" />
-                                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource DD.Brush.Error}" Text="{Binding Message}"
-                                           Visibility="{Binding Message, Converter={StaticResource SysNullToCollapsed}}" />
+            <!-- Session list on top, the selected session's details ("컨텍스트" tab) below; the splitter resizes them. -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" MinHeight="60" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="280" MinHeight="90" />
+                </Grid.RowDefinitions>
+                <ListBox Grid.Row="0" ItemsSource="{Binding Sessions}" SelectedItem="{Binding SelectedSession}" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="AI 세션 모니터"
+                         Visibility="{Binding HasVisibleSessions, Converter={StaticResource SysBoolToVisible}}">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="Visibility" Value="{Binding IsShown, Converter={StaticResource SysBoolToVisible}}" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type tools:AiMonitorItemViewModel}">
+                            <Border x:Name="Section" Margin="0,2" Padding="4,2" BorderThickness="1" BorderBrush="Transparent" CornerRadius="2">
+                            <StackPanel>
+                            <Grid Margin="2,2" Background="Transparent" ToolTip="{Binding ScopeText}">
+                                <Grid.InputBindings>
+                                    <MouseBinding Gesture="LeftDoubleClick" CommandParameter="{Binding}"
+                                                  Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                                </Grid.InputBindings>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Ellipse x:Name="Dot" Width="8" Height="8" Margin="0,5,0,0" VerticalAlignment="Top"
+                                         Fill="{DynamicResource DD.Brush.Text.Disabled}" />
+                                <StackPanel Grid.Column="1">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Left" Margin="0,0,6,0" Padding="4,0" CornerRadius="2" VerticalAlignment="Center"
+                                                BorderThickness="1" BorderBrush="{DynamicResource DD.Brush.Border}">
+                                            <TextBlock Text="{Binding CliLabel}" FontSize="11" />
+                                        </Border>
+                                        <Border DockPanel.Dock="Left" Margin="0,0,6,0" Padding="4,0" CornerRadius="2" VerticalAlignment="Center"
+                                                BorderThickness="1" BorderBrush="{DynamicResource DD.Brush.Error}"
+                                                ToolTip="이 세션은 도구 실행 가드 없이 시작했습니다. 프로젝트 범위 밖 접근과 위험 명령을 DotDeck이 막지 않습니다 (환경 설정 → AI 세션 훅)."
+                                                Visibility="{Binding IsGuardOff, Converter={StaticResource SysBoolToVisible}}">
+                                            <TextBlock Text="가드 꺼짐" FontSize="11" Foreground="{DynamicResource DD.Brush.Error}" />
+                                        </Border>
+                                        <TextBlock x:Name="ContextUsage" DockPanel.Dock="Right" Margin="6,0,0,0" FontSize="11" VerticalAlignment="Center"
+                                                   Text="{Binding ContextText}" ToolTip="{Binding ContextToolTip}"
+                                                   Foreground="{DynamicResource DD.Brush.Text.Secondary}"
+                                                   Visibility="{Binding ContextUsage, Converter={StaticResource SysNullToCollapsed}}"
+                                                   AutomationProperties.Name="{Binding ContextText}" />
+                                        <TextBlock x:Name="WaitingBadge" DockPanel.Dock="Right" Margin="6,0,0,0" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource DD.Brush.Warning}" Text="{Binding Approval.WaitingText}" Visibility="Collapsed" />
+                                        <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
+                                    </DockPanel>
+                                    <TextBlock Style="{StaticResource DD.Text.Secondary}" TextTrimming="CharacterEllipsis">
+                                        <Run Text="{Binding KindText, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding StartedText, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding ElapsedText, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock TextTrimming="CharacterEllipsis">
+                                        <Run x:Name="Activity" Text="{Binding ActivityText, Mode=OneWay}" />
+                                        <Run x:Name="Guard" Text="{Binding GuardText, Mode=OneWay, StringFormat=· {0}}" Foreground="{DynamicResource DD.Brush.Text.Secondary}" />
+                                    </TextBlock>
+                                    <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="{Binding ScopeText}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource DD.Brush.Error}" Text="{Binding Message}"
+                                               Visibility="{Binding Message, Converter={StaticResource SysNullToCollapsed}}" />
+                                </StackPanel>
+                            </Grid>
+                            <!-- Approval area: the current request (or the last result) of the session. -->
+                            <Border x:Name="ApprovalArea" Margin="18,2,2,2" Padding="6,4" BorderThickness="1,0,0,0"
+                                    BorderBrush="{DynamicResource DD.Brush.Warning}" Visibility="Collapsed">
+                                <approvalViews:ApprovalPanel DataContext="{Binding Approval}" ShowGoToTerminal="True" />
+                            </Border>
                             </StackPanel>
-                        </Grid>
-                        <DataTemplate.Triggers>
-                            <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource DD.Brush.Info}" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsRunning}" Value="False">
-                                <Setter TargetName="Guard" Property="Text" Value="" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsBusy}" Value="True">
-                                <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource DD.Brush.Accent}" />
-                                <Setter TargetName="Activity" Property="Foreground" Value="{DynamicResource DD.Brush.Accent}" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsFailed}" Value="True">
-                                <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource DD.Brush.Error}" />
-                                <Setter TargetName="Activity" Property="Foreground" Value="{DynamicResource DD.Brush.Error}" />
-                            </DataTrigger>
-                        </DataTemplate.Triggers>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Approval.HasRequest}" Value="True">
+                                    <Setter TargetName="ApprovalArea" Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Approval.HasLastResult}" Value="True">
+                                    <Setter TargetName="ApprovalArea" Property="Visibility" Value="Visible" />
+                                    <Setter TargetName="ApprovalArea" Property="BorderBrush" Value="{DynamicResource DD.Brush.Border}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsAwaitingApproval}" Value="True">
+                                    <Setter TargetName="Section" Property="BorderBrush" Value="{DynamicResource DD.Brush.Warning}" />
+                                    <Setter TargetName="WaitingBadge" Property="Visibility" Value="Visible" />
+                                    <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource DD.Brush.Warning}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                    <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource DD.Brush.Info}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsRunning}" Value="False">
+                                    <Setter TargetName="Guard" Property="Text" Value="" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                    <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource DD.Brush.Accent}" />
+                                    <Setter TargetName="Activity" Property="Foreground" Value="{DynamicResource DD.Brush.Accent}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ContextLevel}" Value="Warning">
+                                    <Setter TargetName="ContextUsage" Property="Foreground" Value="{DynamicResource DD.Brush.Caution}" />
+                                    <Setter TargetName="ContextUsage" Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ContextLevel}" Value="Danger">
+                                    <Setter TargetName="ContextUsage" Property="Foreground" Value="{DynamicResource DD.Brush.Error}" />
+                                    <Setter TargetName="ContextUsage" Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                                    <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource DD.Brush.Error}" />
+                                    <Setter TargetName="Activity" Property="Foreground" Value="{DynamicResource DD.Brush.Error}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" Background="{DynamicResource DD.Brush.Border}"
+                              Visibility="{Binding Context, Converter={StaticResource SysNullToCollapsed}}" />
+                <TabControl Grid.Row="2" Margin="0,2,0,0" Visibility="{Binding Context, Converter={StaticResource SysNullToCollapsed}}">
+                    <TabItem Header="컨텍스트" AutomationProperties.Name="선택한 세션의 컨텍스트 분석">
+                        <ContentControl Content="{Binding Context}" Focusable="False" />
+                    </TabItem>
+                </TabControl>
+            </Grid>
         </DockPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type tools:ContextBudgetViewModel}">
+        <!-- AI 모니터 "컨텍스트" tab: measured baseline from the session log, DotDeck's file estimate, bars and suggestions. -->
+        <Grid Background="{DynamicResource DD.Brush.Panel.Background}" TextElement.FontSize="11">
+            <TextBlock Style="{StaticResource PlaceholderText}" TextWrapping="Wrap"
+                       Text="AI 세션을 선택하면 시작할 때 읽는 지침 파일·스킬 설명·MCP 서버의 크기를 분석합니다."
+                       Visibility="{Binding HasTarget, Converter={StaticResource SysFalseToVisible}}" />
+            <DockPanel Visibility="{Binding HasTarget, Converter={StaticResource SysBoolToVisible}}">
+                <DockPanel DockPanel.Dock="Top" Margin="6,4,6,2">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                        <Button Content="전체 측정" Padding="6,0" Margin="0,0,4,0" Command="{Binding MeasureAllCommand}"
+                                ToolTip="MCP 서버를 실제로 실행해 도구 목록만 받고 종료합니다 (환경 설정 → AI 컨텍스트 → 고급)"
+                                Visibility="{Binding CanMeasureMcp, Converter={StaticResource SysBoolToVisible}}" />
+                        <Button Content="다시 분석" Padding="6,0" Command="{Binding ReanalyzeCommand}"
+                                ToolTip="지침·스킬·MCP 설정과 세션 로그를 다시 읽기 (파일을 바꾸면 자동 갱신)" />
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding SummaryText}" ToolTip="{Binding LogDetailText}" />
+                        <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="{Binding BreakdownText}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="Usage" Text="{Binding UsageText}"
+                                   ToolTip="Claude는 로그에 창 크기가 없어 모델 이름 표(환경 설정 → AI 컨텍스트)로 추정합니다" />
+                        <TextBlock Style="{StaticResource DD.Text.Secondary}">
+                            <Run Text="{Binding AnalyzedText, Mode=OneWay}" /> <Run x:Name="Busy" Text="· 분석 중…" />
+                        </TextBlock>
+                    </StackPanel>
+                </DockPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="6,2,6,6">
+                        <TextBlock Text="제안" FontWeight="SemiBold" Margin="0,2,0,1"
+                                   Visibility="{Binding HasSuggestions, Converter={StaticResource SysBoolToVisible}}" />
+                        <ItemsControl ItemsSource="{Binding Suggestions}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type tools:ContextSuggestionViewModel}">
+                                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,1">
+                                        <Run Text="{Binding Text, Mode=OneWay}" />
+                                        <Hyperlink x:Name="Link" Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                   CommandParameter="{Binding Path}" Foreground="{DynamicResource DD.Brush.Info}" ToolTip="{Binding Path}">열기</Hyperlink>
+                                    </TextBlock>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding HasPath}" Value="False">
+                                            <Setter TargetName="Link" Property="Foreground" Value="Transparent" />
+                                            <Setter TargetName="Link" Property="IsEnabled" Value="False" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="항목 (큰 순서 · 토큰은 추정)" FontWeight="SemiBold" Margin="0,6,0,1" />
+                        <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="컨텍스트 항목">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type tools:ContextRowViewModel}">
+                                    <Grid Margin="0,1" ToolTip="{Binding ToolTip}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="46" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="94" />
+                                            <ColumnDefinition Width="58" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource DD.Text.Secondary}" Text="{Binding CategoryText}" />
+                                        <TextBlock Grid.Column="1" TextTrimming="CharacterEllipsis">
+                                            <Hyperlink Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                       CommandParameter="{Binding Path}"><Run Text="{Binding Name, Mode=OneWay}" /></Hyperlink>
+                                            <Run Text="{Binding Detail, Mode=OneWay}" Foreground="{DynamicResource DD.Brush.Text.Secondary}" />
+                                        </TextBlock>
+                                        <Border Grid.Column="2" Height="8" Margin="4,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                Width="{Binding BarWidth}" Background="{DynamicResource DD.Brush.Accent}" />
+                                        <TextBlock x:Name="Tokens" Grid.Column="3" HorizontalAlignment="Right" Text="{Binding TokensText}" />
+                                        <Button Grid.Column="4" Margin="4,0,0,0" Padding="4,0" FontSize="10" Content="측정"
+                                                Command="{Binding DataContext.MeasureCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" ToolTip="이 MCP 서버를 실행해 도구 목록만 받고 종료합니다"
+                                                Visibility="{Binding CanMeasure, Converter={StaticResource SysBoolToVisible}}" />
+                                    </Grid>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Counts}" Value="False">
+                                            <Setter TargetName="Tokens" Property="Foreground" Value="{DynamicResource DD.Brush.Text.Secondary}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Margin="0,6,0,0" Style="{StaticResource DD.Text.Secondary}" TextWrapping="Wrap" Text="{Binding ProblemsText}"
+                                   Visibility="{Binding HasProblems, Converter={StaticResource SysBoolToVisible}}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Grid>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding UsageText}" Value="">
+                <Setter TargetName="Usage" Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsBusy}" Value="False">
+                <Setter TargetName="Busy" Property="Text" Value="" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type tools:ValidationPaneViewModel}">

@@ -3,6 +3,8 @@ using System.Globalization;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DotDeck.App.ViewModels.Approvals;
+using DotDeck.Core.AiCli.ContextBudget;
 using DotDeck.Core.AiCli.Launch;
 using DotDeck.Core.AiCli.Sessions;
 
@@ -42,6 +44,7 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
     private Func<IEnumerable<TerminalPaneViewModel>>? _terminals;
     private Func<int, (string Name, DateTimeOffset? StartedAt)?>? _inspect;
     private Action<TerminalPaneViewModel>? _openTerminal;
+    private ApprovalCoordinator? _approvals;
     private ITimer? _timer;
 
     /// <param name="open">Double click on a DotDeck session: its terminal tab (interactive) or its output.</param>
@@ -65,9 +68,84 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
 
     partial void OnShowFinishedChanged(bool value) => Refresh();
 
+    /// <summary>"승인 대기 N건" filter: only sessions waiting for an approval are listed.</summary>
+    [ObservableProperty]
+    private bool _showOnlyWaiting;
+
+    partial void OnShowOnlyWaitingChanged(bool value) => Refresh();
+
+    /// <summary>Sessions waiting for an approval (the tab title shows the count: "AI 모니터 (2)").</summary>
+    public int WaitingCount { get; private set; }
+
+    public bool HasWaiting => WaitingCount > 0;
+
+    public string WaitingSummary => string.Create(CultureInfo.InvariantCulture, $"⚠ 승인 대기 {WaitingCount}건");
+
+    /// <summary>Shows approval requests in the rows (sections) and keeps the order, filter and badge up to date.</summary>
+    public void AttachApprovals(ApprovalCoordinator approvals)
+    {
+        _approvals = approvals ?? throw new ArgumentNullException(nameof(approvals));
+        approvals.Updated += (_, _) => Post(() =>
+        {
+            // A request from a terminal run the panel has not listed yet (the panel's own scan stops while it is
+            // hidden): scan once so the row, the order and the badge include it.
+            if (approvals.WaitingItems.Any(i => !Sessions.Any(row => row.ApprovalKey == i.SessionKey)))
+            {
+                ScanTerminals();
+            }
+
+            Refresh();
+        });
+        Refresh();
+    }
+
+    /// <summary>Shows the panel with the session of <paramref name="sessionKey"/> selected (card "열기").</summary>
+    public void Reveal(string sessionKey)
+    {
+        IsVisible = true;
+        IsActive = true;
+        if (Sessions.FirstOrDefault(s => s.ApprovalKey == sessionKey) is { } item)
+        {
+            if (!item.IsShown)
+            {
+                ShowOnlyWaiting = false;
+                ShowFinished = true;
+            }
+
+            SelectedSession = item;
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleWaitingFilter() => ShowOnlyWaiting = !ShowOnlyWaiting;
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(OpenTerminalCommand), nameof(ShowOutputCommand), nameof(ReviewChangesCommand), nameof(StopCommand))]
     private AiMonitorItemViewModel? _selectedSession;
+
+    partial void OnSelectedSessionChanged(AiMonitorItemViewModel? value) => Context?.Show(value);
+
+    /// <summary>The "컨텍스트" tab of the selected session, or null when not attached (tests).</summary>
+    public ContextBudgetViewModel? Context { get; private set; }
+
+    /// <summary>Shows the "컨텍스트" tab below the list; running sessions are analyzed once as they appear.</summary>
+    public void AttachContext(ContextBudgetViewModel context)
+    {
+        Context = context ?? throw new ArgumentNullException(nameof(context));
+        OnPropertyChanged(nameof(Context));
+        context.Show(SelectedSession);
+        context.Track(Sessions);
+    }
+
+    /// <summary>Keeps every row's "컨텍스트" value up to date, or null when not attached (tests).</summary>
+    public ContextUsageTracker? ContextUsageTracker { get; private set; }
+
+    /// <summary>Shows the current context usage on every row (selected or not).</summary>
+    public void AttachContextUsage(ContextUsageTracker tracker)
+    {
+        ContextUsageTracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
+        tracker.Track(Sessions);
+    }
 
     public bool HasVisibleSessions => Sessions.Any(s => s.IsShown);
 
@@ -136,6 +214,8 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
         ScanTerminals();
         Refresh();
         Usage?.Tick();
+        Context?.Tick();
+        ContextUsageTracker?.Tick();
     }
 
     /// <summary>Re-reads every row's state and time-based texts (UI thread).</summary>
@@ -151,9 +231,17 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
         foreach (var item in Sessions)
         {
             var name = item.Session is { } session && names is not null && names.TryGetValue(session, out var n) ? n : null;
-            item.Refresh(now, ShowFinished, name);
+            if (_approvals is not null && item.Approval is null)
+            {
+                item.Approval = _approvals.ItemFor(item.ApprovalKey, item.Title);
+            }
+
+            item.Refresh(now, ShowFinished, name, ShowOnlyWaiting);
         }
 
+        UpdateApprovalOrder();
+        Context?.Track(Sessions);
+        ContextUsageTracker?.Track(Sessions);
         OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(HasVisibleSessions));
         OpenTerminalCommand.NotifyCanExecuteChanged();
@@ -241,6 +329,8 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
             }
 
             item.Detach();
+            Context?.Forget(item);
+            ContextUsageTracker?.Forget(item);
             Sessions.Remove(item);
         }
 
@@ -340,6 +430,31 @@ public sealed partial class AiMonitorPaneViewModel : ToolPaneViewModel
         }
     }
 
+    // Waiting sessions first (oldest request first) when the setting is on; the badge counts them.
+    private void UpdateApprovalOrder()
+    {
+        var waiting = Sessions.Where(s => s.IsAwaitingApproval).ToList();
+        WaitingCount = waiting.Count;
+        Title = WaitingCount > 0 ? string.Create(CultureInfo.InvariantCulture, $"AI 모니터 ({WaitingCount})") : "AI 모니터";
+        OnPropertyChanged(nameof(WaitingCount));
+        OnPropertyChanged(nameof(HasWaiting));
+        OnPropertyChanged(nameof(WaitingSummary));
+        if (_approvals?.Service.Settings.PinWaitingToTop != true || waiting.Count == 0)
+        {
+            return;
+        }
+
+        var ordered = waiting.OrderBy(s => s.Approval?.Request?.RequestedAt ?? DateTimeOffset.MaxValue).ToList();
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var from = Sessions.IndexOf(ordered[i]);
+            if (from != i)
+            {
+                Sessions.Move(from, i);
+            }
+        }
+    }
+
     // The timer runs only while the panel is shown: a hidden panel costs nothing.
     private void UpdateTimer()
     {
@@ -413,6 +528,21 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
     public CliKind Cli { get; }
 
     public DateTimeOffset StartedAt { get; }
+
+    /// <summary>Key of the row's approvals: the DotDeck session ID, or the terminal tab + CLI of a hand run.</summary>
+    public string ApprovalKey => Session?.Id ?? ApprovalCoordinator.TerminalKey(TerminalPane!, Cli);
+
+    /// <summary>The row's approval area (current request or last result); null before approvals are attached.</summary>
+    [ObservableProperty]
+    private ApprovalItemViewModel? _approval;
+
+    public bool IsAwaitingApproval => IsRunning && Approval?.IsWaiting == true;
+
+    /// <summary>"Claude", "Codex" or "agy" (label of the section).</summary>
+    public string CliLabel => CliName;
+
+    /// <summary>The session started without DotDeck's tool guard ("AI 세션 훅" setting at launch).</summary>
+    public bool IsGuardOff => Session is { GuardEnabled: false };
 
     private string CliName => Cli switch
     {
@@ -493,6 +623,28 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
         }
     }
 
+    /// <summary>The session's current context usage (null until first read; the last value stays after the session ends).</summary>
+    public ContextUsage? ContextUsage { get; private set; }
+
+    /// <summary>"컨텍스트 38%", "컨텍스트 38% (추정)", "컨텍스트 4.2만 토큰", "컨텍스트 첫 응답 후 측정", …; empty before the first read.</summary>
+    public string ContextText => ContextUsage is { } usage ? "컨텍스트 " + usage.Text : string.Empty;
+
+    /// <summary>Orange/red from the settings' thresholds; never colored without a percentage.</summary>
+    public ContextUsageLevel ContextLevel { get; private set; }
+
+    /// <summary>Where the value came from ("Codex 로그 실측", "agy 제공", "Claude: 모델 기준 추정(창 200k)", …).</summary>
+    public string? ContextToolTip => ContextUsage?.ToolTip;
+
+    internal void ShowContext(ContextUsage usage, ContextBudgetSettings settings)
+    {
+        ContextUsage = usage;
+        ContextLevel = usage.Level(settings);
+        OnPropertyChanged(nameof(ContextUsage));
+        OnPropertyChanged(nameof(ContextText));
+        OnPropertyChanged(nameof(ContextLevel));
+        OnPropertyChanged(nameof(ContextToolTip));
+    }
+
     /// <summary>The row is listed (running, or finished while finished sessions are shown).</summary>
     public bool IsShown { get; private set; } = true;
 
@@ -506,11 +658,11 @@ public sealed partial class AiMonitorItemViewModel : ObservableObject
         }
     }
 
-    internal void Refresh(DateTimeOffset now, bool showFinished, string? terminalName = null)
+    internal void Refresh(DateTimeOffset now, bool showFinished, string? terminalName = null, bool onlyWaiting = false)
     {
         _now = now;
         _terminalName = terminalName ?? _terminalName;
-        IsShown = showFinished || IsRunning;
+        IsShown = (showFinished || IsRunning) && (!onlyWaiting || IsAwaitingApproval);
         if (!IsRunning)
         {
             _endedAt ??= now;

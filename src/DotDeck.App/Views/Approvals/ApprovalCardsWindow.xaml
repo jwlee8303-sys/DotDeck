@@ -1,0 +1,38 @@
+<Window x:Class="DotDeck.App.Views.Approvals.ApprovalCardsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:DotDeck.App.Views.Approvals"
+        Title="DotDeck 승인 요청" Width="400" SizeToContent="Height"
+        WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" Focusable="False"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        Foreground="{DynamicResource DD.Brush.Text}"
+        FontFamily="{DynamicResource DD.Font.Ui}"
+        FontSize="{DynamicResource DD.FontSize.Ui}">
+    <!-- Notification cards (DotDeck inactive or in the tray): stacked from the bottom, at most three; never activated. -->
+    <StackPanel VerticalAlignment="Bottom">
+        <Border x:Name="Overflow" Margin="0,0,0,6" Padding="10,6" CornerRadius="3" BorderThickness="1"
+                Background="{DynamicResource DD.Brush.Panel.Background}" BorderBrush="{DynamicResource DD.Brush.Border}" Visibility="Collapsed">
+            <Button x:Name="OverflowButton" HorizontalAlignment="Left" Click="OnOverflowClick" AutomationProperties.Name="AI 모니터에서 보기" />
+        </Border>
+        <ItemsControl x:Name="Cards" Focusable="False">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Margin="0,0,0,6" Padding="10,8" CornerRadius="3" BorderThickness="1,1,1,3"
+                            Background="{DynamicResource DD.Brush.Panel.Background}" BorderBrush="{DynamicResource DD.Brush.Warning}">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,4">
+                                <Button DockPanel.Dock="Right" Padding="6,0" Command="{Binding DismissCardCommand}"
+                                        ToolTip="카드 닫기 (요청은 AI 모니터에 남습니다)" AutomationProperties.Name="카드 닫기">
+                                    <TextBlock Style="{StaticResource DD.Glyph}" FontSize="10" Text="&#xE8BB;" />
+                                </Button>
+                                <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding SessionTitle}" />
+                            </DockPanel>
+                            <local:ApprovalPanel ShowOpen="True" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</Window>

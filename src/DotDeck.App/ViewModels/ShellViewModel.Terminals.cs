@@ -24,6 +24,8 @@ public sealed partial class ShellViewModel
 
     public IEnumerable<TerminalPaneViewModel> Terminals => Tools.OfType<TerminalPaneViewModel>();
 
+    internal Action<TerminalPaneViewModel, Action>? RequestTerminalActivation { get; set; }
+
     /// <summary>Running plain terminals (AI sessions are counted and confirmed by the session manager).</summary>
     public int RunningTerminalCount => Terminals.Count(t => t.IsRunning && !t.IsAiSession);
 
@@ -54,14 +56,26 @@ public sealed partial class ShellViewModel
     /// <summary>Shows and activates a terminal tab (AI 모니터 double click on a terminal run).</summary>
     internal void ShowTerminal(TerminalPaneViewModel pane)
     {
-        if (!Terminals.Contains(pane))
+        if (RequestTerminalActivation is { } activate)
         {
-            return; // the tab was closed meanwhile
+            activate(pane, SelectTerminal);
+        }
+        else
+        {
+            SelectTerminal();
         }
 
-        pane.IsVisible = true;
-        pane.IsSelected = true;
-        pane.IsActive = true;
+        void SelectTerminal()
+        {
+            if (!Terminals.Contains(pane))
+            {
+                return; // the tab may have closed while waiting for mouse-up
+            }
+
+            pane.IsVisible = true;
+            pane.IsSelected = true;
+            pane.IsActive = true;
+        }
     }
 
     /// <summary>
@@ -243,9 +257,7 @@ public sealed partial class ShellViewModel
     {
         if (Terminals.FirstOrDefault(t => t.Session == session) is { } open)
         {
-            open.IsVisible = true;
-            open.IsSelected = true;
-            open.IsActive = true;
+            ShowTerminal(open);
             return;
         }
 

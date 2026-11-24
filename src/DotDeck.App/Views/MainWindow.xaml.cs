@@ -157,6 +157,7 @@ public partial class MainWindow : Window
         };
         DockManager.Layout = DefaultLayout.Create();
         DockManager.ActiveContentChanged += OnDockActiveContentChanged;
+        _shell.RequestTerminalActivation = ActivateTerminalWindow;
         Loaded += OnLoaded;
         _shell.RestartElevatedRequested += (_, _) => RestartElevated();
         // The update flow already asked the exit questions; the updater waits for this process to exit.
@@ -352,6 +353,7 @@ public partial class MainWindow : Window
     // Closing before the session was restored must not overwrite it with the partial state.
     private bool _restoring;
     private bool _isClosed;
+    private Action? _terminalActivationOnMouseUp;
 
     protected override void OnClosing(CancelEventArgs e)
     {
@@ -382,6 +384,8 @@ public partial class MainWindow : Window
         if (!e.Cancel)
         {
             _isClosed = true;
+            _shell.RequestTerminalActivation = null;
+            ClearTerminalActivationInput();
             _tray?.Dispose();
             _tray = null;
             if (!_restoring)
@@ -585,6 +589,73 @@ public partial class MainWindow : Window
         }
 
         EnsureTabMenus();
+    }
+
+    private void ActivateTerminalWindow(TerminalPaneViewModel terminal, Action select)
+    {
+        if (_extensions.Find(terminal)?.FindParent<LayoutDocumentFloatingWindow>() is null)
+        {
+            select();
+            return;
+        }
+
+        // Selecting a floating tab can activate its window immediately. The double-click command runs on
+        // mouse-down, so defer both selection and activation until the click has finished.
+        if (Mouse.LeftButton == MouseButtonState.Pressed)
+        {
+            if (_terminalActivationOnMouseUp is null)
+            {
+                InputManager.Current.PostProcessInput += OnTerminalActivationInput;
+            }
+
+            _terminalActivationOnMouseUp = QueueActivation;
+            return;
+        }
+
+        ClearTerminalActivationInput();
+        QueueActivation();
+
+        void QueueActivation() => Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+        {
+            if (_isClosed)
+            {
+                return;
+            }
+
+            select();
+            if (_extensions.Find(terminal)?.FindParent<LayoutDocumentFloatingWindow>() is { } window)
+            {
+                _extensions.Show(window);
+            }
+        });
+    }
+
+    private void OnTerminalActivationInput(object sender, ProcessInputEventArgs e)
+    {
+        if (e.StagingItem.Input is not MouseButtonEventArgs { ChangedButton: MouseButton.Left } input)
+        {
+            return;
+        }
+
+        if (input.RoutedEvent == Mouse.PreviewMouseUpEvent && _terminalActivationOnMouseUp is { } activate)
+        {
+            ClearTerminalActivationInput();
+            activate();
+        }
+        else if (input.RoutedEvent == Mouse.PreviewMouseDownEvent)
+        {
+            // The release can occur outside DotDeck. Do not carry that request into a different click.
+            ClearTerminalActivationInput();
+        }
+    }
+
+    private void ClearTerminalActivationInput()
+    {
+        if (_terminalActivationOnMouseUp is not null)
+        {
+            InputManager.Current.PostProcessInput -= OnTerminalActivationInput;
+            _terminalActivationOnMouseUp = null;
+        }
     }
 
     // ===== Extension window indicator (right end of the menu bar) =====

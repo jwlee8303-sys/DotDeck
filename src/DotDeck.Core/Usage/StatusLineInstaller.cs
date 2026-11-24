@@ -44,6 +44,8 @@ public abstract class StatusLineInstaller(AppPaths paths, TextFileReader reader,
 
     protected abstract string StateFileName { get; }
 
+    protected virtual bool UseEncodedCommand => false;
+
     /// <summary>The script's text (Windows PowerShell 5.1 compatible).</summary>
     protected abstract string ScriptText { get; }
 
@@ -58,9 +60,25 @@ public abstract class StatusLineInstaller(AppPaths paths, TextFileReader reader,
     /// <summary>Per-session context values the scripts save (<see cref="AiCli.ContextBudget.StatusLineContextStore"/>).</summary>
     public string ContextDir => Path.Combine(Paths.DotDeckHomeDir, "context");
 
-    /// <summary>How the CLI starts the script (forward slashes: the path survives both cmd and bash quoting).</summary>
-    public string ScriptCommand =>
+    private string FileCommand =>
         "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" + ScriptPath.Replace('\\', '/') + "\"";
+
+    /// <summary>How the CLI starts the script in pass-through mode.</summary>
+    public string ScriptCommand => BuildScriptCommand(show: false);
+
+    private string BuildScriptCommand(bool show)
+    {
+        var showArgument = show ? " -Show" : string.Empty;
+        if (!UseEncodedCommand)
+        {
+            return FileCommand + showArgument;
+        }
+
+        // agy on Windows passes the quotes in a -File argument through literally.
+        var invocation = "& '" + ScriptPath.Replace("'", "''", StringComparison.Ordinal) + "'" + showArgument;
+        return "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand "
+            + Convert.ToBase64String(Encoding.Unicode.GetBytes(invocation));
+    }
 
     /// <summary>True when the CLI's status line runs DotDeck's script.</summary>
     public bool IsInstalled()
@@ -70,19 +88,37 @@ public abstract class StatusLineInstaller(AppPaths paths, TextFileReader reader,
     }
 
     /// <summary>
-    /// Rewrites an installed script when DotDeck ships a newer one (app start). Settings are never touched; nothing
-    /// happens when the script is not there.
+    /// Rewrites an installed script when DotDeck ships a newer one and upgrades agy's legacy command (app start).
+    /// Nothing happens when the script is not there.
     /// </summary>
-    /// <returns>True when the script file was rewritten.</returns>
+    /// <returns>True when the script or its command was updated.</returns>
     public bool RefreshScript()
     {
-        if (!File.Exists(ScriptPath) || string.Equals(File.ReadAllText(ScriptPath), ScriptText, StringComparison.Ordinal))
+        if (!File.Exists(ScriptPath))
         {
             return false;
         }
 
-        WriteScript();
-        return true;
+        var scriptChanged = !string.Equals(File.ReadAllText(ScriptPath), ScriptText, StringComparison.Ordinal);
+        if (scriptChanged)
+        {
+            WriteScript();
+        }
+
+        if (UseEncodedCommand)
+        {
+            try
+            {
+                var (snapshot, root) = ReadSettings();
+                return UpgradeCommand(snapshot, root) || scriptChanged;
+            }
+            catch (JsonException ex)
+            {
+                throw new IOException("Cannot read the agy status line settings.", ex);
+            }
+        }
+
+        return scriptChanged;
     }
 
     /// <summary>Writes the script and points the status line at it, keeping the previous command behind a pipe.</summary>
@@ -93,7 +129,8 @@ public abstract class StatusLineInstaller(AppPaths paths, TextFileReader reader,
         WriteScript();
         if (IsOurs(StatusLineCommand(root)))
         {
-            return; // already installed: the script is refreshed, settings stay
+            UpgradeCommand(snapshot, root);
+            return;
         }
 
         var state = new JsonObject { ["version"] = 1, ["original"] = existing?.DeepClone() };
@@ -104,7 +141,7 @@ public abstract class StatusLineInstaller(AppPaths paths, TextFileReader reader,
             : null;
         var statusLine = existing?.DeepClone() as JsonObject ?? [];
         statusLine["type"] = "command";
-        statusLine["command"] = string.IsNullOrWhiteSpace(previous) ? ScriptCommand + " -Show" : ScriptCommand + Pipe + previous;
+        statusLine["command"] = string.IsNullOrWhiteSpace(previous) ? BuildScriptCommand(show: true) : ScriptCommand + Pipe + previous;
         root["statusLine"] = statusLine;
         Save(snapshot, root);
     }
@@ -166,12 +203,36 @@ public abstract class StatusLineInstaller(AppPaths paths, TextFileReader reader,
     private string? WrappedCommand(string command)
     {
         var script = command.Replace('\\', '/').IndexOf(ScriptPath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase);
-        var pipe = script < 0 ? -1 : command.IndexOf(Pipe, script, StringComparison.Ordinal);
+        var pipe = command.StartsWith(ScriptCommand + Pipe, StringComparison.Ordinal)
+            ? ScriptCommand.Length
+            : script < 0 ? -1 : command.IndexOf(Pipe, script, StringComparison.Ordinal);
         return pipe < 0 || command[(pipe + Pipe.Length)..].Trim().Length == 0 ? null : command[(pipe + Pipe.Length)..];
     }
 
     private bool IsOurs(string? command) =>
-        command is not null && command.Replace('\\', '/').Contains(ScriptPath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase);
+        command is not null && (command.StartsWith(ScriptCommand + Pipe, StringComparison.Ordinal)
+            || string.Equals(command, BuildScriptCommand(show: true), StringComparison.Ordinal)
+            || command.Replace('\\', '/').Contains(ScriptPath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase));
+
+    private bool UpgradeCommand(TextFileSnapshot? snapshot, JsonObject root)
+    {
+        if (!UseEncodedCommand || StatusLineCommand(root) is not { } command)
+        {
+            return false;
+        }
+
+        var legacy = FileCommand;
+        var normalized = command.Replace('\\', '/');
+        var show = string.Equals(normalized, legacy + " -Show", StringComparison.OrdinalIgnoreCase);
+        if (!show && !normalized.StartsWith(legacy + Pipe, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        ((JsonObject)root["statusLine"]!)["command"] = show ? BuildScriptCommand(show: true) : ScriptCommand + command[legacy.Length..];
+        Save(snapshot, root);
+        return true;
+    }
 
     private static string? StatusLineCommand(JsonObject root) =>
         root["statusLine"] is JsonObject { } line && line["command"] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
@@ -351,6 +412,7 @@ public sealed class AgyStatusLineInstaller(AppPaths paths, TextFileReader reader
     public override string ProductName => "agy";
 
     public override bool IsAvailable => Directory.Exists(Paths.AntigravityHome);
+    protected override bool UseEncodedCommand => OperatingSystem.IsWindows();
 
     protected override string ScriptFileName => FileName;
 
